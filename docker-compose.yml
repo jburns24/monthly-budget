@@ -27,6 +27,18 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
   db:
     image: postgres:16-alpine
@@ -45,6 +57,25 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid
+      - /var/run/postgresql
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_READ_SEARCH
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
   redis:
     image: redis:7-alpine
@@ -58,6 +89,19 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid
+      - /data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
 
   frontend:
     build:
@@ -73,6 +117,15 @@ services:
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
 
 networks:
   app-network:

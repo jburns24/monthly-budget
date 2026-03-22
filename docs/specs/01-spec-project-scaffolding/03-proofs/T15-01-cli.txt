@@ -1,0 +1,44 @@
+Type: cli
+Command: docker compose config --quiet
+Expected: Exit code 0 (valid YAML, no errors)
+Timestamp: 2026-03-22T16:46:05-07:00
+
+--- OUTPUT ---
+(Only warnings about unset env variables, which are expected without .env file)
+Exit code: 0
+
+--- SECURITY HARDENING VERIFICATION ---
+api service:
+  read_only: true                  [PRESENT]
+  tmpfs: /tmp:noexec,nosuid,size=100m  [PRESENT]
+  security_opt: no-new-privileges:true [PRESENT]
+  cap_drop: ALL                    [PRESENT]
+  deploy.resources.limits.memory: 512M [PRESENT]
+  deploy.resources.limits.cpus: 1.0   [PRESENT]
+
+db service:
+  read_only: true                  [PRESENT]
+  tmpfs: /tmp:noexec,nosuid        [PRESENT]
+  tmpfs: /var/run/postgresql       [PRESENT]
+  security_opt: no-new-privileges:true [PRESENT]
+  cap_drop: ALL                    [PRESENT]
+  cap_add: CHOWN,SETUID,SETGID,FOWNER,DAC_READ_SEARCH [PRESENT]
+  deploy.resources.limits.memory: 512M [PRESENT]
+  deploy.resources.limits.cpus: 1.0   [PRESENT]
+
+redis service:
+  read_only: true                  [PRESENT]
+  tmpfs: /tmp:noexec,nosuid        [PRESENT]
+  tmpfs: /data                     [PRESENT]
+  security_opt: no-new-privileges:true [PRESENT]
+  cap_drop: ALL                    [PRESENT]
+  deploy.resources.limits.memory: 256M [PRESENT]
+  deploy.resources.limits.cpus: 0.5   [PRESENT]
+
+frontend service:
+  security_opt: no-new-privileges:true [PRESENT]
+  cap_drop: ALL                    [PRESENT]
+  deploy.resources.limits.memory: 256M [PRESENT]
+  deploy.resources.limits.cpus: 0.5   [PRESENT]
+
+Status: PASS

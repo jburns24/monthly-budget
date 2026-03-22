@@ -1,0 +1,44 @@
+Type: file
+Command: grep -c "read_only\|security_opt\|cap_drop\|cap_add\|tmpfs\|deploy" docker-compose.yml
+Expected: Security hardening fields present in docker-compose.yml
+Timestamp: 2026-03-22T16:46:10-07:00
+
+--- ENTRYPOINT SCRIPT VERIFICATION ---
+File: backend/entrypoint.sh
+Present: YES
+Executable: YES
+Contents:
+  #!/usr/bin/env sh
+  set -e
+  alembic upgrade head  [PRESENT - runs migrations on startup]
+  exec gunicorn app.main:app ... [PRESENT - starts application]
+
+--- docker-compose.yml DIFF SUMMARY (vs original) ---
+api service additions:
+  + read_only: true
+  + tmpfs: [/tmp:noexec,nosuid,size=100m]
+  + security_opt: [no-new-privileges:true]
+  + cap_drop: [ALL]
+  + deploy.resources.limits (memory: 512M, cpus: '1.0')
+
+db service additions:
+  + read_only: true
+  + tmpfs: [/tmp:noexec,nosuid, /var/run/postgresql]
+  + security_opt: [no-new-privileges:true]
+  + cap_drop: [ALL]
+  + cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_READ_SEARCH]
+  + deploy.resources.limits (memory: 512M, cpus: '1.0')
+
+redis service additions:
+  + read_only: true
+  + tmpfs: [/tmp:noexec,nosuid, /data]
+  + security_opt: [no-new-privileges:true]
+  + cap_drop: [ALL]
+  + deploy.resources.limits (memory: 256M, cpus: '0.5')
+
+frontend service additions:
+  + security_opt: [no-new-privileges:true]
+  + cap_drop: [ALL]
+  + deploy.resources.limits (memory: 256M, cpus: '0.5')
+
+Status: PASS
