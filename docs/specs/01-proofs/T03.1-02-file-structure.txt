@@ -1,0 +1,55 @@
+Type: file
+Command: Verify docker-compose.yml and .env.example exist at project root with correct content
+Expected: Both files exist; docker-compose.yml defines api, db, redis, frontend services on app-network with pg_data volume
+Timestamp: 2026-03-22T00:00:00Z
+
+Verification:
+
+1. docker-compose.yml exists: PASS
+   - Services defined: api, db, redis, frontend
+   - Network defined: app-network (bridge)
+   - Volume defined: pg_data
+
+2. Service: api
+   - Builds from: backend/Dockerfile
+   - Port: 8000:8000
+   - depends_on: db (service_healthy), redis (service_healthy)
+   - Environment vars: DATABASE_URL, REDIS_URL, SECRET_KEY, etc.
+   - Volumes: bind-mount ./backend:/app for hot-reload
+   - Network: app-network
+   Status: PASS
+
+3. Service: db
+   - Image: postgres:16-alpine
+   - Volume: pg_data:/var/lib/postgresql/data (named volume for persistence)
+   - Health check: pg_isready with interval 10s, timeout 5s, retries 5, start_period 30s
+   - Environment: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+   - Network: app-network
+   Status: PASS
+
+4. Service: redis
+   - Image: redis:7-alpine
+   - Command: redis-server --requirepass <password> --maxmemory 128mb --maxmemory-policy allkeys-lru
+   - Health check: redis-cli -a <password> ping with interval 10s, timeout 5s, retries 5, start_period 10s
+   - Network: app-network
+   Status: PASS
+
+5. Service: frontend
+   - Builds from: frontend/Dockerfile
+   - Port: 5173:5173
+   - Volumes: bind-mount ./frontend:/app for hot-reload, anonymous volume for node_modules
+   - Network: app-network
+   Status: PASS
+
+6. .env.example exists: PASS
+   - Contains: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+   - Contains: REDIS_PASSWORD
+   - Contains: SECRET_KEY, JWT_SECRET
+   - Contains: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+   - Contains: ANTHROPIC_API_KEY
+   - Contains: ENVIRONMENT, LOG_LEVEL
+   - Contains: VITE_API_BASE_URL
+   - All values are placeholders only (no real secrets)
+   Status: PASS
+
+Status: PASS

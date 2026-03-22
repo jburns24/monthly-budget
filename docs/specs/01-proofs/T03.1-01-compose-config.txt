@@ -1,0 +1,119 @@
+Type: cli
+Command: docker compose --env-file .env.example config
+Expected: Valid YAML config output with all four services (api, db, redis, frontend), shared network app-network, and named volume pg_data
+Timestamp: 2026-03-22T00:00:00Z
+
+Output:
+name: monthly-budget
+services:
+  api:
+    build:
+      context: /Users/jburns/git/monthly-budget/backend
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    environment:
+      ANTHROPIC_API_KEY: [REDACTED]
+      DATABASE_URL: postgresql+asyncpg://monthly_budget:[REDACTED]@db:5432/monthly_budget
+      ENVIRONMENT: development
+      GOOGLE_CLIENT_ID: your-google-client-id.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: [REDACTED]
+      JWT_SECRET: [REDACTED]
+      LOG_LEVEL: INFO
+      REDIS_URL: redis://:[REDACTED]@redis:6379/0
+      SECRET_KEY: [REDACTED]
+    networks:
+      app-network: null
+    ports:
+      - mode: ingress
+        target: 8000
+        published: "8000"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/jburns/git/monthly-budget/backend
+        target: /app
+      - type: volume
+        target: /app/.venv
+      - type: volume
+        target: /app/monthly_budget_backend.egg-info
+  db:
+    environment:
+      POSTGRES_DB: monthly_budget
+      POSTGRES_PASSWORD: [REDACTED]
+      POSTGRES_USER: monthly_budget
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U monthly_budget -d monthly_budget
+      timeout: 5s
+      interval: 10s
+      retries: 5
+      start_period: 30s
+    image: postgres:16-alpine
+    networks:
+      app-network: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: pg_data
+        target: /var/lib/postgresql/data
+  frontend:
+    build:
+      context: /Users/jburns/git/monthly-budget/frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    networks:
+      app-network: null
+    ports:
+      - mode: ingress
+        target: 5173
+        published: "5173"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/jburns/git/monthly-budget/frontend
+        target: /app
+      - type: volume
+        target: /app/node_modules
+  redis:
+    command:
+      - redis-server
+      - --requirepass
+      - [REDACTED]
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - -a
+        - [REDACTED]
+        - ping
+      timeout: 5s
+      interval: 10s
+      retries: 5
+      start_period: 10s
+    image: redis:7-alpine
+    networks:
+      app-network: null
+    restart: unless-stopped
+networks:
+  app-network:
+    name: monthly-budget_app-network
+    driver: bridge
+volumes:
+  pg_data:
+    name: monthly-budget_pg_data
+
+Status: PASS
