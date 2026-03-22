@@ -1,0 +1,43 @@
+Type: cli
+Description: Verify uv sync completes without errors
+Command: cd /Users/jburns/git/monthly-budget/backend && uv sync
+Expected: uv sync succeeds and generates uv.lock
+Timestamp: 2026-03-22T16:33:00Z
+
+Output:
+Resolved 38 packages in 0.77ms
+   Building monthly-budget-backend @ file:///Users/jburns/git/monthly-budget/backend
+      Built monthly-budget-backend @ file:///Users/jburns/git/monthly-budget/backend
+Prepared 1 package in 381ms
+Installed 28 packages in 23ms
+ + alembic==1.18.4
+ + annotated-doc==0.0.4
+ + annotated-types==0.7.0
+ + anyio==4.12.1
+ + asyncpg==0.31.0
+ + click==8.3.1
+ + fastapi==0.135.1
+ + greenlet==3.3.2
+ + gunicorn==25.1.0
+ + h11==0.16.0
+ + idna==3.11
+ + mako==1.3.10
+ + markupsafe==3.0.3
+ + monthly-budget-backend==0.1.0 (from file:///Users/jburns/git/monthly-budget/backend)
+ + packaging==26.0
+ + prometheus-client==0.24.1
+ + prometheus-fastapi-instrumentator==7.1.0
+ + pydantic==2.12.5
+ + pydantic-core==2.41.5
+ + pydantic-settings==2.13.1
+ + python-dotenv==1.2.2
+ + redis==7.3.0
+ + sqlalchemy==2.0.48
+ + starlette==0.52.1
+ + structlog==25.5.0
+ + typing-extensions==4.15.0
+ + typing-inspection==0.4.2
+ + uvicorn==0.42.0
+
+Status: PASS
+Exit Code: 0
