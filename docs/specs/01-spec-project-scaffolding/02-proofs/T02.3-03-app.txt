@@ -1,0 +1,19 @@
+Type: file
+File: frontend/src/App.tsx
+Expected: App component imports HomePage from pages and routes "/" to HomePage
+Timestamp: 2026-03-22T16:42:00Z
+Status: PASS
+
+File updated: frontend/src/App.tsx
+
+Changes made:
+- Removed inline HomePage function
+- Removed unused Chakra UI imports (Box, Heading, Text)
+- Added import of HomePage from './pages/HomePage'
+- Route at "/" still renders HomePage component
+- All routing setup intact
+
+Current App.tsx structure:
+- Uses Routes and Route from react-router-dom
+- Single route at "/" renders HomePage
+- HomePage imported from pages/HomePage module

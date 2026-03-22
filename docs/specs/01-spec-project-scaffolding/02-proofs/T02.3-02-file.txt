@@ -1,0 +1,19 @@
+Type: file
+File: frontend/src/pages/HomePage.tsx
+Expected: HomePage component created with useQuery hook for /api/health and Chakra UI components
+Timestamp: 2026-03-22T16:42:00Z
+Status: PASS
+
+File created: frontend/src/pages/HomePage.tsx
+Size: 656 bytes
+
+Key features verified:
+- Imports useQuery from @tanstack/react-query
+- Fetches /api/health endpoint
+- Uses HealthResponse interface with status field
+- Displays "Monthly Budget" heading
+- Displays "Frontend is running." message
+- Shows loading spinner during fetch
+- Shows error message if health check fails
+- Shows API health status when successful
+- Uses Chakra UI components (Container, VStack, Heading, Text, Spinner, Box)
