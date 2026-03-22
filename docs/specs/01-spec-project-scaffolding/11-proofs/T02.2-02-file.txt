@@ -1,0 +1,16 @@
+Type: file
+Command: cat frontend/package.json (dependency check)
+Expected: All required packages present in dependencies
+Timestamp: 2026-03-22T00:00:00Z
+
+Output:
+@chakra-ui/react: ^3.34.0
+@emotion/react: ^11.14.0
+@emotion/styled: ^11.14.1
+framer-motion: ^12.38.0
+react-router-dom: ^7.13.1
+@tanstack/react-query: ^5.95.0
+
+All 6 required packages found in package.json.
+
+Status: PASS
