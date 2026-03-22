@@ -1,0 +1,22 @@
+Type: test
+Command: cd frontend && npm test -- --run
+Expected: 1 test passes (App renders Monthly Budget heading)
+Timestamp: 2026-03-22T23:48:49Z
+
+--- OUTPUT ---
+
+> frontend@0.0.0 test
+> vitest --run
+
+ RUN  v4.1.0 /Users/jburns/git/monthly-budget/frontend
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  16:48:49
+   Duration  1.12s (transform 465ms, setup 26ms, import 929ms, tests 29ms, environment 82ms)
+
+Note: DOMException [AbortError] at teardown is expected behavior - happy-dom aborts
+in-flight network requests when the test environment tears down. This is not a test failure.
+
+Status: PASS

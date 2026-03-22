@@ -1,0 +1,12 @@
+Type: cli
+Command: cd frontend && npx eslint src/
+Expected: No linting errors (exit code 0)
+Timestamp: 2026-03-22T23:48:55Z
+
+--- OUTPUT ---
+
+(no output - all files pass eslint)
+
+Exit code: 0
+
+Status: PASS
