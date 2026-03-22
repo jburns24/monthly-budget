@@ -1,0 +1,9 @@
+Type: cli
+Command: cd backend && uv run alembic history
+Expected: <base> -> e508f2e08a06 (head), initial empty migration
+Timestamp: 2026-03-22T16:43:10Z
+
+--- Output ---
+<base> -> e508f2e08a06 (head), initial empty migration
+
+Status: PASS

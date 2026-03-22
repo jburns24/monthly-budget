@@ -1,0 +1,9 @@
+Type: cli
+Command: cd backend && uv run alembic heads
+Expected: e508f2e08a06 (head)
+Timestamp: 2026-03-22T16:43:00Z
+
+--- Output ---
+e508f2e08a06 (head)
+
+Status: PASS

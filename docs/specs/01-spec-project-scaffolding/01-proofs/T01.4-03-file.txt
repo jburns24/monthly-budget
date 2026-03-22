@@ -1,0 +1,21 @@
+Type: file
+Command: ls backend/alembic/versions/
+Expected: Initial migration file present
+Timestamp: 2026-03-22T16:43:20Z
+
+--- Output ---
+e508f2e08a06_initial_empty_migration.py
+
+Files verified:
+  backend/alembic.ini - EXISTS
+  backend/alembic/env.py - EXISTS
+  backend/alembic/script.py.mako - EXISTS
+  backend/alembic/versions/e508f2e08a06_initial_empty_migration.py - EXISTS
+
+env.py imports verified:
+  - from app.database import Base (target_metadata = Base.metadata)
+  - from app.config import settings (config.set_main_option uses settings.database_url)
+  - run_async_migrations() using asyncio.run() pattern
+  - async_engine_from_config with NullPool
+
+Status: PASS
