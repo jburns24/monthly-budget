@@ -1,0 +1,31 @@
+Type: file
+Command: pre-commit validate-config .pre-commit-config.yaml && python3 check_baseline.py
+Expected: Config is valid YAML; .secrets.baseline has 0 detected secrets
+Timestamp: 2026-03-22T16:35:00Z
+
+--- OUTPUT ---
+.pre-commit-config.yaml validation:
+  Status: Config valid
+
+.secrets.baseline:
+  version: 1.5.0
+  plugins_used: 27
+  results count: 0 (no secrets detected)
+
+Files created:
+  .pre-commit-config.yaml  (3830 bytes)
+  .secrets.baseline        (2593 bytes)
+
+Repos configured in .pre-commit-config.yaml:
+  1. https://github.com/pre-commit/pre-commit-hooks (v5.0.0)
+     hooks: trailing-whitespace, end-of-file-fixer, check-yaml, check-added-large-files
+  2. local (ruff-check, ruff-format-check)
+  3. https://github.com/pre-commit/mirrors-mypy (v1.14.1)
+     hooks: mypy
+  4. local (eslint)
+  5. local (prettier-check)
+  6. local (tsc)
+  7. https://github.com/Yelp/detect-secrets (v1.5.0)
+     hooks: detect-secrets
+
+Status: PASS

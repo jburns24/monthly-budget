@@ -1,0 +1,108 @@
+# .pre-commit-config.yaml
+# Single source of truth for all code quality checks.
+# CI runs "pre-commit run --all-files" to guarantee parity with local checks.
+#
+# Usage:
+#   pre-commit install          # register hooks for git commit
+#   pre-commit run --all-files  # run all checks against the entire codebase
+
+default_install_hook_types: [pre-commit]
+
+repos:
+  # ---------------------------------------------------------------------------
+  # Standard hooks
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  # ---------------------------------------------------------------------------
+  # Backend: ruff (lint + format) — uses project-local ruff from backend/.venv
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (backend)
+        language: system
+        entry: bash -c 'cd backend && uv run ruff check .'
+        types: [python]
+        pass_filenames: false
+
+      - id: ruff-format-check
+        name: ruff format --check (backend)
+        language: system
+        entry: bash -c 'cd backend && uv run ruff format --check .'
+        types: [python]
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # Backend: mypy type checking
+  # Uses standalone mypy managed by pre-commit (language: python).
+  # Additional stubs installed via additional_dependencies.
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        name: mypy (backend)
+        files: ^backend/
+        args: [--ignore-missing-imports]
+        additional_dependencies:
+          - pydantic>=2.0
+          - pydantic-settings>=2.1.0
+
+  # ---------------------------------------------------------------------------
+  # Frontend: eslint — uses project-local eslint from frontend/node_modules
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npx eslint src/'
+        types_or: [ts, tsx, javascript]
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # Frontend: prettier --check — uses project-local prettier from node_modules
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: prettier-check
+        name: prettier --check (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{ts,tsx,css,json}"'
+        types_or: [ts, tsx, javascript, css, json]
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # Frontend: tsc --noEmit — uses project-local tsc from node_modules
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: tsc
+        name: tsc --noEmit (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        types_or: [ts, tsx]
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # Security: detect-secrets
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: |
+          (?x)^(
+            .*\.lock|
+            .*uv\.lock|
+            .*package-lock\.json
+          )$

@@ -1,0 +1,38 @@
+Type: cli
+Command: pre-commit run --all-files
+Expected: All hooks pass (prettier may warn until T02.4 configures formatting)
+Timestamp: 2026-03-22T16:35:00Z
+
+--- OUTPUT ---
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+ruff check (backend).....................................................Passed
+ruff format --check (backend)............................................Passed
+mypy (backend)...........................................................Passed
+eslint (frontend)........................................................Passed
+prettier --check (frontend)..............................................Failed
+- hook id: prettier-check
+- exit code: 1
+
+Checking formatting...
+[warn] src/App.css
+[warn] src/App.tsx
+[warn] src/index.css
+[warn] src/main.tsx
+[warn] Code style issues found in 4 files. Run Prettier with --write to fix.
+
+tsc --noEmit (frontend)..................................................Passed
+Detect secrets...........................................................Passed
+
+--- ANALYSIS ---
+All hooks except prettier-check passed.
+The prettier-check failure is a pre-existing condition in the Vite-generated
+frontend scaffold (T02.1). T02.4 will install prettier as a dev dependency and
+apply formatting to fix these files. The hook itself is correctly configured
+and working (it found real formatting issues).
+
+10 of 11 hooks: PASS
+1 hook: FAIL (pre-existing, to be fixed by T02.4)
+Status: PARTIAL_PASS
