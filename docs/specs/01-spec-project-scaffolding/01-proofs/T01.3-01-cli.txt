@@ -1,0 +1,10 @@
+Type: cli
+Command: uv run python -c "from app.main import app; print('app imported successfully'); print('routes:', [r.path for r in app.routes])"
+Expected: Import succeeds; /metrics, /api/health, /api/health/ready all present
+Timestamp: 2026-03-22T00:00:00Z
+
+=== OUTPUT ===
+app imported successfully
+routes: ['/openapi.json', '/docs', '/docs/oauth2-redirect', '/redoc', '/metrics', '/api/health', '/api/health/ready']
+
+Status: PASS

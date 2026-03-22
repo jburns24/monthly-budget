@@ -1,0 +1,20 @@
+Type: cli
+Command: uv run python -c "... (route details, lifespan, prometheus check)"
+Expected: health/ready endpoints present, lifespan handler exists, /metrics exposed
+Timestamp: 2026-03-22T00:00:00Z
+
+=== OUTPUT ===
+=== Route Details ===
+  ['GET'] /api/health  -> health
+  ['GET'] /api/health/ready  -> ready
+
+=== Lifespan Handler ===
+  lifespan function: False  (contextmanager decorated - expected)
+
+=== Prometheus Instrumentation ===
+  /metrics endpoint present: True
+
+=== Ruff Linting ===
+All checks passed!
+
+Status: PASS
