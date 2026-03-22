@@ -1,0 +1,16 @@
+Type: file
+Description: Verify frontend/.env.example contains VITE_API_BASE_URL
+Expected: frontend/.env.example exists with VITE_API_BASE_URL=http://localhost:8000
+Timestamp: 2026-03-22T16:51:52Z
+
+Command: cat /Users/jburns/git/monthly-budget/frontend/.env.example
+
+Output:
+VITE_API_BASE_URL=http://localhost:8000
+
+Verification:
+✓ VITE_API_BASE_URL=http://localhost:8000
+
+Status: PASS
+
+Details: Frontend environment file created with correct base URL for local development

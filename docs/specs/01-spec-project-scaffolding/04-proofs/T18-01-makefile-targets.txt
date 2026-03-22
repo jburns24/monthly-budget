@@ -1,0 +1,28 @@
+Type: file
+Description: Verify Makefile has all required targets
+Expected: Makefile exists with lint, test, up, down, install targets
+Timestamp: 2026-03-22T16:51:52Z
+
+Command: grep -E "^[a-z]+:" /Users/jburns/git/monthly-budget/Makefile | head -10
+
+Output:
+help:
+install:
+lint:
+test:
+up:
+down:
+clean:
+
+Verification:
+✓ make lint target found
+✓ make test target found
+✓ make up target found
+✓ make down target found
+✓ make install target found
+✓ make help target found
+✓ make clean target found
+
+Status: PASS
+
+Details: Makefile created with all required targets plus help and clean for convenience.
