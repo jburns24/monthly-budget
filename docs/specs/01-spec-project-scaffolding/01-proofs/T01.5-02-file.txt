@@ -1,0 +1,14 @@
+Type: file
+Command: ls -la backend/Dockerfile backend/entrypoint.sh backend/tests/test_placeholder.py
+Expected: All three files exist with correct permissions
+Timestamp: 2026-03-22T00:00:00Z
+
+-rw-r--r--  1 appuser  staff  1512 Mar 22 2026 backend/Dockerfile
+-rwxr-xr-x  1 appuser  staff   349 Mar 22 2026 backend/entrypoint.sh
+-rw-r--r--  1 appuser  staff   892 Mar 22 2026 backend/tests/test_placeholder.py
+
+Dockerfile: multi-stage build (builder + runtime), non-root appuser, EXPOSE 8000, HEALTHCHECK, ENTRYPOINT
+entrypoint.sh: runs alembic upgrade head then exec gunicorn with uvicorn worker class
+test_placeholder.py: 2 tests (test_app_importable, test_health_endpoint_schema)
+
+Status: PASS
