@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Response
 from sqlalchemy import text
 
+from app.config import settings
 from app.database import engine
 from app.logging import get_logger
 
@@ -26,8 +27,6 @@ async def _check_redis() -> tuple[bool, str]:
     """Check if Redis is reachable. Returns (ok, status_string)."""
     try:
         import redis.asyncio as aioredis
-
-        from app.config import settings
 
         client = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
         await client.ping()
@@ -55,18 +54,55 @@ async def health(response: Response) -> dict:
     }
 
 
+async def _check_migrations_current() -> tuple[bool, str]:
+    """Check if Alembic migrations are up to date."""
+    try:
+        from alembic.config import Config
+        from alembic.runtime.migration import MigrationContext
+        from alembic.script import ScriptDirectory
+
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
+        script = ScriptDirectory.from_config(alembic_cfg)
+        head_rev = script.get_current_head()
+
+        async with engine.connect() as conn:
+            current_rev = await conn.run_sync(
+                lambda sync_conn: MigrationContext.configure(sync_conn).get_current_revision()
+            )
+
+        if current_rev == head_rev:
+            return True, "current"
+        return False, f"behind (current={current_rev}, head={head_rev})"
+    except Exception as exc:
+        logger.warning("migration_check_failed", error=str(exc))
+        return False, f"error: {exc}"
+
+
 @router.get("/ready")
 async def ready(response: Response) -> dict:
     """Return 200 only when the service is ready to accept traffic.
 
-    Checks that the database is reachable as a lightweight readiness probe.
-    A full Alembic migration check can be wired in here once Alembic is
-    configured (T01.4).
+    Checks that the database is reachable and Alembic migrations are current.
     """
     db_ok, db_status = await _check_database()
 
     if not db_ok:
         response.status_code = 503
-        return {"status": "not_ready", "database": db_status}
+        return {"status": "not_ready", "database": db_status, "migrations": "unknown"}
 
-    return {"status": "ready", "database": db_status}
+    migrations_ok, migrations_status = await _check_migrations_current()
+
+    if not migrations_ok:
+        response.status_code = 503
+        return {
+            "status": "not_ready",
+            "database": db_status,
+            "migrations": migrations_status,
+        }
+
+    return {
+        "status": "ready",
+        "database": db_status,
+        "migrations": migrations_status,
+    }
