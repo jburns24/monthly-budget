@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+backend/.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+secrets/
+
+# Build output
+dist/
+build/
+*.egg-info/
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+*.egg
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Uploaded receipts (local dev)
+uploads/
+
+# PostgreSQL data
+pg_data/
+
+# PRD Arena artifacts
+prd-arena/
