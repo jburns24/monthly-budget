@@ -1,0 +1,15 @@
+Type: cli
+Command: uv run python -c "from app.database import engine, AsyncSessionLocal, Base, get_db; ..."
+Expected: AsyncEngine, async_sessionmaker, DeclarativeBase, and async get_db dependency created without errors
+Timestamp: 2026-03-22T00:00:00Z
+
+=== database.py import test ===
+engine type: AsyncEngine
+engine url (masked): postgresql+asyncpg://postgres:[REDACTED]@localhost:5432/monthly_budget
+AsyncSessionLocal type: async_sessionmaker
+Base type: DeclarativeAttributeIntercept
+Base subclasses: []
+get_db is async generator: True
+PASS
+
+Status: PASS

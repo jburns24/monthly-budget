@@ -1,0 +1,13 @@
+Type: cli
+Command: uv run python -c "from app.logging import configure_logging, get_logger; ..."
+Expected: structlog configured with ProcessorFormatter, JSONRenderer (prod) or ConsoleRenderer (dev), stdlib handler at INFO level
+Timestamp: 2026-03-22T00:00:00Z
+
+=== logging.py import test ===
+root log level: INFO
+root handlers: ['StreamHandler']
+logger type: BoundLoggerLazyProxy
+structlog version: 25.5.0
+PASS
+
+Status: PASS

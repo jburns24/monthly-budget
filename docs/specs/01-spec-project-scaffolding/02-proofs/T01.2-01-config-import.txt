@@ -1,0 +1,16 @@
+Type: cli
+Command: uv run python -c "from app.config import settings; ..."
+Expected: Settings class loads all fields from environment variables without errors
+Timestamp: 2026-03-22T00:00:00Z
+
+=== config.py import test ===
+environment: development
+log_level: INFO
+database_url: postgresql+asyncpg://postgres:[REDACTED]@localhost:5432/monthly_budget
+redis_url: redis://localhost:6379/0
+is_production: False
+is_development: True
+app_name: monthly-budget-api
+PASS
+
+Status: PASS
