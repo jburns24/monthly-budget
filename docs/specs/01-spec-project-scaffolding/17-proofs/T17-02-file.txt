@@ -1,0 +1,40 @@
+Type: file
+Command: cat .github/workflows/ci.yml
+Expected: Valid GitHub Actions workflow with 3 jobs: pre-commit, backend-tests, frontend-tests
+Timestamp: 2026-03-22T00:00:00Z
+
+--- Output ---
+File exists: .github/workflows/ci.yml
+File size: non-zero
+
+Structure verified:
+- name: CI
+- on: pull_request (branches: [main])
+- jobs:
+    pre-commit:
+      - Checkout, Python 3.12, Node 20, uv setup
+      - Cache uv deps (backend/uv.lock key)
+      - Cache npm deps (frontend/package-lock.json key)
+      - Install backend/frontend deps
+      - Run pre-commit/action@v3.0.1 on all files
+    backend-tests:
+      - PostgreSQL 16-alpine service container with health checks
+      - DATABASE_URL env var pointing to service container
+      - uv sync + uv run pytest
+    frontend-tests:
+      - Node 20
+      - npm ci + npm test -- --run (vitest one-shot)
+
+All required components present:
+  [x] Triggers on pull_request to main
+  [x] Python 3.12 setup
+  [x] Node 20 setup
+  [x] uv install (astral-sh/setup-uv@v4)
+  [x] pre-commit run --all-files via pre-commit/action
+  [x] PostgreSQL service container for backend tests
+  [x] uv dependency caching
+  [x] npm dependency caching
+  [x] Backend tests with pytest
+  [x] Frontend tests with vitest --run
+
+Status: PASS

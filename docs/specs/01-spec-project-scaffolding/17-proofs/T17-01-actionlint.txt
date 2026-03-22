@@ -1,0 +1,10 @@
+Type: cli
+Command: actionlint .github/workflows/ci.yml
+Expected: No errors, exit code 0
+Timestamp: 2026-03-22T00:00:00Z
+
+--- Output ---
+(no output - actionlint reports nothing when validation passes)
+Exit code: 0
+
+Status: PASS
