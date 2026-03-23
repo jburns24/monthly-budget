@@ -1,0 +1,38 @@
+Type: test
+Command: npm run test:run (from frontend/)
+Expected: All 27 tests pass including AuthIntegration.test.tsx
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+ ✓ src/__tests__/pkce.test.ts > PKCE utilities > generateCodeVerifier returns a string of 43-128 characters
+ ✓ src/__tests__/pkce.test.ts > PKCE utilities > generateCodeVerifier uses only base64url-safe characters
+ ✓ src/__tests__/pkce.test.ts > PKCE utilities > generateCodeVerifier produces a different value on each call
+ ✓ src/__tests__/pkce.test.ts > PKCE utilities > generateCodeChallenge produces correct SHA-256 base64url hash (RFC 7636 test vector)
+ ✓ src/__tests__/pkce.test.ts > PKCE utilities > generateCodeChallenge output contains no base64 padding
+ ✓ src/__tests__/pkce.test.ts > PKCE utilities > generateState returns a non-empty base64url string
+ ✓ src/__tests__/pkce.test.ts > PKCE utilities > generateState produces a different value on each call
+ ✓ src/__tests__/App.test.tsx > App > renders Monthly Budget heading when authenticated
+ ✓ src/__tests__/authCallback.test.tsx > AuthCallbackPage — success flow > navigates to / after successful auth for existing user
+ ✓ src/__tests__/authCallback.test.tsx > AuthCallbackPage — success flow > navigates to / after successful auth for new user
+ ✓ src/__tests__/authCallback.test.tsx > AuthCallbackPage — success flow > shows error message when API call fails
+ ✓ src/__tests__/authCallback.test.tsx > AuthCallbackPage — success flow > shows error when PKCE verifier is missing from sessionStorage
+ ✓ src/__tests__/authCallback.test.tsx > AuthCallbackPage — success flow > clears sessionStorage keys after initiating the callback
+ ✓ src/__tests__/login.test.tsx > LoginPage > renders the app name heading
+ ✓ src/__tests__/login.test.tsx > LoginPage > renders the "Sign in with Google" button
+ ✓ src/__tests__/login.test.tsx > AuthCallbackPage — error states > shows error when Google returns an error param
+ ✓ src/__tests__/login.test.tsx > AuthCallbackPage — error states > shows error when state is missing from URL
+ ✓ src/__tests__/login.test.tsx > AuthCallbackPage — error states > shows error when state does not match sessionStorage
+ ✓ src/__tests__/login.test.tsx > AuthCallbackPage — error states > shows loading spinner when callback params are valid (API in-flight)
+ ✓ src/__tests__/AuthIntegration.test.tsx > Auth integration: full redirect flow > unauthenticated user → /login → sign in → callback → / with user profile
+ ✓ src/__tests__/protected.test.tsx > ProtectedRoute > shows spinner while auth is loading
+ ✓ src/__tests__/protected.test.tsx > ProtectedRoute > redirects to /login when unauthenticated
+ ✓ src/__tests__/protected.test.tsx > ProtectedRoute > renders children when authenticated
+ ✓ src/__tests__/protected.test.tsx > Header > renders nothing when user is null
+ ✓ src/__tests__/protected.test.tsx > Header > shows user display name when authenticated
+ ✓ src/__tests__/protected.test.tsx > Header > shows user initials when avatar_url is null
+ ✓ src/__tests__/protected.test.tsx > Header > calls logout and navigates to /login on sign out click
+
+ Test Files  6 passed (6)
+       Tests  27 passed (27)
+
+Status: PASS
