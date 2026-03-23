@@ -1,0 +1,12 @@
+Type: cli
+Command: uv run python -c "from app.services.google_oauth import exchange_code, verify_id_token; from app.services.user_service import upsert_user; import inspect; print(inspect.signature(exchange_code)); ..."
+Expected: All service functions importable with correct signatures
+Timestamp: 2026-03-23T22:30:00Z
+
+Output:
+exchange_code signature: (code: str, code_verifier: str) -> str
+verify_id_token signature: (id_token: str) -> dict
+upsert_user signature: (google_id: str, email: str, display_name: str, avatar_url: str | None, db: sqlalchemy.ext.asyncio.session.AsyncSession) -> tuple[app.models.user.User, bool]
+All imports: OK
+
+Status: PASS

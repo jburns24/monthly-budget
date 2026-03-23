@@ -1,0 +1,9 @@
+Type: cli
+Command: uv run mypy app/services/google_oauth.py app/services/user_service.py app/config.py --ignore-missing-imports --disable-error-code=import-untyped
+Expected: No mypy errors
+Timestamp: 2026-03-23T22:30:00Z
+
+Output:
+Success: no issues found in 3 source files
+
+Status: PASS

@@ -68,6 +68,10 @@ class Settings(BaseSettings):
         default="",
         description="Google OAuth 2.0 client secret",
     )
+    google_redirect_uri: str = Field(
+        default="http://localhost:5173/auth/callback",
+        description="Google OAuth 2.0 redirect URI (must match frontend callback route)",
+    )
     anthropic_api_key: str = Field(
         default="",
         description="Anthropic API key for receipt scanning",
