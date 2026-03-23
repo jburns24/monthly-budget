@@ -1,0 +1,12 @@
+Type: cli
+Command: uv run ruff check app/services/jwt_service.py app/dependencies.py && uv run mypy app/services/jwt_service.py app/dependencies.py
+Expected: No lint or type errors
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Ruff output ---
+All checks passed!
+
+--- Mypy output ---
+Success: no issues found in 2 source files
+
+Status: PASS

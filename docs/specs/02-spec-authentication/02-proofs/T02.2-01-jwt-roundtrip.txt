@@ -1,0 +1,15 @@
+Type: cli
+Command: uv run python -c "... JWT round-trip test for create_access_token, create_refresh_token, decode_token"
+Expected: access_token and refresh_token round-trips pass, jti uniqueness pass
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+access_token round-trip: PASS
+refresh_token round-trip: PASS
+jti uniqueness: PASS
+ALL PROOF CHECKS PASSED
+
+Note: InsecureKeyLengthWarning is expected in dev (jwt_secret < 32 bytes). Production
+requires jwt_secret >= 32 bytes (enforced by config validator).
+
+Status: PASS
