@@ -1,0 +1,23 @@
+Type: cli
+Command: uv run python -c "Settings() with ENVIRONMENT=production, JWT_SECRET=short"
+Expected: ValidationError raised — jwt_secret must be at least 32 characters
+Timestamp: 2026-03-23T00:00:00Z
+
+Test 1: JWT_SECRET too short in production
+Output:
+PASS: Config raises error: ValidationError 1 validation error for Settings
+  Value error, jwt_secret must be at least 32 characters in non-development environments
+Status: PASS
+
+Test 2: GOOGLE_CLIENT_ID empty in production (JWT_SECRET valid length)
+Output:
+PASS: Config raises error for empty google_client_id: ValidationError 1 validation error for Settings
+  Value error, google_client_id must be set in non-development environments
+Status: PASS
+
+Test 3: Development environment skips validation (JWT_SECRET='', GOOGLE_CLIENT_ID='')
+Output:
+PASS: Development env skips auth validation, environment = development
+Status: PASS
+
+Overall Status: PASS

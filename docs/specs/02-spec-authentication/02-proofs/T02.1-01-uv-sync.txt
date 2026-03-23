@@ -1,0 +1,10 @@
+Type: cli
+Command: uv sync --all-extras
+Expected: Resolves and audits packages without errors
+Timestamp: 2026-03-23T00:00:00Z
+
+Output:
+Resolved 45 packages in 0.58ms
+Audited 44 packages in 0.06ms
+
+Status: PASS

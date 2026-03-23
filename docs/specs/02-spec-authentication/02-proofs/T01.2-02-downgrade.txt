@@ -1,0 +1,11 @@
+Type: cli
+Command: uv run alembic downgrade -1
+Expected: Migration d2457cd3ba1a rolled back successfully (users and refresh_token_blacklist tables dropped)
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade d2457cd3ba1a -> e508f2e08a06, create users and refresh_token_blacklist tables
+
+Status: PASS

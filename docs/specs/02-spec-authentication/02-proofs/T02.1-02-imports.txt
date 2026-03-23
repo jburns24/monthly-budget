@@ -1,0 +1,10 @@
+Type: cli
+Command: uv run python -c "import jwt; import google.auth; print(...)"
+Expected: Both PyJWT and google-auth import successfully
+Timestamp: 2026-03-23T00:00:00Z
+
+Output:
+import jwt: OK, version 2.12.1
+import google.auth: OK, version 2.49.1
+
+Status: PASS

@@ -1,0 +1,11 @@
+Type: cli
+Command: uv run alembic upgrade head
+Expected: Migration d2457cd3ba1a applied successfully (users and refresh_token_blacklist tables created)
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade e508f2e08a06 -> d2457cd3ba1a, create users and refresh_token_blacklist tables
+
+Status: PASS
