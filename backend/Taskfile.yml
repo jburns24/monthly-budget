@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+tasks:
+  install:
+    desc: Install backend dependencies
+    cmds:
+      - uv sync --all-extras
+    sources:
+      - pyproject.toml
+      - uv.lock
+
+  lint:
+    desc: Run backend linters
+    cmds:
+      - uv run ruff check .
+      - uv run ruff format --check .
+
+  format:
+    desc: Format backend code
+    cmds:
+      - uv run ruff format .
+      - uv run ruff check --fix .
+
+  test:
+    desc: Run backend tests
+    cmds:
+      - uv run pytest {{.CLI_ARGS}}
+
+  db:migrate:
+    desc: Run database migrations
+    cmds:
+      - uv run alembic upgrade head
+
+  db:revision:
+    desc: Create a new migration
+    requires:
+      vars: [MSG]
+    cmds:
+      - uv run alembic revision --autogenerate -m "{{.MSG}}"
+
+  db:downgrade:
+    desc: Downgrade database one revision
+    cmds:
+      - uv run alembic downgrade -1
+
+  clean:
+    desc: Clean backend caches
+    cmds:
+      - rm -rf __pycache__ .pytest_cache .ruff_cache .mypy_cache

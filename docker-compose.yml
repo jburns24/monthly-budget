@@ -3,6 +3,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: monthly-budget-api
     ports:
       - "8000:8000"
     depends_on:
@@ -97,6 +98,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     deploy:
       resources:
         limits:
@@ -107,11 +112,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: monthly-budget-frontend
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
     networks:
       - app-network
     environment:

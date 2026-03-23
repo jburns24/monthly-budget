@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+tasks:
+  install:
+    desc: Install frontend dependencies
+    cmds:
+      - npm install
+    sources:
+      - package.json
+      - package-lock.json
+
+  lint:
+    desc: Run frontend linters
+    cmds:
+      - npm run lint
+
+  format:
+    desc: Format frontend code
+    cmds:
+      - npx prettier --write src/
+
+  format:check:
+    desc: Check frontend formatting
+    cmds:
+      - npm run format:check
+
+  typecheck:
+    desc: Run TypeScript type checking
+    cmds:
+      - npx tsc --noEmit
+
+  test:
+    desc: Run frontend tests
+    cmds:
+      - npm run test:run
+
+  test:watch:
+    desc: Run frontend tests in watch mode
+    cmds:
+      - npm test
+
+  build:
+    desc: Build frontend for production
+    cmds:
+      - npm run build
+
+  clean:
+    desc: Clean frontend artifacts
+    cmds:
+      - rm -rf node_modules dist

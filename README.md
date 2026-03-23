@@ -9,6 +9,8 @@ A full-stack budget management application with FastAPI backend and React fronte
 - **Node.js** 20 or later
 - **uv** (Python package manager) - [install uv](https://docs.astral.sh/uv/getting-started/installation/)
 - **pre-commit** - `pip install pre-commit` or `brew install pre-commit`
+- **Tilt** (container orchestration) - `brew install tilt-dev/tap/tilt`
+- **Task** (task runner) - `brew install go-task/tap/task`
 
 ## Quick Start
 
@@ -36,25 +38,28 @@ Edit the `.env` files with your actual configuration values:
 ### 3. Install Dependencies and Pre-commit Hooks
 
 ```bash
-make install
+task install
 ```
 
-This will:
-- Install pre-commit hooks for git
+This will (in parallel):
 - Install backend dependencies via uv
 - Install frontend dependencies via npm
+- Install pre-commit hooks for git
 
 ### 4. Start Services
 
 ```bash
-make up
+task dev
 ```
 
-This starts:
+This starts Tilt, which orchestrates all services with live-reload:
 - **PostgreSQL** (port 5432)
 - **Redis** (port 6379)
 - **Backend API** (port 8000) - http://localhost:8000
 - **Frontend** (port 5173) - http://localhost:5173
+- **Tilt Dashboard** - http://localhost:10350
+
+Alternatively, start without Tilt: `task up`
 
 ### 5. Verify Health
 
@@ -71,7 +76,7 @@ Open http://localhost:5173 in your browser to view the frontend.
 ### Run Quality Checks
 
 ```bash
-make lint
+task lint
 ```
 
 Runs all code quality checks:
@@ -84,29 +89,54 @@ Runs all code quality checks:
 ### Run Tests
 
 ```bash
-make test
+task test
 ```
 
-Runs:
-- Backend tests: `pytest`
-- Frontend tests: `vitest`
+Runs backend + frontend tests in parallel.
+
+### Backend Commands
+
+```bash
+task be:test                         # Run backend tests
+task be:lint                         # Ruff check + format check
+task be:format                       # Auto-format
+task be:db:migrate                   # Run database migrations
+task be:db:revision MSG="add users"  # Generate a new migration
+task be:db:downgrade                 # Downgrade one revision
+```
+
+### Frontend Commands
+
+```bash
+task fe:test              # Run frontend tests
+task fe:lint              # ESLint
+task fe:format            # Prettier
+task fe:typecheck         # TypeScript type checking
+task fe:build             # Build for production
+```
 
 ### Stop Services
 
 ```bash
-make down
+task dev:down    # Stop Tilt
+task down        # Stop docker compose (if started with task up)
 ```
 
 ### Clean Generated Files
 
 ```bash
-make clean
+task clean
 ```
 
 Removes:
 - Python cache directories (__pycache__, .pytest_cache, .ruff_cache)
 - Frontend node_modules and dist
-- Virtual environments
+
+### List All Available Tasks
+
+```bash
+task --list
+```
 
 ## Project Structure
 
@@ -117,23 +147,29 @@ monthly-budget/
 │   ├── alembic/              # Database migrations
 │   ├── tests/                # Backend tests
 │   ├── Dockerfile            # Backend container image
+│   ├── Taskfile.yml          # Backend task definitions
 │   └── pyproject.toml        # Python dependencies and config
 ├── frontend/                 # React application
 │   ├── src/                  # Source code
 │   ├── public/               # Static assets
 │   ├── Dockerfile            # Frontend container image
+│   ├── Taskfile.yml          # Frontend task definitions
 │   └── package.json          # JavaScript dependencies
-├── docker-compose.yml        # Service orchestration
-└── Makefile                  # Developer convenience commands
+├── docker-compose.yml        # Service definitions
+├── Tiltfile                  # Container orchestration + live-reload
+└── Taskfile.yml              # Root task orchestrator
 ```
 
 ## Development Workflow
 
-1. **Make code changes** in backend/ or frontend/
-2. **Pre-commit hooks run automatically** before each commit
-3. **Run tests locally**: `make test`
-4. **Run quality checks**: `make lint`
-5. **Commit your changes** when tests and lint pass
+1. **Start the dev environment**: `task dev`
+2. **Make code changes** in backend/ or frontend/ — Tilt live-reloads automatically
+3. **Pre-commit hooks run automatically** before each commit
+4. **Run tests locally**: `task test`
+5. **Run quality checks**: `task lint`
+6. **Commit your changes** when tests and lint pass
+
+Use the Tilt dashboard at http://localhost:10350 to monitor services, view logs, and run actions (migrate, test, lint) via UI buttons.
 
 For more details on code quality standards, see `.pre-commit-config.yaml`.
 
@@ -148,8 +184,8 @@ If ports 5432, 6379, 8000, or 5173 are already in use:
 lsof -i :8000
 
 # Stop services and try again
-make down
-make up
+task dev:down
+task dev
 ```
 
 ### Pre-commit Hook Failures
@@ -158,8 +194,8 @@ If a pre-commit hook fails:
 
 ```bash
 # Fix the issues (lint/format)
-cd backend && uv run ruff format .
-cd frontend && npm run format
+task be:format
+task fe:format
 ```
 
 Then commit again.
@@ -175,8 +211,8 @@ docker compose ps
 Check logs:
 
 ```bash
-docker compose logs backend
-docker compose logs postgres
+docker compose logs api
+docker compose logs db
 docker compose logs redis
 ```
 

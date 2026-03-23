@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+dotenv: ['.env']
+
+includes:
+  be:
+    taskfile: ./backend/Taskfile.yml
+    dir: ./backend
+  fe:
+    taskfile: ./frontend/Taskfile.yml
+    dir: ./frontend
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: Install all dependencies and pre-commit hooks
+    deps: [be:install, fe:install]
+    cmds:
+      - pre-commit install
+
+  lint:
+    desc: Run all code quality checks
+    cmds:
+      - pre-commit run --all-files
+
+  test:
+    desc: Run all tests
+    deps: [be:test, fe:test]
+
+  dev:
+    desc: Start development environment (Tilt)
+    cmds:
+      - tilt up
+
+  dev:down:
+    desc: Stop development environment
+    cmds:
+      - tilt down
+
+  up:
+    desc: Start services via docker compose (without Tilt)
+    cmds:
+      - docker compose up -d
+
+  down:
+    desc: Stop services via docker compose
+    cmds:
+      - docker compose down
+
+  clean:
+    desc: Clean generated files and caches
+    deps: [be:clean, fe:clean]

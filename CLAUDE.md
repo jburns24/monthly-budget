@@ -4,17 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run Commands
 
+**Primary commands (Taskfile):**
 ```bash
-make install          # Install pre-commit hooks, backend deps (uv), frontend deps (npm)
-make up               # Start all services via docker compose (api, db, redis, frontend)
-make down             # Stop all services
-make lint             # Run all quality checks (pre-commit run --all-files)
-make test             # Run backend + frontend tests
+task install              # Install pre-commit hooks + all deps (parallel)
+task dev                  # Start Tilt (all services + web UI at localhost:10350)
+task dev:down             # Stop Tilt
+task lint                 # Run all quality checks (pre-commit)
+task test                 # Run all tests (backend + frontend in parallel)
+task clean                # Clean generated files
 ```
 
-### Backend (from `backend/` directory)
+**Docker Compose (without Tilt):**
 ```bash
-uv sync --all-groups              # Install deps including dev
+task up                   # Start services via docker compose
+task down                 # Stop services via docker compose
+```
+
+**Backend (from `backend/` or via namespace):**
+```bash
+task be:test              # Run backend tests (supports -- -k "test_name")
+task be:lint              # Ruff check + format check
+task be:format            # Auto-format
+task be:db:migrate        # Alembic upgrade head
+task be:db:revision MSG="description"  # Generate migration
+```
+
+**Frontend (from `frontend/` or via namespace):**
+```bash
+task fe:test              # Run vitest
+task fe:lint              # ESLint
+task fe:format            # Prettier
+task fe:typecheck         # tsc --noEmit
+```
+
+### Backend direct CLI (from `backend/` directory)
+```bash
+uv sync --all-extras              # Install deps including dev
 uv run pytest                     # Run all tests
 uv run pytest tests/test_foo.py   # Run a single test file
 uv run pytest -k "test_name"      # Run a single test by name
@@ -22,7 +47,7 @@ uv run ruff check .               # Lint
 uv run ruff format .              # Auto-format
 ```
 
-### Frontend (from `frontend/` directory)
+### Frontend direct CLI (from `frontend/` directory)
 ```bash
 npm install                       # Install deps
 npm run test:run                  # Run all tests (vitest, single run)
@@ -41,7 +66,7 @@ uv run alembic revision --autogenerate -m "desc"  # Generate migration from mode
 
 ## Architecture
 
-**Monorepo** with a FastAPI backend and React frontend, orchestrated via Docker Compose.
+**Monorepo** with a FastAPI backend and React frontend, orchestrated via Docker Compose + Tilt (live-reload dev environment) + Taskfile (CLI command orchestration).
 
 ### Backend (`backend/`)
 - **FastAPI** with async SQLAlchemy 2.0 + asyncpg (PostgreSQL) and Redis
@@ -61,6 +86,8 @@ uv run alembic revision --autogenerate -m "desc"  # Generate migration from mode
 - Testing: Vitest + Testing Library + happy-dom/jsdom
 
 ### Infrastructure
+- **Tiltfile** — container orchestration with live_update, web UI dashboard at localhost:10350
+- **Taskfile.yml** — root CLI task orchestrator with `backend/Taskfile.yml` and `frontend/Taskfile.yml` includes
 - Docker Compose services: `api` (FastAPI), `db` (Postgres 16), `redis` (Redis 7), `frontend` (Vite dev server)
 - All containers have security hardening: read-only fs, no-new-privileges, dropped capabilities, resource limits
 - CI: GitHub Actions (`.github/workflows/ci.yml`) runs on PRs to `main` — pre-commit checks, backend tests (with Postgres service), frontend tests
