@@ -1,0 +1,16 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/frontend && npx tsc --noEmit
+Expected: No TypeScript errors (exit 0, no output)
+Timestamp: 2026-03-23T15:27:50Z
+
+OUTPUT:
+(no output — TypeScript compilation succeeded with zero errors)
+
+Files checked include:
+  src/components/ProtectedRoute.tsx
+  src/components/Header.tsx
+  src/App.tsx
+  src/__tests__/protected.test.tsx
+  src/__tests__/App.test.tsx
+
+Status: PASS

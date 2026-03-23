@@ -1,0 +1,32 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/frontend && npm run test:run
+Expected: All tests pass including ProtectedRoute and Header tests
+Timestamp: 2026-03-23T15:27:39Z
+
+OUTPUT:
+> frontend@0.0.0 test:run
+> vitest run
+
+ RUN  v4.1.0 /Users/jburns/git/monthly-budget/frontend
+
+ Test Files  4 passed (4)
+       Tests  21 passed (21)
+    Start at  15:27:39
+    Duration  1.25s (transform 1.39s, setup 113ms, import 2.98s, tests 172ms, environment 417ms)
+
+Test Files:
+  PASS  src/__tests__/pkce.test.ts        (7 tests)
+  PASS  src/__tests__/login.test.tsx      (5 tests)
+  PASS  src/__tests__/protected.test.tsx  (8 tests)
+  PASS  src/__tests__/App.test.tsx        (1 test)
+
+Notable tests in protected.test.tsx:
+  ProtectedRoute - shows spinner while auth is loading
+  ProtectedRoute - redirects to /login when unauthenticated
+  ProtectedRoute - renders children when authenticated
+  Header - renders nothing when user is null
+  Header - shows user display name when authenticated
+  Header - shows user initials when avatar_url is null
+  Header - calls logout and navigates to /login on sign out click
+
+Status: PASS
