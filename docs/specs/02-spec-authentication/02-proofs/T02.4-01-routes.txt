@@ -1,0 +1,23 @@
+Type: cli
+Command: uv run python -c "from app.main import app; verify required routes registered"
+Expected: POST /api/auth/callback, POST /api/auth/refresh, POST /api/auth/logout, GET /api/me, PUT /api/me all registered
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+=== Registered routes ===
+  ['GET'] /api/health
+  ['GET'] /api/health/ready
+  ['POST'] /api/auth/callback
+  ['POST'] /api/auth/refresh
+  ['POST'] /api/auth/logout
+  ['GET'] /api/me
+  ['PUT'] /api/me
+  VERIFIED: POST /api/auth/callback
+  VERIFIED: POST /api/auth/refresh
+  VERIFIED: POST /api/auth/logout
+  VERIFIED: GET /api/me
+  VERIFIED: PUT /api/me
+
+ALL ENDPOINTS REGISTERED: PASS
+
+Status: PASS

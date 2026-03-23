@@ -1,0 +1,13 @@
+Type: cli
+Command: uv run python -c "...httpx ASGI test client status code checks..."
+Expected: 401 on protected endpoints without cookie, 200 on logout without cookie
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+GET /api/me without cookie: 401 PASS
+POST /api/auth/logout (no cookie): 200 PASS
+POST /api/auth/refresh (no cookie): 401 PASS
+
+ALL STATUS CODE CHECKS: PASS
+
+Status: PASS
