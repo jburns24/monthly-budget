@@ -1,0 +1,21 @@
+Type: cli
+Command: python -c "from tests.conftest import create_test_user, authenticated_client, mock_google_oauth, db_session ..."
+Expected: All fixtures importable; JWT tokens decode with correct sub, user_id, jti, exp claims
+Timestamp: 2026-03-23T00:00:00Z
+Status: PASS
+
+=== IMPORT VERIFICATION ===
+create_test_user: async coroutine function - True
+authenticated_client: fixture - True
+mock_google_oauth: fixture - True
+db_session: fixture - True
+
+=== JWT TOKEN VERIFICATION ===
+access_token payload sub: google_test123
+access_token payload user_id: (uuid redacted)
+access_token payload jti: (jti redacted)
+access_token exp - iat (seconds): 900 (expect ~900 = 15 min)
+refresh_token payload sub: google_test123
+refresh_token exp - iat (seconds): 604800 (expect ~604800 = 7 days)
+
+ALL CHECKS PASSED

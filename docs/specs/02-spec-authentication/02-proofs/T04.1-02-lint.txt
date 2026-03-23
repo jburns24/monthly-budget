@@ -1,0 +1,9 @@
+Type: cli
+Command: uv run ruff check tests/conftest.py && uv run ruff format --check tests/conftest.py
+Expected: No lint errors, file already formatted
+Timestamp: 2026-03-23T00:00:00Z
+Status: PASS
+
+All checks passed!
+1 file already formatted
+exit: 0

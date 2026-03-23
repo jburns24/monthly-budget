@@ -30,7 +30,7 @@ async def _check_redis() -> tuple[bool, str]:
 
         client = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
         await client.ping()
-        await client.aclose()
+        await client.aclose()  # type: ignore[attr-defined]
         return True, "connected"
     except Exception as exc:
         logger.warning("redis_health_check_failed", error=str(exc))
@@ -55,25 +55,20 @@ async def health(response: Response) -> dict:
 
 
 async def _check_migrations_current() -> tuple[bool, str]:
-    """Check if Alembic migrations are up to date."""
+    """Check if Alembic migrations are up to date via subprocess."""
+    import asyncio
+
     try:
-        from alembic.config import Config
-        from alembic.runtime.migration import MigrationContext
-        from alembic.script import ScriptDirectory
-
-        alembic_cfg = Config("alembic.ini")
-        alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
-        script = ScriptDirectory.from_config(alembic_cfg)
-        head_rev = script.get_current_head()
-
-        async with engine.connect() as conn:
-            current_rev = await conn.run_sync(
-                lambda sync_conn: MigrationContext.configure(sync_conn).get_current_revision()
-            )
-
-        if current_rev == head_rev:
+        proc = await asyncio.create_subprocess_exec(
+            "alembic",
+            "check",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+        if proc.returncode == 0:
             return True, "current"
-        return False, f"behind (current={current_rev}, head={head_rev})"
+        return False, f"behind ({stderr.decode().strip()[:100]})"
     except Exception as exc:
         logger.warning("migration_check_failed", error=str(exc))
         return False, f"error: {exc}"
