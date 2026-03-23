@@ -1,0 +1,26 @@
+Type: test
+Command: npm run test:run -- src/__tests__/login.test.tsx
+Expected: LoginPage renders with Google Sign-In button; AuthCallbackPage handles error states
+Timestamp: 2026-03-23T15:21:15Z
+
+--- OUTPUT ---
+
+> frontend@0.0.0 test:run
+> vitest run src/__tests__/login.test.tsx
+
+ RUN  v4.1.0 /Users/jburns/git/monthly-budget/frontend
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  15:21:15
+   Duration  1.17s (transform 464ms, setup 26ms, import 931ms, tests 60ms, environment 86ms)
+
+--- TESTS ---
+✓ LoginPage > renders the app name heading
+✓ LoginPage > renders the "Sign in with Google" button
+✓ AuthCallbackPage — error states > shows error when Google returns an error param
+✓ AuthCallbackPage — error states > shows error when state is missing from URL
+✓ AuthCallbackPage — error states > shows error when state does not match sessionStorage
+✓ AuthCallbackPage — error states > shows loading spinner when callback params are valid (API in-flight)
+
+Status: PASS
