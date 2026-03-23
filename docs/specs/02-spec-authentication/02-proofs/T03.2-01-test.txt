@@ -1,0 +1,27 @@
+Type: test
+Command: npm run test:run -- src/__tests__/pkce.test.ts
+Expected: All PKCE unit tests pass, including RFC 7636 test vector
+Timestamp: 2026-03-23T15:03:20Z
+
+--- OUTPUT ---
+
+> frontend@0.0.0 test:run
+> vitest run src/__tests__/pkce.test.ts
+
+ RUN  v4.1.0 /Users/jburns/git/monthly-budget/frontend
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  15:03:20
+   Duration  210ms (transform 16ms, setup 30ms, import 12ms, tests 3ms, environment 102ms)
+
+--- TESTS ---
+✓ PKCE utilities > generateCodeVerifier returns a string of 43-128 characters
+✓ PKCE utilities > generateCodeVerifier uses only base64url-safe characters
+✓ PKCE utilities > generateCodeVerifier produces a different value on each call
+✓ PKCE utilities > generateCodeChallenge produces correct SHA-256 base64url hash (RFC 7636 test vector)
+✓ PKCE utilities > generateCodeChallenge output contains no base64 padding
+✓ PKCE utilities > generateState returns a non-empty base64url string
+✓ PKCE utilities > generateState produces a different value on each call
+
+Status: PASS
