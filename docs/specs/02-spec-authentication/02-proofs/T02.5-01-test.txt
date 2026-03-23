@@ -1,0 +1,34 @@
+Type: test
+Command: uv run pytest tests/test_auth.py tests/test_users.py -v
+Expected: All 18 tests pass
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+collected 18 items
+
+tests/test_auth.py::test_callback_success_new_user PASSED                [  5%]
+tests/test_auth.py::test_callback_returning_user PASSED                  [ 11%]
+tests/test_auth.py::test_callback_google_failure_returns_401 PASSED      [ 16%]
+tests/test_auth.py::test_callback_missing_body_returns_422 PASSED        [ 22%]
+tests/test_auth.py::test_refresh_no_cookie_returns_401 PASSED            [ 27%]
+tests/test_auth.py::test_refresh_valid_token_returns_new_access_cookie PASSED [ 33%]
+tests/test_auth.py::test_refresh_blacklisted_token_returns_401 PASSED    [ 38%]
+tests/test_auth.py::test_refresh_expired_token_returns_401 PASSED        [ 44%]
+tests/test_auth.py::test_logout_no_cookie_returns_200 PASSED             [ 50%]
+tests/test_auth.py::test_logout_with_valid_token_returns_200_and_clears_cookies PASSED [ 55%]
+tests/test_users.py::test_me_no_cookie_returns_401 PASSED                [ 61%]
+tests/test_users.py::test_me_authenticated_returns_user_profile PASSED   [ 66%]
+tests/test_users.py::test_me_response_schema PASSED                      [ 72%]
+tests/test_users.py::test_me_update_no_cookie_returns_401 PASSED         [ 77%]
+tests/test_users.py::test_me_update_display_name PASSED                  [ 83%]
+tests/test_users.py::test_me_update_timezone PASSED                      [ 88%]
+tests/test_users.py::test_me_update_both_fields PASSED                   [ 94%]
+tests/test_users.py::test_me_update_empty_body_no_change PASSED          [100%]
+
+============================== 18 passed in 0.30s ==============================
+
+Status: PASS
