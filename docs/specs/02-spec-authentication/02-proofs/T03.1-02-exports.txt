@@ -1,0 +1,35 @@
+Type: file
+Description: Verify all required API exports exist in created files
+Expected: All required exports present in frontend/src/api/auth.ts and frontend/src/api/client.ts
+Timestamp: 2026-03-23T15:03:00Z
+
+=== frontend/src/api/client.ts exports ===
+export async function apiClient(input: string, init?: RequestInit): Promise<Response>
+
+=== frontend/src/api/auth.ts exports ===
+export async function postAuthCallback(code: string, codeVerifier: string): Promise<AuthCallbackResponse>
+export async function postAuthRefresh(): Promise<void>
+export async function postAuthLogout(): Promise<void>
+export async function getMe(): Promise<MeResponse>
+export async function putMe(data: UserUpdate): Promise<MeResponse>
+
+=== frontend/src/types/api.ts exports ===
+export interface User
+export interface AuthCallbackResponse
+export type MeResponse = User
+export interface UserUpdate
+
+=== KEY BEHAVIORS ===
+client.ts:
+  - All fetches use credentials: 'include'
+  - 401 interceptor: attempts POST /api/auth/refresh before propagating
+  - requestQueue used to hold concurrent requests during active refresh
+  - After failed refresh: redirects to /login and throws error
+  - isRefreshing flag prevents multiple simultaneous refresh calls
+
+=== FILE SIZES ===
+frontend/src/api/client.ts   1484 bytes
+frontend/src/api/auth.ts     1544 bytes
+frontend/src/types/api.ts     299 bytes
+
+Status: PASS
