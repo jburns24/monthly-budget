@@ -1,0 +1,28 @@
+Type: cli
+Command: task lint  (pre-commit run --all-files)
+Expected: All hooks pass
+Timestamp: 2026-03-23T15:40:00Z
+
+OUTPUT:
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...............................................................Passed
+check for added large files..............................................Passed
+ruff check (backend).....................................................Passed
+ruff format --check (backend)............................................Passed
+mypy (backend)...........................................................Passed
+eslint (frontend)........................................................Passed
+prettier --check (frontend)..............................................Passed
+tsc --noEmit (frontend)..................................................Passed
+Detect secrets...........................................................Passed
+
+Fix applied: detect-secrets scan --baseline .secrets.baseline
+  Updated .secrets.baseline to include reviewed false positives in:
+  - .github/workflows/ci.yml (CI test credentials: POSTGRES_PASSWORD, DATABASE_URL, SECRET_KEY)
+  - backend/.env.example (placeholder connection strings)
+  - backend/alembic.ini (placeholder connection string)
+  - docs/specs proof artifacts containing example connection strings
+
+All false positives — no real credentials committed.
+
+Status: PASS
