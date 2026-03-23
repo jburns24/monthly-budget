@@ -1,0 +1,31 @@
+Type: cli
+Command: uv run python -c "from sqlalchemy import inspect; from app.models import User, RefreshTokenBlacklist; ..."
+Expected: All required columns, indexes (jti, expires_at), and FK (user_id->users.id CASCADE) present
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+=== User columns ===
+  id: UUID, pk=True, nullable=False, unique=None
+  google_id: VARCHAR, pk=False, nullable=False, unique=True
+  email: VARCHAR, pk=False, nullable=False, unique=True
+  display_name: VARCHAR, pk=False, nullable=False, unique=None
+  avatar_url: TEXT, pk=False, nullable=True, unique=None
+  timezone: VARCHAR, pk=False, nullable=False, unique=None
+  created_at: TIMESTAMP, pk=False, nullable=True, unique=None
+  last_login_at: TIMESTAMP, pk=False, nullable=True, unique=None
+
+=== RefreshTokenBlacklist columns ===
+  id: UUID, pk=True, nullable=False, unique=None
+  jti: VARCHAR, pk=False, nullable=False, unique=True
+  user_id: UUID, pk=False, nullable=False, unique=None
+  expires_at: TIMESTAMP, pk=False, nullable=False, unique=None
+  created_at: TIMESTAMP, pk=False, nullable=True, unique=None
+
+=== RefreshTokenBlacklist indexes ===
+  ix_refresh_token_blacklist_expires_at: ['expires_at']
+  ix_refresh_token_blacklist_jti: ['jti']
+
+=== Foreign keys ===
+  user_id -> users.id, ondelete=CASCADE
+
+Status: PASS

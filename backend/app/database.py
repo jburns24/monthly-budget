@@ -36,6 +36,10 @@ class Base(DeclarativeBase):
     pass
 
 
+# Import models here so Alembic autogenerate detects them
+import app.models  # noqa: E402, F401
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency that provides a database session per request."""
     async with AsyncSessionLocal() as session:

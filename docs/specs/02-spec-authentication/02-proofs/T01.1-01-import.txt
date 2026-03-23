@@ -1,0 +1,12 @@
+Type: cli
+Command: uv run python -c "from app.models import User, RefreshTokenBlacklist; from app.database import Base; ..."
+Expected: Models importable, Base.metadata contains 'users' and 'refresh_token_blacklist'
+Timestamp: 2026-03-23T00:00:00Z
+
+--- Output ---
+Imported: User = <class 'app.models.user.User'>
+Imported: RefreshTokenBlacklist = <class 'app.models.refresh_token_blacklist.RefreshTokenBlacklist'>
+Tables in Base.metadata: ['refresh_token_blacklist', 'users']
+PASS: Both tables registered in Base.metadata
+
+Status: PASS
