@@ -1,6 +1,6 @@
 """Application configuration loaded from environment variables."""
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/monthly_budget",
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/monthly_budget",  # pragma: allowlist secret
         description="Async PostgreSQL connection URL",
     )
 
@@ -50,6 +50,39 @@ class Settings(BaseSettings):
         default="/api",
         description="API route prefix",
     )
+
+    # Secrets (used in later epics, but accepted now to avoid startup errors)
+    secret_key: str = Field(
+        default="",
+        description="Application secret key",
+    )
+    jwt_secret: str = Field(
+        default="",
+        description="JWT signing secret",
+    )
+    google_client_id: str = Field(
+        default="",
+        description="Google OAuth 2.0 client ID",
+    )
+    google_client_secret: str = Field(
+        default="",
+        description="Google OAuth 2.0 client secret",
+    )
+    anthropic_api_key: str = Field(
+        default="",
+        description="Anthropic API key for receipt scanning",
+    )
+
+    @model_validator(mode="after")
+    def validate_auth_secrets(self) -> "Settings":
+        """Fail fast on missing/weak auth secrets outside development and test."""
+        env = self.environment.lower()
+        if env not in ("development", "test"):
+            if not self.jwt_secret or len(self.jwt_secret) < 32:
+                raise ValueError("jwt_secret must be at least 32 characters in non-development environments")
+            if not self.google_client_id:
+                raise ValueError("google_client_id must be set in non-development environments")
+        return self
 
     @property
     def is_production(self) -> bool:

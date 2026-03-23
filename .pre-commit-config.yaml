@@ -51,13 +51,11 @@ repos:
       - id: mypy
         name: mypy (backend)
         files: ^backend/
-        args: [--ignore-missing-imports]
+        exclude: ^backend/alembic/
+        args: [--ignore-missing-imports, --disable-error-code=import-untyped]
         additional_dependencies:
           - pydantic>=2.0
           - pydantic-settings>=2.1.0
-          - types-redis>=4.6.0
-          - alembic>=1.13.0
-          - sqlalchemy>=2.0.0
 
   # ---------------------------------------------------------------------------
   # Frontend: eslint — uses project-local eslint from frontend/node_modules

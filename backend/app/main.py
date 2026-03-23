@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
@@ -41,6 +42,16 @@ app = FastAPI(
     version="0.1.0",
     debug=settings.debug,
     lifespan=lifespan,
+)
+
+# CORS — allow the Vite dev server to send credentialed requests
+cors_origins = ["http://localhost:5173"] if settings.is_development else []
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Register Prometheus metrics instrumentation.

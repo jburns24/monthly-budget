@@ -18,6 +18,8 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=6.1.0",
     "pydantic-settings>=2.1.0",
     "redis>=5.0.0",
+    "PyJWT>=2.8.0",
+    "google-auth>=2.25.0",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +36,11 @@ packages = ["app"]
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+]
 
 [tool.ruff]
 line-length = 120
