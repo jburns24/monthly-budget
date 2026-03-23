@@ -1,0 +1,34 @@
+Type: test
+Command: DATABASE_URL=postgresql+asyncpg://monthly_budget:[REDACTED]@localhost:5435/monthly_budget uv run pytest tests/test_models.py -v
+Expected: 13 passed, 0 failed
+Timestamp: 2026-03-23T15:30:00Z
+
+=== OUTPUT ===
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0 -- .venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jburns/git/monthly-budget/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None
+
+collecting ... collected 13 items
+
+tests/test_models.py::test_user_create_and_read PASSED                   [  7%]
+tests/test_models.py::test_user_uuid_pk_generation PASSED                [ 15%]
+tests/test_models.py::test_user_default_timezone PASSED                  [ 23%]
+tests/test_models.py::test_user_avatar_url_nullable PASSED               [ 30%]
+tests/test_models.py::test_user_google_id_unique_constraint PASSED       [ 38%]
+tests/test_models.py::test_user_email_unique_constraint PASSED           [ 46%]
+tests/test_models.py::test_blacklist_create_and_read PASSED              [ 53%]
+tests/test_models.py::test_blacklist_uuid_pk_generation PASSED           [ 61%]
+tests/test_models.py::test_blacklist_fk_to_user PASSED                   [ 69%]
+tests/test_models.py::test_blacklist_cascade_delete PASSED               [ 76%]
+tests/test_models.py::test_blacklist_jti_unique_constraint PASSED        [ 84%]
+tests/test_models.py::test_blacklist_indexes_exist PASSED                [ 92%]
+tests/test_models.py::test_blacklist_fk_rejects_missing_user PASSED      [100%]
+
+============================== 13 passed in 0.31s ==============================
+
+=== RESULT ===
+Status: PASS — 13/13 tests passed
