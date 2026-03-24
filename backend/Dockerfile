@@ -13,7 +13,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # Install project dependencies into a virtual environment inside /app/.venv
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --locked --no-install-project --no-dev
 
 # ============================================================
 # Runtime stage
@@ -31,6 +31,7 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Activate the virtual environment by prepending it to PATH
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONDONTWRITEBYTECODE=1
 
 # Copy application code
 COPY app/ ./app/

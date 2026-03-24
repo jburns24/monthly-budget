@@ -7,17 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Primary commands (Taskfile):**
 ```bash
 task install              # Install pre-commit hooks + all deps (parallel)
-task dev                  # Start Tilt (all services + web UI at localhost:10350)
-task dev:down             # Stop Tilt
+task up                   # Start Tilt (all services + web UI at localhost:10350)
+task down                 # Stop Tilt
 task lint                 # Run all quality checks (pre-commit)
 task test                 # Run all tests (backend + frontend in parallel)
 task clean                # Clean generated files
-```
-
-**Docker Compose (without Tilt):**
-```bash
-task up                   # Start services via docker compose
-task down                 # Stop services via docker compose
 ```
 
 **Backend (from `backend/` or via namespace):**

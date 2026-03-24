@@ -4,7 +4,9 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-RUN npm install
+# Remove lockfile and reinstall to get correct platform-specific bindings
+# (lockfile generated on macOS won't resolve linux native modules correctly)
+RUN rm package-lock.json && npm install
 
 COPY . .
 
