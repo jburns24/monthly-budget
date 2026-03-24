@@ -32,25 +32,23 @@ tasks:
     desc: Run all tests
     deps: [be:test, fe:test]
 
-  dev:
+  up:
     desc: Start development environment (Tilt)
     cmds:
+      - tilt down 2>/dev/null || true
+      - pkill -f "tilt up" 2>/dev/null || true
+      - |
+        for i in $(seq 1 15); do
+          lsof -ti :10350 >/dev/null 2>&1 || break
+          sleep 0.5
+        done
       - tilt up
 
-  dev:down:
+  down:
     desc: Stop development environment
     cmds:
       - tilt down
-
-  up:
-    desc: Start services via docker compose (without Tilt)
-    cmds:
-      - docker compose up -d
-
-  down:
-    desc: Stop services via docker compose
-    cmds:
-      - docker compose down
+      - pkill -f "tilt up" 2>/dev/null || true
 
   clean:
     desc: Clean generated files and caches
