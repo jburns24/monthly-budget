@@ -56,3 +56,6 @@ prd-arena/
 
 # Tilt
 tilt_modules/
+
+# Taskfile
+.task/
