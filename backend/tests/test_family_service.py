@@ -17,7 +17,15 @@ from app.models.family import Family  # noqa: F401 — registers with Base.metad
 from app.models.family_member import FamilyMember  # noqa: F401 — registers with Base.metadata
 from app.models.invite import Invite  # noqa: F401 — registers with Base.metadata
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
-from app.services.family_service import create_family, get_family_with_members, invite_user
+from app.services.family_service import (
+    change_role,
+    create_family,
+    get_family_with_members,
+    invite_user,
+    leave_family,
+    remove_member,
+    respond_to_invite,
+)
 from tests.conftest import create_test_user
 
 # ---------------------------------------------------------------------------
@@ -250,3 +258,280 @@ async def test_invite_user_valid_email_creates_invite(db_session: AsyncSession) 
     assert invite.invited_user_id == target.id
     assert invite.invited_by == inviter.id
     assert invite.family_id == family.id
+
+
+# ---------------------------------------------------------------------------
+# respond_to_invite tests
+# ---------------------------------------------------------------------------
+
+
+async def _create_pending_invite(db_session: AsyncSession) -> tuple:
+    """Helper: create a family with an owner and a pending invite for a target user."""
+    owner = await create_test_user(db_session, display_name="Owner")
+    family = await create_family(db_session, owner, name="Invite Family")
+    target = await create_test_user(db_session, email="invitee@example.com", display_name="Invitee")
+
+    invite = Invite(
+        family_id=family.id,
+        invited_user_id=target.id,
+        invited_by=owner.id,
+        status="pending",
+    )
+    db_session.add(invite)
+    await db_session.flush()
+    return owner, family, target, invite
+
+
+@pytest.mark.asyncio
+async def test_respond_to_invite_accept_adds_member(db_session: AsyncSession) -> None:
+    """Accepting an invite adds the user as a member and marks the invite accepted."""
+    from sqlalchemy import select
+
+    _owner, family, target, invite = await _create_pending_invite(db_session)
+
+    result = await respond_to_invite(db_session, invite.id, target, "accept")
+
+    assert result.status == "accepted"
+    assert result.responded_at is not None
+
+    # Verify membership was created
+    member_row = await db_session.execute(
+        select(FamilyMember).where(FamilyMember.family_id == family.id, FamilyMember.user_id == target.id)
+    )
+    member = member_row.scalar_one_or_none()
+    assert member is not None
+    assert member.role == "member"
+
+
+@pytest.mark.asyncio
+async def test_respond_to_invite_accept_already_in_family_409(db_session: AsyncSession) -> None:
+    """Accepting an invite raises 409 if user already belongs to a family."""
+    _owner, _family, target, invite = await _create_pending_invite(db_session)
+
+    # Put the target in another family first
+    other_owner = await create_test_user(db_session, display_name="Other Owner")
+    other_family = await create_family(db_session, other_owner, name="Other Family")
+    member = FamilyMember(family_id=other_family.id, user_id=target.id, role="member")
+    db_session.add(member)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await respond_to_invite(db_session, invite.id, target, "accept")
+
+    assert exc_info.value.status_code == 409
+    assert "already belongs to a family" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_respond_to_invite_decline_updates_status(db_session: AsyncSession) -> None:
+    """Declining an invite updates status to declined and sets responded_at."""
+    _owner, _family, target, invite = await _create_pending_invite(db_session)
+
+    result = await respond_to_invite(db_session, invite.id, target, "decline")
+
+    assert result.status == "declined"
+    assert result.responded_at is not None
+
+
+# ---------------------------------------------------------------------------
+# remove_member tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_remove_member_success(db_session: AsyncSession) -> None:
+    """remove_member deletes a non-owner member from the family."""
+    from sqlalchemy import select
+
+    owner = await create_test_user(db_session, display_name="Owner")
+    family = await create_family(db_session, owner, name="Remove Family")
+
+    target = await create_test_user(db_session, display_name="Target")
+    member = FamilyMember(family_id=family.id, user_id=target.id, role="member")
+    db_session.add(member)
+    await db_session.flush()
+
+    await remove_member(db_session, family.id, target.id, owner)
+
+    # Verify member is removed
+    result = await db_session.execute(
+        select(FamilyMember).where(FamilyMember.family_id == family.id, FamilyMember.user_id == target.id)
+    )
+    assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_remove_member_owner_blocked_403(db_session: AsyncSession) -> None:
+    """remove_member raises 403 when trying to remove the family owner."""
+    owner = await create_test_user(db_session, display_name="Owner")
+    family = await create_family(db_session, owner, name="Remove Owner Family")
+
+    # Add a second admin to be the requester
+    admin2 = await create_test_user(db_session, display_name="Admin2")
+    member = FamilyMember(family_id=family.id, user_id=admin2.id, role="admin")
+    db_session.add(member)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await remove_member(db_session, family.id, owner.id, admin2)
+
+    assert exc_info.value.status_code == 403
+    assert "Cannot remove the family owner" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# change_role tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_change_role_success(db_session: AsyncSession) -> None:
+    """change_role promotes a member to admin."""
+    owner = await create_test_user(db_session, display_name="Owner")
+    family = await create_family(db_session, owner, name="Role Family")
+
+    target = await create_test_user(db_session, display_name="Target")
+    member = FamilyMember(family_id=family.id, user_id=target.id, role="member")
+    db_session.add(member)
+    await db_session.flush()
+
+    result = await change_role(db_session, family.id, target.id, "admin", owner)
+
+    assert result.role == "admin"
+
+
+@pytest.mark.asyncio
+async def test_change_role_demote_owner_blocked_403(db_session: AsyncSession) -> None:
+    """change_role raises 403 when demoting the family owner."""
+    owner = await create_test_user(db_session, display_name="Owner")
+    family = await create_family(db_session, owner, name="Demote Owner Family")
+
+    # Add second admin as requester
+    admin2 = await create_test_user(db_session, display_name="Admin2")
+    member = FamilyMember(family_id=family.id, user_id=admin2.id, role="admin")
+    db_session.add(member)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await change_role(db_session, family.id, owner.id, "member", admin2)
+
+    assert exc_info.value.status_code == 403
+    assert "Cannot demote the family owner" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_change_role_demote_last_admin_blocked_403(db_session: AsyncSession) -> None:
+    """change_role raises 403 when demoting the last admin (who is not the owner)."""
+    # Create family where created_by is a different user than the sole admin
+    creator = await create_test_user(db_session, display_name="Creator")
+    family = await create_family(db_session, creator, name="Last Admin Family")
+
+    # Creator is admin. Add a second user as member.
+    second = await create_test_user(db_session, display_name="Second")
+    member = FamilyMember(family_id=family.id, user_id=second.id, role="member")
+    db_session.add(member)
+    await db_session.flush()
+
+    # Try demoting the creator (the only admin) who is also the owner -- 403 owner check
+    # Instead, let's set up a non-owner admin as the only admin
+    # Create a fresh scenario: owner + one non-owner admin, then remove owner's admin status
+    owner2 = await create_test_user(db_session, display_name="Owner2")
+    family2 = await create_family(db_session, owner2, name="Last Admin Family 2")
+
+    non_owner_admin = await create_test_user(db_session, display_name="NonOwnerAdmin")
+    admin_member = FamilyMember(family_id=family2.id, user_id=non_owner_admin.id, role="admin")
+    db_session.add(admin_member)
+    await db_session.flush()
+
+    # Now there are 2 admins (owner2 and non_owner_admin). Demote owner2's membership is blocked (owner).
+    # Demote non_owner_admin when there are 2 admins should succeed.
+    result = await change_role(db_session, family2.id, non_owner_admin.id, "member", owner2)
+    assert result.role == "member"
+
+    # Now re-promote non_owner_admin and then demote owner2-as-only-admin scenario won't work
+    # because owner2 IS the owner. Let's build a proper "last admin" scenario:
+    # family3 with owner3, and a second admin who we then demote leaving only 1 admin
+    owner3 = await create_test_user(db_session, display_name="Owner3")
+    family3 = await create_family(db_session, owner3, name="Last Admin Family 3")
+
+    solo_admin = await create_test_user(db_session, display_name="SoloAdmin")
+    solo_member = FamilyMember(family_id=family3.id, user_id=solo_admin.id, role="admin")
+    db_session.add(solo_member)
+    await db_session.flush()
+
+    # Demote one admin (solo_admin) -- this works since there are 2 admins
+    await change_role(db_session, family3.id, solo_admin.id, "member", owner3)
+
+    # Re-promote solo_admin
+    await change_role(db_session, family3.id, solo_admin.id, "admin", owner3)
+
+    # Now demote owner3 (blocked as owner, not last admin)
+    # We need: only 1 admin who is NOT the owner. Let's demote owner3... no, owner is protected.
+
+    # Simplest approach: create a scenario where owner has role=member (manually) and
+    # only 1 admin exists who is not the owner.
+    owner4 = await create_test_user(db_session, display_name="Owner4")
+    family4 = await create_family(db_session, owner4, name="Last Admin Family 4")
+
+    # owner4 is admin. Change owner4 role to member directly (bypassing service to set up scenario).
+    from sqlalchemy import select as sel
+
+    owner4_member_result = await db_session.execute(
+        sel(FamilyMember).where(FamilyMember.family_id == family4.id, FamilyMember.user_id == owner4.id)
+    )
+    owner4_member = owner4_member_result.scalar_one()
+    owner4_member.role = "member"
+    await db_session.flush()
+
+    # Add a single admin who is not the owner
+    last_admin = await create_test_user(db_session, display_name="LastAdmin")
+    last_admin_member = FamilyMember(family_id=family4.id, user_id=last_admin.id, role="admin")
+    db_session.add(last_admin_member)
+    await db_session.flush()
+
+    # Now try to demote the last admin
+    with pytest.raises(HTTPException) as exc_info:
+        await change_role(db_session, family4.id, last_admin.id, "member", owner4)
+
+    assert exc_info.value.status_code == 403
+    assert "Cannot demote the last admin" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# leave_family tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_leave_family_success(db_session: AsyncSession) -> None:
+    """leave_family removes the member record for a non-owner user."""
+    from sqlalchemy import select
+
+    owner = await create_test_user(db_session, display_name="Owner")
+    family = await create_family(db_session, owner, name="Leave Family")
+
+    leaver = await create_test_user(db_session, display_name="Leaver")
+    member = FamilyMember(family_id=family.id, user_id=leaver.id, role="member")
+    db_session.add(member)
+    await db_session.flush()
+
+    await leave_family(db_session, family.id, leaver)
+
+    # Verify member is gone
+    result = await db_session.execute(
+        select(FamilyMember).where(FamilyMember.family_id == family.id, FamilyMember.user_id == leaver.id)
+    )
+    assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_leave_family_owner_blocked_403(db_session: AsyncSession) -> None:
+    """leave_family raises 403 when the owner tries to leave."""
+    owner = await create_test_user(db_session, display_name="Owner")
+    family = await create_family(db_session, owner, name="Owner Leave Family")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await leave_family(db_session, family.id, owner)
+
+    assert exc_info.value.status_code == 403
+    assert "owner cannot leave" in exc_info.value.detail.lower()
