@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { FamilyBrief } from '../types/family'
 
 export interface User {
   id: string
@@ -6,6 +7,7 @@ export interface User {
   display_name: string
   avatar_url: string | null
   timezone: string
+  family: FamilyBrief | null
 }
 
 async function fetchCurrentUser(): Promise<User | null> {
