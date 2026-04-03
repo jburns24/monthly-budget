@@ -1,0 +1,12 @@
+Type: cli
+Command: python -c "from app.models import Family, FamilyMember, Invite, User; print('All models imported successfully'); ..."
+Expected: All three models import without error
+Timestamp: 2026-04-02T00:00:00Z
+
+--- OUTPUT ---
+All models imported successfully
+Family table: families
+FamilyMember table: family_members
+Invite table: invites
+
+Status: PASS

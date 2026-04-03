@@ -1,0 +1,13 @@
+Type: cli
+Command: python -c "assert all columns/relationships/constraints exist on models"
+Expected: All assertions pass — columns, FKs, check constraints, unique constraints, indexes, and relationships are correct
+Timestamp: 2026-04-02T00:00:00Z
+
+--- OUTPUT ---
+All assertions passed!
+Family columns: ['id', 'name', 'timezone', 'edit_grace_days', 'created_by', 'created_at']
+FamilyMember columns: ['id', 'family_id', 'user_id', 'role', 'joined_at']
+Invite columns: ['id', 'family_id', 'invited_user_id', 'invited_by', 'status', 'created_at', 'responded_at']
+User relationships: ['family_memberships', 'received_invites']
+
+Status: PASS
