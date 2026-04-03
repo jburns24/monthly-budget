@@ -1,0 +1,9 @@
+Type: cli
+Command: uv run ruff format --check app/services/family_service.py tests/test_family_service.py
+Expected: 2 files already formatted
+Timestamp: 2026-04-02T00:00:00Z
+
+--- Output ---
+2 files already formatted
+
+Status: PASS

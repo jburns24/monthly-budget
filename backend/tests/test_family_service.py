@@ -17,7 +17,7 @@ from app.models.family import Family  # noqa: F401 — registers with Base.metad
 from app.models.family_member import FamilyMember  # noqa: F401 — registers with Base.metadata
 from app.models.invite import Invite  # noqa: F401 — registers with Base.metadata
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
-from app.services.family_service import create_family, get_family_with_members
+from app.services.family_service import create_family, get_family_with_members, invite_user
 from tests.conftest import create_test_user
 
 # ---------------------------------------------------------------------------
@@ -152,3 +152,101 @@ async def test_get_family_with_members_not_found(db_session: AsyncSession) -> No
 
     assert exc_info.value.status_code == 404
     assert "not found" in exc_info.value.detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# invite_user tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_invite_user_nonexistent_email_succeeds_silently(db_session: AsyncSession) -> None:
+    """invite_user returns None and creates no invite when the email is unknown."""
+    from sqlalchemy import select
+
+    inviter = await create_test_user(db_session)
+    family = await create_family(db_session, inviter, name="Invite Family")
+
+    # No user with this email exists — must not raise
+    await invite_user(db_session, family.id, "nobody@nowhere.invalid", inviter)
+
+    # Confirm no invite was created
+    invite_rows = await db_session.execute(select(Invite).where(Invite.family_id == family.id))
+    assert invite_rows.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_invite_user_already_in_family_succeeds_silently(db_session: AsyncSession) -> None:
+    """invite_user returns None and creates no invite when the target user is already in a family."""
+    from sqlalchemy import select
+
+    inviter = await create_test_user(db_session)
+    family = await create_family(db_session, inviter, name="Invite Family 2")
+
+    # Create a second user who already belongs to their own family
+    target = await create_test_user(db_session, email="already@example.com")
+    target_family = await create_family(db_session, target, name="Target Family")
+    _ = target_family  # suppress unused-variable warning
+
+    # Must not raise even though user is already in a family
+    await invite_user(db_session, family.id, "already@example.com", inviter)
+
+    # Confirm no invite to family was created for target
+    invite_rows = await db_session.execute(
+        select(Invite).where(Invite.family_id == family.id, Invite.invited_user_id == target.id)
+    )
+    assert invite_rows.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_invite_user_already_has_pending_invite_succeeds_silently(db_session: AsyncSession) -> None:
+    """invite_user returns None and creates no duplicate invite when one is already pending."""
+    from sqlalchemy import select
+
+    inviter = await create_test_user(db_session)
+    family = await create_family(db_session, inviter, name="Invite Family 3")
+    target = await create_test_user(db_session, email="pending@example.com")
+
+    # First invite — should succeed and create an invite
+    await invite_user(db_session, family.id, "pending@example.com", inviter)
+
+    # Second invite for the same user — must not raise (silently does nothing)
+    await invite_user(db_session, family.id, "pending@example.com", inviter)
+
+    # Only one pending invite should exist
+    invite_rows = await db_session.execute(
+        select(Invite).where(
+            Invite.family_id == family.id,
+            Invite.invited_user_id == target.id,
+            Invite.status == "pending",
+        )
+    )
+    invites = invite_rows.scalars().all()
+    assert len(invites) == 1
+
+
+@pytest.mark.asyncio
+async def test_invite_user_valid_email_creates_invite(db_session: AsyncSession) -> None:
+    """invite_user creates a pending Invite record when the target user is eligible."""
+    from sqlalchemy import select
+
+    inviter = await create_test_user(db_session)
+    family = await create_family(db_session, inviter, name="Invite Family 4")
+    target = await create_test_user(db_session, email="eligible@example.com")
+
+    # Must not raise when user is eligible
+    await invite_user(db_session, family.id, "eligible@example.com", inviter)
+
+    # Verify the invite was created with correct fields
+    invite_row = await db_session.execute(
+        select(Invite).where(
+            Invite.family_id == family.id,
+            Invite.invited_user_id == target.id,
+        )
+    )
+    invite = invite_row.scalar_one_or_none()
+    assert invite is not None
+    assert invite.status == "pending"
+    assert invite.invited_user_id == target.id
+    assert invite.invited_by == inviter.id
+    assert invite.family_id == family.id
