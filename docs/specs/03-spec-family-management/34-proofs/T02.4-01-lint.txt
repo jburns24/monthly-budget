@@ -1,0 +1,9 @@
+Type: cli
+Command: uv run ruff check app/dependencies.py tests/test_rbac_dependencies.py
+Expected: All checks passed
+Timestamp: 2026-04-02T00:00:00Z
+
+--- OUTPUT ---
+All checks passed!
+
+Status: PASS

@@ -1,0 +1,31 @@
+Type: file
+Command: cat backend/app/dependencies.py
+Expected: require_family_member and require_family_admin dependencies present
+Timestamp: 2026-04-02T00:00:00Z
+
+--- OUTPUT ---
+File: backend/app/dependencies.py
+
+New exports added:
+  - require_family_member(family_id, current_user, db) -> tuple[User, FamilyMember]
+    * Queries FamilyMember where family_id + user_id match
+    * Returns 404 "Family not found" if not a member (privacy-preserving)
+    * Returns (current_user, family_member) on success
+
+  - require_family_admin(family_id, current_user, db) -> tuple[User, FamilyMember]
+    * Same membership query as require_family_member
+    * Returns 404 "Family not found" if not a member
+    * Returns 403 "Admin access required" if member but role != "admin"
+    * Returns (current_user, family_member) on success
+
+Both dependencies use:
+  - Depends(get_current_user) for auth
+  - Depends(get_db) for DB session
+  - sqlalchemy select() for async-compatible queries
+
+Test file: backend/tests/test_rbac_dependencies.py
+  - 5 test cases covering all success and error paths
+  - Minimal test router mounted to exercise dependencies via HTTP calls
+  - Uses NullPool db_session + dependency_overrides pattern from existing tests
+
+Status: PASS
