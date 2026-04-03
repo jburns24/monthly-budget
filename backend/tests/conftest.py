@@ -12,6 +12,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.config import settings
+from app.models.family import Family
+from app.models.family_member import FamilyMember
+from app.models.invite import Invite
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
 from app.models.user import User
 
@@ -109,6 +112,125 @@ async def create_test_user(db: AsyncSession, **overrides: Any) -> User:
     await db.flush()
     await db.refresh(user)
     return user
+
+
+# ---------------------------------------------------------------------------
+# Family factory (plain async function, not a fixture — call it from any fixture
+# or test that already has a db_session)
+# ---------------------------------------------------------------------------
+
+
+async def create_test_family(db: AsyncSession, user: User, **overrides: Any) -> tuple[Family, FamilyMember]:
+    """Insert a Family and corresponding admin FamilyMember record into the test database.
+
+    Parameters
+    ----------
+    db:
+        Active async session (typically from the :func:`db_session` fixture).
+    user:
+        The User who will be the family creator and admin.
+    **overrides:
+        Field values that replace the auto-generated defaults.  Pass any
+        combination of Family or FamilyMember column names.
+
+    Returns
+    -------
+    tuple[Family, FamilyMember]
+        A tuple of (family, admin_member) where admin_member is the creator's
+        admin membership in the family.
+
+    Example::
+
+        family, member = await create_test_family(db_session, user)
+        assert member.role == "admin"
+    """
+    now = datetime.now(tz=timezone.utc)
+    unique = uuid.uuid4().hex[:8]
+
+    # Separate Family and FamilyMember overrides
+    family_overrides = {k: v for k, v in overrides.items() if k in ("name", "timezone", "edit_grace_days", "created_by", "created_at")}
+    member_overrides = {k: v for k, v in overrides.items() if k in ("role", "joined_at")}
+
+    # Create Family with defaults
+    family_defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "name": f"Test Family {unique}",
+        "timezone": "America/New_York",
+        "created_by": user.id,
+        "created_at": now,
+    }
+    family_defaults.update(family_overrides)
+    family = Family(**family_defaults)
+    db.add(family)
+    await db.flush()
+    await db.refresh(family)
+
+    # Create FamilyMember with defaults
+    member_defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "family_id": family.id,
+        "user_id": user.id,
+        "role": "admin",
+        "joined_at": now,
+    }
+    member_defaults.update(member_overrides)
+    member = FamilyMember(**member_defaults)
+    db.add(member)
+    await db.flush()
+    await db.refresh(member)
+
+    return family, member
+
+
+# ---------------------------------------------------------------------------
+# Invite factory (plain async function, not a fixture — call it from any fixture
+# or test that already has a db_session)
+# ---------------------------------------------------------------------------
+
+
+async def create_test_invite(db: AsyncSession, family: Family, invited_user: User, invited_by: User, **overrides: Any) -> Invite:
+    """Insert an Invite record into the test database.
+
+    Parameters
+    ----------
+    db:
+        Active async session (typically from the :func:`db_session` fixture).
+    family:
+        The Family being invited to.
+    invited_user:
+        The User receiving the invitation.
+    invited_by:
+        The User sending the invitation.
+    **overrides:
+        Field values that replace the auto-generated defaults.  Pass any
+        combination of Invite column names.
+
+    Returns
+    -------
+    Invite
+        The persisted :class:`~app.models.invite.Invite` instance.
+
+    Example::
+
+        invite = await create_test_invite(db_session, family, invited_user, admin_user)
+        assert invite.status == "pending"
+    """
+    now = datetime.now(tz=timezone.utc)
+
+    defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "family_id": family.id,
+        "invited_user_id": invited_user.id,
+        "invited_by": invited_by.id,
+        "status": "pending",
+        "created_at": now,
+    }
+    defaults.update(overrides)
+    invite = Invite(**defaults)
+    db.add(invite)
+    await db.flush()
+    await db.refresh(invite)
+    return invite
 
 
 # ---------------------------------------------------------------------------

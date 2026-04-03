@@ -1,0 +1,47 @@
+Type: syntax
+Command: python3 -m py_compile backend/tests/conftest.py && python3 ast_validation_script.py
+Expected: Valid Python syntax and all required functions defined
+Timestamp: 2026-04-02T00:00:00Z
+
+=== SYNTAX VALIDATION ===
+Status: PASS
+Output: ✓ Python syntax is valid
+
+=== FUNCTION DEFINITIONS ===
+Required functions present:
+  ✓ create_test_user
+  ✓ create_test_family
+  ✓ create_test_invite
+
+All functions defined as async functions with proper signatures.
+
+=== IMPORTS ===
+Required imports present:
+  ✓ app.models.family
+  ✓ app.models.family_member
+  ✓ app.models.invite
+
+=== FUNCTION SIGNATURES ===
+
+1. create_test_family
+   - Signature: async def create_test_family(db: AsyncSession, user: User, **overrides: Any) -> tuple[Family, FamilyMember]
+   - Returns: tuple[Family, FamilyMember] (family instance and admin member instance)
+   - Behavior: Creates a Family with auto-generated name, timezone "America/New_York", and a FamilyMember with role "admin"
+   - Supports: **overrides for both Family and FamilyMember fields
+
+2. create_test_invite
+   - Signature: async def create_test_invite(db: AsyncSession, family: Family, invited_user: User, invited_by: User, **overrides: Any) -> Invite
+   - Returns: Invite instance
+   - Behavior: Creates an Invite with status "pending" for the given family and users
+   - Supports: **overrides for Invite fields
+
+=== PATTERN CONSISTENCY ===
+Both factories follow the same pattern as create_test_user:
+  ✓ Async function (not a pytest fixture)
+  ✓ Takes db: AsyncSession as first parameter
+  ✓ Accepts **overrides for custom values
+  ✓ Uses uuid.uuid4() for unique IDs
+  ✓ Uses db.add(), db.flush(), and db.refresh()
+  ✓ Includes docstrings with Parameters, Returns, and Examples sections
+
+Status: PASS
