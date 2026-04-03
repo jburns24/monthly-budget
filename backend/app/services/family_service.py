@@ -14,6 +14,9 @@ from app.models.family_member import FamilyMember
 from app.models.invite import Invite
 from app.models.user import User
 
+# Alias to avoid shadowing by function parameters named 'timezone'
+_utc = timezone.utc
+
 logger = get_logger(__name__)
 
 
@@ -32,10 +35,12 @@ async def create_family(
     if existing is not None:
         raise HTTPException(status_code=409, detail="User already belongs to a family")
 
+    now = datetime.now(tz=_utc)
     family = Family(
         name=name,
         timezone=timezone,
         created_by=user.id,
+        created_at=now,
     )
     db.add(family)
     await db.flush()
@@ -44,6 +49,7 @@ async def create_family(
         family_id=family.id,
         user_id=user.id,
         role="admin",
+        joined_at=now,
     )
     db.add(member)
     await db.flush()
@@ -174,6 +180,7 @@ async def respond_to_invite(
         family_id=invite.family_id,
         user_id=user.id,
         role="member",
+        joined_at=now,
     )
     db.add(member)
     invite.status = "accepted"
