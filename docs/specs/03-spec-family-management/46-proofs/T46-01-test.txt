@@ -1,0 +1,24 @@
+Type: test
+Command: cd frontend && npm run test:run -- --reporter=verbose
+Expected: All FamilyIntegration tests pass (3 tests), full suite passes (56 tests)
+Timestamp: 2026-04-02T16:12:00Z
+
+=== NEW TEST FILE ===
+frontend/src/__tests__/FamilyIntegration.test.tsx
+
+=== INTEGRATION TEST RESULTS ===
+Family integration: create family and view member dashboard
+
+  PASS  shows Create Family form when user has no family (51ms)
+  PASS  create family flow: form -> API call -> dashboard with creator as admin (40ms)
+  PASS  submit button is disabled when family name is blank (12ms)
+
+=== FULL FRONTEND TEST SUITE RESULTS ===
+Test Files  12 passed (12)
+      Tests  56 passed (56)
+   Duration  1.97s
+
+All 56 tests pass across 12 test files.
+No test failures introduced by this change.
+
+Status: PASS
