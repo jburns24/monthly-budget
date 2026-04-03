@@ -1,0 +1,19 @@
+Type: cli
+Command: npm --prefix frontend run lint && npm --prefix frontend run format:check
+Expected: No lint errors, all files use Prettier code style
+Timestamp: 2026-04-02T15:37:45Z
+
+--- Output ---
+
+> frontend@0.0.0 lint
+> eslint .
+
+(no output -- no errors)
+
+> frontend@0.0.0 format:check
+> prettier --check src/
+
+Checking formatting...
+All matched files use Prettier code style!
+
+Status: PASS

@@ -1,9 +1,22 @@
+import { Box } from '@chakra-ui/react'
 import { Routes, Route } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
+import FamilyPage from './pages/FamilyPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Header from './components/Header'
+import BottomNavigation from './components/BottomNavigation'
+import { FamilyProvider } from './contexts/FamilyContext'
+
+function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <FamilyProvider>
+      <Box pb="64px">{children}</Box>
+      <BottomNavigation />
+    </FamilyProvider>
+  )
+}
 
 function App() {
   return (
@@ -16,7 +29,19 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <HomePage />
+              <ProtectedLayout>
+                <HomePage />
+              </ProtectedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/family"
+          element={
+            <ProtectedRoute>
+              <ProtectedLayout>
+                <FamilyPage />
+              </ProtectedLayout>
             </ProtectedRoute>
           }
         />
