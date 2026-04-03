@@ -1,0 +1,12 @@
+Type: test
+Command: vitest run (from frontend/)
+Expected: All pre-existing tests pass (no regressions from useAuth.ts modification)
+Timestamp: 2026-04-02T15:31:44Z
+
+Output:
+ Test Files  6 passed (6)
+       Tests  27 passed (27)
+    Start at  15:31:44
+    Duration  1.78s
+
+Status: PASS

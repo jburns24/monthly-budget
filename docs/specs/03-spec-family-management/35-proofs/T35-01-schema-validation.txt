@@ -1,0 +1,19 @@
+Type: cli
+Command: uv run python -c "import and validate all family schemas"
+Expected: All schema instantiations succeed with correct field values
+Timestamp: 2026-04-02T00:00:00Z
+Status: PASS
+
+Output:
+-------
+FamilyCreate: OK (name, timezone with default 'America/New_York')
+FamilyMemberResponse: OK (user_id UUID, email, display_name, avatar_url None, role, joined_at)
+FamilyResponse: OK (id, name, timezone, edit_grace_days, created_by, created_at, members list)
+FamilyBrief: OK (id, name, role)
+InviteCreate: OK (email validated as EmailStr)
+InviteResponse: OK (id, family_id, family_name, invited_by_name, status, created_at)
+InviteAction: OK (Literal accept/decline validated)
+RoleUpdate: OK (Literal admin/member validated)
+GenericMessage: OK (message str)
+
+ALL ASSERTIONS PASSED

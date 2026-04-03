@@ -1,0 +1,18 @@
+Type: test
+Command: npm --prefix frontend run test:run
+Expected: All tests pass (27 tests, 6 test files)
+Timestamp: 2026-04-02T15:37:37Z
+
+--- Output ---
+
+> frontend@0.0.0 test:run
+> vitest run
+
+ RUN  v4.1.0 /Users/jburns/git/monthly-budget/.claude/worktrees/feature-family-management/frontend
+
+ Test Files  6 passed (6)
+       Tests  27 passed (27)
+    Start at  15:37:37
+    Duration  1.41s (transform 2.44s, setup 190ms, import 5.63s, tests 308ms, environment 688ms)
+
+Status: PASS

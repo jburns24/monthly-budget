@@ -1,0 +1,8 @@
+Type: cli
+Command: uv run --project backend ruff check backend/tests/test_family_models.py
+Expected: All checks passed — no lint errors in test file
+Timestamp: 2026-04-03T22:42:00Z
+
+All checks passed!
+
+Status: PASS

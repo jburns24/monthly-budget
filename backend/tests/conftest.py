@@ -148,7 +148,9 @@ async def create_test_family(db: AsyncSession, user: User, **overrides: Any) -> 
     unique = uuid.uuid4().hex[:8]
 
     # Separate Family and FamilyMember overrides
-    family_overrides = {k: v for k, v in overrides.items() if k in ("name", "timezone", "edit_grace_days", "created_by", "created_at")}
+    family_overrides = {
+        k: v for k, v in overrides.items() if k in ("name", "timezone", "edit_grace_days", "created_by", "created_at")
+    }
     member_overrides = {k: v for k, v in overrides.items() if k in ("role", "joined_at")}
 
     # Create Family with defaults
@@ -188,7 +190,9 @@ async def create_test_family(db: AsyncSession, user: User, **overrides: Any) -> 
 # ---------------------------------------------------------------------------
 
 
-async def create_test_invite(db: AsyncSession, family: Family, invited_user: User, invited_by: User, **overrides: Any) -> Invite:
+async def create_test_invite(
+    db: AsyncSession, family: Family, invited_user: User, invited_by: User, **overrides: Any
+) -> Invite:
     """Insert an Invite record into the test database.
 
     Parameters

@@ -1,0 +1,22 @@
+Type: file
+Description: Alembic migration file created for family management tables
+Command: ls -la backend/alembic/versions/f3a9c2d1e4b7_add_family_management_tables.py
+Expected: Migration file exists with correct revision chain
+Timestamp: 2026-04-02T00:00:00Z
+
+OUTPUT:
+=======
+File: backend/alembic/versions/f3a9c2d1e4b7_add_family_management_tables.py
+
+Contents verified:
+  revision: "f3a9c2d1e4b7"  # pragma: allowlist secret
+  down_revision: "d2457cd3ba1a"  # pragma: allowlist secret - connects to users+refresh_token_blacklist migration
+
+  Functions: upgrade(), downgrade()
+
+Migration chain:
+  e508f2e08a06 (initial empty)
+  -> d2457cd3ba1a (create users and refresh_token_blacklist tables)
+  -> f3a9c2d1e4b7 (add family management tables)  [NEW]
+
+Status: PASS

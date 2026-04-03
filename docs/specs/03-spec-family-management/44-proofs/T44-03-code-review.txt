@@ -1,0 +1,54 @@
+Type: cli
+Command: code review of test_full_family_lifecycle in tests/test_family_integration.py
+Expected: All 8 lifecycle steps present, uses HTTP API layer, authenticated clients for User A and User B
+Timestamp: 2026-04-02T00:00:00Z
+
+Output:
+REVIEW of test_full_family_lifecycle:
+
+Step 1: POST /api/families -> 201 PRESENT
+  - Verifies status code 201
+  - Checks family name in response
+  - Confirms User A is the only member
+
+Step 2: POST /api/families/{id}/invites -> 200 PRESENT
+  - User A invites User B by email
+  - Verifies status code 200
+
+Step 3: GET /api/invites -> lists invite PRESENT
+  - User B retrieves pending invites
+  - Verifies 1 invite listed
+  - Checks family_id matches
+
+Step 4: POST /api/invites/{id}/respond action=accept -> 200 PRESENT
+  - User B accepts the invite
+  - Verifies status code 200
+  - Checks "accepted" in response message
+
+Step 5: GET /api/families/{id} -> both members listed PRESENT
+  - User A retrieves family details
+  - Verifies both User A and User B are in member list
+
+Step 6: PATCH /api/families/{id}/members/{b_id} role=admin -> 200 PRESENT
+  - User A promotes User B to admin
+  - Verifies status code 200
+  - Checks returned role is "admin"
+
+Step 7: DELETE /api/families/{id}/members/{b_id} -> 200 PRESENT
+  - User A removes User B from family
+  - Verifies status code 200
+  - Checks "removed" in response message
+
+Step 8: GET /api/families/{id} -> User B no longer listed PRESENT
+  - User A retrieves family details again
+  - Verifies User B is NOT in member list
+  - Verifies User A IS still in member list
+
+Implementation details:
+- Uses NullPool db_session fixture (per-test rollback isolation)
+- Overrides get_db dependency so both HTTP clients share the same test transaction
+- Builds authenticated JWT cookies using _TEST_JWT_SECRET from conftest.py
+- Uses async context managers for both HTTP clients
+- Dependencies cleared in finally block
+
+Status: PASS

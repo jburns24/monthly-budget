@@ -1,0 +1,19 @@
+Type: cli
+Command: cd frontend && npx eslint [all new/modified files] && npx prettier --check [all new/modified files]
+Expected: No lint or formatting errors
+Timestamp: 2026-04-02T15:55:00Z
+
+Result:
+ESLint: 0 errors, 0 warnings across all 7 files.
+Prettier: All files formatted correctly (after auto-format pass).
+
+Files checked:
+- src/components/family/RoleChangeDialog.tsx
+- src/components/family/RemoveMemberDialog.tsx
+- src/components/family/PendingInvites.tsx
+- src/components/family/LeaveButton.tsx
+- src/components/family/MemberList.tsx
+- src/components/family/FamilyDashboardView.tsx
+- src/pages/HomePage.tsx
+
+Status: PASS

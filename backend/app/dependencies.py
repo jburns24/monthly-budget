@@ -4,11 +4,13 @@ import uuid
 
 import jwt
 from fastapi import Cookie, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
 from app.logging import get_logger
+from app.models.family_member import FamilyMember
 from app.models.user import User
 from app.services.jwt_service import decode_token
 
@@ -63,3 +65,67 @@ async def get_current_user(
         raise _auth_error("User not found")
 
     return user
+
+
+async def require_family_member(
+    family_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[User, FamilyMember]:
+    """FastAPI dependency: verify the current user is a member of the given family.
+
+    Returns ``(current_user, family_member)`` on success.
+    Raises HTTP 404 with "Family not found" if the user is not a member —
+    intentionally uses 404 (not 403) to avoid leaking whether the family exists.
+    """
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.family_id == family_id,
+            FamilyMember.user_id == current_user.id,
+        )
+    )
+    family_member = result.scalar_one_or_none()
+    if family_member is None:
+        logger.warning(
+            "rbac_family_member_not_found",
+            family_id=str(family_id),
+            user_id=str(current_user.id),
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Family not found")
+    return current_user, family_member
+
+
+async def require_family_admin(
+    family_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[User, FamilyMember]:
+    """FastAPI dependency: verify the current user is an admin of the given family.
+
+    Returns ``(current_user, family_member)`` on success.
+    Raises HTTP 404 if the user is not a member of the family, or HTTP 403
+    if the user is a member but does not have the ``admin`` role.
+    """
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.family_id == family_id,
+            FamilyMember.user_id == current_user.id,
+        )
+    )
+    family_member = result.scalar_one_or_none()
+    if family_member is None:
+        logger.warning(
+            "rbac_family_admin_member_not_found",
+            family_id=str(family_id),
+            user_id=str(current_user.id),
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Family not found")
+    if family_member.role != "admin":
+        logger.warning(
+            "rbac_family_admin_insufficient_role",
+            family_id=str(family_id),
+            user_id=str(current_user.id),
+            role=family_member.role,
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user, family_member

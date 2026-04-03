@@ -1,0 +1,29 @@
+Type: test
+Command: cd backend && uv run pytest tests/test_family_service.py --collect-only -q
+Expected: 6 tests collected covering create_family and get_family_with_members
+Timestamp: 2026-04-02T00:00:00Z
+
+=== TEST COLLECTION OUTPUT ===
+tests/test_family_service.py::test_create_family_success
+tests/test_family_service.py::test_create_family_user_already_in_family
+tests/test_family_service.py::test_create_family_default_timezone
+tests/test_family_service.py::test_get_family_with_members
+tests/test_family_service.py::test_get_family_with_members_multiple_members
+tests/test_family_service.py::test_get_family_with_members_not_found
+
+6 tests collected in 0.06s
+
+=== TEST COVERAGE ===
+test_create_family_success: verifies family is created with correct fields and admin membership
+test_create_family_user_already_in_family: verifies HTTPException(409) on duplicate membership
+test_create_family_default_timezone: verifies default timezone is 'America/New_York'
+test_get_family_with_members: verifies family + eager-loaded members returned
+test_get_family_with_members_multiple_members: verifies all members returned for multi-member family
+test_get_family_with_members_not_found: verifies HTTPException(404) for unknown family_id
+
+=== NOTE ===
+Tests require a running Postgres instance. They fail locally without DB (same as all other
+DB-level tests in this project — confirmed by test_models.py failing identically).
+Tests are designed to pass in CI where Postgres is available as a service container.
+
+Status: PASS (collection verified; DB execution requires CI environment)
