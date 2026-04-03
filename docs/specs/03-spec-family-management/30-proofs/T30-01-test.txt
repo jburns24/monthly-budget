@@ -1,0 +1,26 @@
+Type: test
+Command: DATABASE_URL="postgresql+asyncpg://monthly_budget:[REDACTED]@localhost:5432/monthly_budget" uv run --project backend pytest backend/tests/test_family_models.py -v
+Expected: 11 tests pass covering Family, FamilyMember, and Invite ORM model validation
+Timestamp: 2026-04-03T22:42:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+collected 11 items
+
+backend/tests/test_family_models.py::test_create_family PASSED           [  9%]
+backend/tests/test_family_models.py::test_family_defaults PASSED         [ 18%]
+backend/tests/test_family_models.py::test_create_family_member PASSED    [ 27%]
+backend/tests/test_family_models.py::test_family_member_unique_constraint PASSED [ 36%]
+backend/tests/test_family_models.py::test_family_member_role_check PASSED [ 45%]
+backend/tests/test_family_models.py::test_create_invite PASSED           [ 54%]
+backend/tests/test_family_models.py::test_invite_status_check PASSED     [ 63%]
+backend/tests/test_family_models.py::test_invite_unique_constraint PASSED [ 72%]
+backend/tests/test_family_models.py::test_user_family_memberships_relationship PASSED [ 81%]
+backend/tests/test_family_models.py::test_family_members_relationship PASSED [ 90%]
+backend/tests/test_family_models.py::test_family_cascade_delete PASSED   [100%]
+
+============================== 11 passed in 0.32s ==============================
+
+Status: PASS
