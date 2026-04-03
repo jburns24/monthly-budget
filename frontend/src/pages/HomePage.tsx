@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { Box, Container, Heading, Text, Spinner, VStack } from '@chakra-ui/react'
+import { useAuth } from '../hooks/useAuth'
+import PendingInvites from '../components/family/PendingInvites'
 
 interface HealthResponse {
   status: string
 }
 
 function HomePage() {
+  const { isAuthenticated } = useAuth()
+
   const { data, isLoading, error } = useQuery<HealthResponse>({
     queryKey: ['health'],
     queryFn: async () => {
@@ -29,6 +33,7 @@ function HomePage() {
           {error && <Text color="red.500">API health: Error</Text>}
           {data && <Text color="green.500">API health: {data.status}</Text>}
         </Box>
+        {isAuthenticated && <PendingInvites />}
       </VStack>
     </Container>
   )

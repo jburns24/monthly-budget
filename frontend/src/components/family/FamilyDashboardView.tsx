@@ -5,6 +5,8 @@ import { useFamilyContext } from '../../contexts/FamilyContext'
 import { useAuth } from '../../hooks/useAuth'
 import MemberList from './MemberList'
 import InviteForm from './InviteForm'
+import PendingInvites from './PendingInvites'
+import LeaveButton from './LeaveButton'
 
 function FamilyDashboardView() {
   const { familyId, role } = useFamilyContext()
@@ -37,14 +39,24 @@ function FamilyDashboardView() {
   }
 
   const isAdmin = role === 'admin'
+  const currentUserId = user?.id ?? ''
+  const isOwner = family.created_by === currentUserId
 
   return (
     <Container maxW="container.md" py={8}>
       <Heading as="h1" size="xl" mb={6}>
         {family.name}
       </Heading>
-      <MemberList members={family.members} currentUserId={user?.id ?? ''} />
+      <PendingInvites />
+      <MemberList
+        members={family.members}
+        currentUserId={currentUserId}
+        familyId={family.id}
+        isAdmin={isAdmin}
+        ownerId={family.created_by}
+      />
       {isAdmin && <InviteForm familyId={family.id} />}
+      {!isOwner && <LeaveButton familyId={family.id} familyName={family.name} />}
     </Container>
   )
 }

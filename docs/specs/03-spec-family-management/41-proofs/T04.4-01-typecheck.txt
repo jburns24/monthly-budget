@@ -1,0 +1,18 @@
+Type: cli
+Command: cd frontend && npx tsc --noEmit
+Expected: Exit code 0 — all new components type-check cleanly
+Timestamp: 2026-04-02T15:55:00Z
+
+Result:
+Exit code 0. No type errors found.
+
+All new files pass TypeScript strict checks:
+- RoleChangeDialog.tsx
+- RemoveMemberDialog.tsx
+- PendingInvites.tsx
+- LeaveButton.tsx
+- MemberList.tsx (modified)
+- FamilyDashboardView.tsx (modified)
+- HomePage.tsx (modified)
+
+Status: PASS
