@@ -1,0 +1,11 @@
+Type: cli
+Command: uv run ruff check app/schemas/ && uv run ruff format --check app/schemas/
+Expected: No lint errors, all files properly formatted
+Timestamp: 2026-04-02T00:00:00Z
+Status: PASS
+
+Output:
+-------
+All checks passed!
+4 files already formatted
+lint OK

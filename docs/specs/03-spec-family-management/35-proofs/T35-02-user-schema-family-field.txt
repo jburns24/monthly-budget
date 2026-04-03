@@ -1,0 +1,12 @@
+Type: cli
+Command: uv run python -c "validate UserResponse with family field added"
+Expected: UserResponse.family defaults to None and accepts FamilyBrief
+Timestamp: 2026-04-02T00:00:00Z
+Status: PASS
+
+Output:
+-------
+UserResponse without family: family=None (default)
+UserResponse with FamilyBrief: family.role='owner' (correct)
+
+UserResponse family field: OK
