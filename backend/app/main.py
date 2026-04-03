@@ -10,7 +10,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import settings
 from app.database import engine
 from app.logging import configure_logging, get_logger
-from app.routers import auth, health, users
+from app.routers import auth, family, health, users
 
 # Configure structured logging as early as possible so all startup
 # log messages are captured in the correct format.
@@ -62,3 +62,4 @@ Instrumentator().instrument(app).expose(app)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(family.router)

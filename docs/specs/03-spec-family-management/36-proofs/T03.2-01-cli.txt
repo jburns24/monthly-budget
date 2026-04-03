@@ -1,0 +1,48 @@
+Type: cli
+Command: python -c "verify family router routes, imports, dependencies"
+Expected: All 8 endpoints registered, all schemas/services/dependencies import correctly
+Timestamp: 2026-04-02T12:00:00Z
+Status: PASS
+
+=== Family Router Verification ===
+Total family routes: 8
+
+  POST     /api/families
+  GET      /api/families/{family_id}
+  POST     /api/families/{family_id}/invites
+  GET      /api/invites
+  POST     /api/invites/{invite_id}/respond
+  DELETE   /api/families/{family_id}/members/{user_id}
+  PATCH    /api/families/{family_id}/members/{user_id}
+  POST     /api/families/{family_id}/leave
+
+Family routes in app: 8
+  ['POST'] /api/families
+  ['GET'] /api/families/{family_id}
+  ['POST'] /api/families/{family_id}/invites
+  ['GET'] /api/invites
+  ['POST'] /api/invites/{invite_id}/respond
+  ['DELETE'] /api/families/{family_id}/members/{user_id}
+  ['PATCH'] /api/families/{family_id}/members/{user_id}
+  ['POST'] /api/families/{family_id}/leave
+
+=== Schema Import Check ===
+All 9 schemas imported successfully
+
+=== Service Import Check ===
+  create_family: OK
+  get_family_with_members: OK
+  invite_user: OK
+  respond_to_invite: OK
+  remove_member: OK
+  change_role: OK
+  leave_family: OK
+
+=== Dependencies Import Check ===
+All RBAC dependencies imported successfully
+
+=== Users Router Update Check ===
+get_me parameters: ['current_user', 'db']
+get_me now accepts db session for family lookup
+
+VERIFICATION: ALL CHECKS PASSED
