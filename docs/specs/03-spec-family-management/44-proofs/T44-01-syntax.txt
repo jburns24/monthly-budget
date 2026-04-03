@@ -1,0 +1,36 @@
+Type: cli
+Command: cd backend && uv run pytest tests/test_family_integration.py --collect-only
+Expected: 15 tests collected (14 edge-case + 1 lifecycle) without import or syntax errors
+Timestamp: 2026-04-02T00:00:00Z
+
+Output:
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/jburns/git/monthly-budget/.claude/worktrees/feature-family-management/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 15 items
+
+<Dir backend>
+  <Package tests>
+    <Module test_family_integration.py>
+      <Coroutine test_full_family_lifecycle>
+      <Coroutine test_invite_nonexistent_email_same_response>
+      <Coroutine test_create_second_family_returns_409>
+      <Coroutine test_accept_invite_while_in_family_returns_409>
+      <Coroutine test_owner_cannot_leave>
+      <Coroutine test_owner_remains_in_family_after_leave_attempt>
+      <Coroutine test_owner_cannot_be_removed>
+      <Coroutine test_owner_still_member_after_remove_attempt>
+      <Coroutine test_owner_cannot_be_demoted>
+      <Coroutine test_owner_role_unchanged_after_demotion_attempt>
+      <Coroutine test_demote_last_admin_blocked>
+      <Coroutine test_demote_last_admin_role_unchanged>
+      <Coroutine test_demote_non_last_admin_succeeds>
+      <Coroutine test_leave_nonexistent_family_404>
+      <Coroutine test_remove_nonexistent_member_404>
+
+========================= 15 tests collected in 0.07s ==========================
+
+Status: PASS

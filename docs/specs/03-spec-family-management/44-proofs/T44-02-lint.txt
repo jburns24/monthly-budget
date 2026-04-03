@@ -1,0 +1,10 @@
+Type: cli
+Command: cd backend && uv run ruff check tests/test_family_integration.py && uv run ruff format --check tests/test_family_integration.py
+Expected: No lint errors, file already formatted
+Timestamp: 2026-04-02T00:00:00Z
+
+Output:
+All checks passed!
+1 file already formatted
+
+Status: PASS
