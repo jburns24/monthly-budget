@@ -1,0 +1,7 @@
+Type: lint
+Command: npx eslint src/components/family/ src/components/ui/ src/pages/FamilyPage.tsx src/main.tsx
+Expected: No lint errors
+Timestamp: 2026-04-02T15:47:00Z
+Status: PASS
+
+Output: (clean - no errors)

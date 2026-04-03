@@ -1,16 +1,20 @@
-import { Box, Container, Heading, Text } from '@chakra-ui/react'
+import { Container } from '@chakra-ui/react'
+import { useFamilyContext } from '../contexts/FamilyContext'
+import CreateFamilyView from '../components/family/CreateFamilyView'
+import FamilyDashboardView from '../components/family/FamilyDashboardView'
 
 function FamilyPage() {
-  return (
-    <Container maxW="container.md" py={8}>
-      <Box>
-        <Heading as="h1" size="xl" mb={4}>
-          Family
-        </Heading>
-        <Text color="gray.600">Family management coming soon.</Text>
-      </Box>
-    </Container>
-  )
+  const { familyId } = useFamilyContext()
+
+  if (familyId === null) {
+    return (
+      <Container maxW="container.md" py={8}>
+        <CreateFamilyView />
+      </Container>
+    )
+  }
+
+  return <FamilyDashboardView />
 }
 
 export default FamilyPage

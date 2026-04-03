@@ -1,0 +1,16 @@
+Type: file
+Command: ls -la frontend/src/components/family/ frontend/src/components/ui/ frontend/src/pages/FamilyPage.tsx
+Expected: All required files created
+Timestamp: 2026-04-02T15:47:20Z
+Status: PASS
+
+Files created:
+- frontend/src/pages/FamilyPage.tsx (updated - conditional rendering via FamilyContext)
+- frontend/src/components/family/CreateFamilyView.tsx (create family form with name + timezone)
+- frontend/src/components/family/FamilyDashboardView.tsx (family detail view with members + invite)
+- frontend/src/components/family/MemberList.tsx (member list with avatar, role badges)
+- frontend/src/components/family/InviteForm.tsx (email invite form with privacy-preserving toast)
+- frontend/src/components/ui/toaster.tsx (Chakra v3 toaster setup)
+
+Files modified:
+- frontend/src/main.tsx (added Toaster component)

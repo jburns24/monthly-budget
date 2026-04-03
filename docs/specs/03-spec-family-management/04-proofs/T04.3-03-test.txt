@@ -1,0 +1,10 @@
+Type: test
+Command: npm run test:run
+Expected: All existing tests pass (no regressions)
+Timestamp: 2026-04-02T15:47:16Z
+Status: PASS
+
+Output:
+Test Files  6 passed (6)
+Tests       27 passed (27)
+Duration    1.50s
