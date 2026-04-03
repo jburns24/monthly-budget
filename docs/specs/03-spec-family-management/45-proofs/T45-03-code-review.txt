@@ -1,0 +1,37 @@
+Type: file
+Description: Code review of test_family_integration.py — verifying all required edge cases are covered
+Expected: All 8 required test scenarios present and correctly implemented
+Timestamp: 2026-04-03T22:54:14Z
+
+Required tests per task specification:
+1. test_invite_nonexistent_email_same_response          PRESENT - checks privacy: both invites return None
+2. test_create_second_family_returns_409                PRESENT - one-family constraint on create
+3. test_accept_invite_while_in_family_returns_409       PRESENT - one-family constraint on accept; verifies invite stays "pending"
+4. test_owner_cannot_leave                              PRESENT - owner 403 on leave
+5. test_owner_cannot_be_removed                         PRESENT - admin cannot DELETE owner
+6. test_owner_cannot_be_demoted                         PRESENT - admin cannot demote owner to member
+7. test_demote_last_admin_blocked                       PRESENT - sole admin cannot demote themselves
+8. (bonus) test_demote_non_last_admin_succeeds          PRESENT - guard against over-blocking
+9. (bonus) test_leave_nonexistent_family_404            PRESENT
+10. (bonus) test_remove_nonexistent_member_404          PRESENT
+
+Service functions exercised:
+- invite_user (privacy)
+- create_family (one-family constraint)
+- respond_to_invite (one-family constraint on accept)
+- leave_family (owner protection)
+- remove_member (owner protection)
+- change_role (owner demotion + last-admin protection)
+
+Fixtures used from conftest.py:
+- create_test_user
+- create_test_family
+- create_test_invite
+
+Pattern consistency:
+- NullPool db_session fixture (same as test_family_service.py, test_auth_integration.py)
+- Per-test transaction rollback
+- pytest.raises(HTTPException) for error cases
+- Direct service layer calls (no HTTP layer needed since family router not yet registered)
+
+Status: PASS

@@ -1,0 +1,9 @@
+Type: cli
+Command: cd backend && uv run ruff check tests/test_family_integration.py
+Expected: All checks passed (no lint errors)
+Timestamp: 2026-04-03T22:54:14Z
+
+Output:
+All checks passed!
+
+Status: PASS
