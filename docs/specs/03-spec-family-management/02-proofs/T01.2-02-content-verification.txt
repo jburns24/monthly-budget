@@ -1,0 +1,39 @@
+Type: cli
+Description: Comprehensive verification of migration file content against spec requirements
+Command: python3 content-check.py (inline script)
+Expected: All 27 spec requirements present in migration file
+Timestamp: 2026-04-02T00:00:00Z
+
+OUTPUT:
+=======
+  [PASS] families table
+  [PASS] families.id UUID PK
+  [PASS] families.name String(255)
+  [PASS] families.timezone String(64)
+  [PASS] families.edit_grace_days Integer
+  [PASS] families.created_by UUID FK
+  [PASS] families.created_at TIMESTAMP TZ
+  [PASS] families FK to users RESTRICT
+  [PASS] family_members table
+  [PASS] family_members.role String(20)
+  [PASS] family_members CHECK role IN ('admin', 'member')
+  [PASS] family_members UNIQUE(family_id, user_id)
+  [PASS] family_members FK to families CASCADE
+  [PASS] family_members FK to users CASCADE
+  [PASS] idx_family_members_family
+  [PASS] idx_family_members_user
+  [PASS] invites table
+  [PASS] invites.status String(20)
+  [PASS] invites CHECK status IN ('pending', 'accepted', 'declined')
+  [PASS] invites UNIQUE(family_id, invited_user_id, status)
+  [PASS] invites FK to families CASCADE
+  [PASS] invites FK invited_user CASCADE
+  [PASS] invites FK invited_by CASCADE
+  [PASS] idx_invites_invited_user
+  [PASS] downgrade drops invites
+  [PASS] downgrade drops family_members
+  [PASS] downgrade drops families
+
+Overall: PASS (27/27 checks)
+
+Status: PASS
