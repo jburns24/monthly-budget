@@ -60,7 +60,7 @@ uv run alembic revision --autogenerate -m "desc"  # Generate migration from mode
 
 ## Architecture
 
-**Monorepo** with a FastAPI backend and React frontend, orchestrated via Docker Compose + Tilt (live-reload dev environment) + Taskfile (CLI command orchestration).
+**Monorepo** with a FastAPI backend and React frontend, orchestrated via Tilt (live-reload dev environment) + Taskfile (CLI command orchestration).
 
 ### Backend (`backend/`)
 - **FastAPI** with async SQLAlchemy 2.0 + asyncpg (PostgreSQL) and Redis
@@ -80,10 +80,9 @@ uv run alembic revision --autogenerate -m "desc"  # Generate migration from mode
 - Testing: Vitest + Testing Library + happy-dom/jsdom
 
 ### Infrastructure
-- **Tiltfile** — container orchestration with live_update, web UI dashboard at localhost:10350
+- **Tiltfile** — orchestrates all services as `local_resource` processes with hot-reload; web UI at localhost:10350. Debug service issues via `tilt logs <service>` or the Tilt UI — do NOT use `docker compose` commands.
 - **Taskfile.yml** — root CLI task orchestrator with `backend/Taskfile.yml` and `frontend/Taskfile.yml` includes
-- Docker Compose services: `api` (FastAPI), `db` (Postgres 16), `redis` (Redis 7), `frontend` (Vite dev server)
-- All containers have security hardening: read-only fs, no-new-privileges, dropped capabilities, resource limits
+- Services: `api` (FastAPI on :8000), `db` (Postgres 16 on :5432 via `docker run`), `redis` (Redis 7 on :6379 via `docker run`), `frontend` (Vite dev server on :5173)
 - CI: GitHub Actions (`.github/workflows/ci.yml`) runs on PRs to `main` — pre-commit checks, backend tests (with Postgres service), frontend tests
 
 ## Code Quality
