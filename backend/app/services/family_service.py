@@ -125,6 +125,7 @@ async def invite_user(
         invited_user_id=target_user.id,
         invited_by=invited_by_user.id,
         status="pending",
+        created_at=datetime.now(tz=_utc),
     )
     db.add(invite)
     await db.flush()

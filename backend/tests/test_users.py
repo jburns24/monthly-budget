@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 
@@ -68,17 +70,23 @@ async def test_me_authenticated_returns_user_profile() -> None:
 
 
 @pytest.mark.asyncio
-async def test_me_response_schema() -> None:
+async def test_me_response_schema(db_session: AsyncSession) -> None:
     """GET /api/me response includes all required profile fields."""
     from app.main import app
 
     user = _make_user(avatar_url="https://example.com/pic.jpg")
+
+    async def _override_db():
+        yield db_session
+
     app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_db] = _override_db
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.get("/api/me")
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_db, None)
 
     assert resp.status_code == 200
     body = resp.json()

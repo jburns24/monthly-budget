@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "126f1ebf6ccd414f42544f6e83d8cc5adb089e1108eaffb7c400701e37eecd9f"
     },
+    "tilt-dev": {
+      "source": "liatrio-labs/ai-prompts",
+      "sourceType": "github",
+      "computedHash": "40fdd73bc6fadcb775a3b76015659badcdf8ee2cefdce240a1efcbd53b2d375f"
+    },
     "typescript-advanced-types": {
       "source": "wshobson/agents",
       "sourceType": "github",
