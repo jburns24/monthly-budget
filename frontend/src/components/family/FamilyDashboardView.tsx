@@ -44,7 +44,7 @@ function FamilyDashboardView() {
 
   return (
     <Container maxW="container.md" py={8}>
-      <Heading as="h1" size="xl" mb={6}>
+      <Heading as="h1" size="xl" mb={6} color="brand.500">
         {family.name}
       </Heading>
       <PendingInvites />

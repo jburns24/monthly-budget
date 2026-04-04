@@ -131,8 +131,8 @@ function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
           justify="center"
           flex={1}
           py={2}
-          color={isActive ? 'blue.500' : 'gray.500'}
-          _hover={{ color: isActive ? 'blue.500' : 'gray.700' }}
+          color={isActive ? 'brand.500' : 'gray.500'}
+          _hover={{ color: isActive ? 'brand.500' : 'teal.600' }}
           gap={1}
         >
           {icon}

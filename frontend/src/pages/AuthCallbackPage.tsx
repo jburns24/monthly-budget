@@ -67,7 +67,7 @@ function AuthCallbackPage() {
             {error}
           </Text>
           <Text>
-            <a href="/login" style={{ color: '#3182ce', textDecoration: 'underline' }}>
+            <a href="/login" style={{ color: '#002B5B', textDecoration: 'underline' }}>
               Return to sign in
             </a>
           </Text>

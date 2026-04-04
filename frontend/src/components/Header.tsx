@@ -18,7 +18,7 @@ function UserAvatar({ user }: { user: User }) {
       h={8}
       borderRadius="full"
       overflow="hidden"
-      bg="blue.500"
+      bg="teal.500"
       display="flex"
       alignItems="center"
       justifyContent="center"
@@ -51,18 +51,24 @@ function Header() {
   if (!user) return null
 
   return (
-    <Box as="header" borderBottomWidth="1px" borderColor="gray.200" py={3}>
+    <Box as="header" bg="brand.500" py={3}>
       <Container maxW="container.xl">
         <Flex align="center" justify="space-between">
-          <Text fontWeight="semibold" fontSize="lg">
+          <Text fontWeight="bold" fontSize="lg" color="white" letterSpacing="-0.2px">
             Monthly Budget
           </Text>
           <Flex align="center" gap={3}>
             <UserAvatar user={user} />
-            <Text fontSize="sm" color="gray.700">
+            <Text fontSize="sm" color="whiteAlpha.900">
               {user.display_name}
             </Text>
-            <Button size="sm" variant="ghost" onClick={() => void handleLogout()}>
+            <Button
+              size="sm"
+              variant="ghost"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.200' }}
+              onClick={() => void handleLogout()}
+            >
               Sign out
             </Button>
           </Flex>

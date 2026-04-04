@@ -61,7 +61,7 @@ function RoleChangeDialog({ member, familyId, open, onClose }: RoleChangeDialogP
             Cancel
           </Button>
           <Button
-            colorPalette="blue"
+            colorPalette="brand"
             onClick={() => mutation.mutate()}
             loading={mutation.isPending}
           >

@@ -52,8 +52,8 @@ function MemberList({ members, currentUserId, familyId, isAdmin, ownerId }: Memb
                 w="40px"
                 h="40px"
                 borderRadius="full"
-                bg="blue.100"
-                color="blue.700"
+                bg="teal.500"
+                color="white"
                 fontWeight="bold"
                 fontSize="sm"
                 flexShrink={0}
@@ -82,7 +82,7 @@ function MemberList({ members, currentUserId, familyId, isAdmin, ownerId }: Memb
                 </Text>
               </Box>
               <Badge
-                colorPalette={member.role === 'admin' ? 'purple' : 'gray'}
+                colorPalette={member.role === 'admin' ? 'teal' : 'gray'}
                 variant="subtle"
                 size="sm"
               >

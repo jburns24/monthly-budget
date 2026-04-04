@@ -58,7 +58,7 @@ function InviteForm({ familyId }: InviteFormProps) {
           />
           <Button
             type="submit"
-            colorPalette="blue"
+            colorPalette="brand"
             loading={inviteMutation.isPending}
             disabled={email.trim().length === 0}
           >

@@ -45,47 +45,61 @@ function LoginPage() {
   }
 
   return (
-    <Container maxW="md" py={16}>
-      <VStack spacing={8} align="center">
-        <Heading as="h1" size="2xl" textAlign="center">
-          Monthly Budget
-        </Heading>
-        <Text fontSize="lg" color="gray.600" textAlign="center">
-          Sign in to manage your monthly budget
-        </Text>
-        <Box w="full" p={8} borderWidth="1px" borderRadius="lg" boxShadow="md">
-          <VStack spacing={4}>
-            {error !== null && (
-              <Box
-                w="full"
-                p={3}
-                bg="red.50"
-                borderRadius="md"
-                borderWidth="1px"
-                borderColor="red.200"
-                role="alert"
-              >
-                <Text color="red.700" fontSize="sm">
-                  {error}
-                </Text>
-              </Box>
-            )}
-            <Button
-              onClick={() => void handleSignIn()}
-              disabled={isLoading}
-              variant="outline"
-              size="lg"
-              w="full"
-              borderColor="gray.300"
-              gap={2}
-            >
-              <GoogleIcon />
-              {isLoading ? 'Redirecting…' : 'Sign in with Google'}
-            </Button>
+    <Box
+      minH="100svh"
+      bgGradient="to-b"
+      gradientFrom="brand.500"
+      gradientTo="teal.500"
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      py={16}
+      px={4}
+    >
+      <Container maxW="sm">
+        <VStack spacing={8} align="center">
+          <VStack spacing={2} align="center">
+            <Heading as="h1" size="2xl" textAlign="center" color="white" fontWeight="800">
+              Monthly Budget
+            </Heading>
+            <Text fontSize="md" color="whiteAlpha.800" textAlign="center">
+              Sign in to manage your monthly budget
+            </Text>
           </VStack>
-        </Box>
-      </VStack>
-    </Container>
+          <Box w="full" p={8} bg="white" borderRadius="xl" boxShadow="xl">
+            <VStack spacing={4}>
+              {error !== null && (
+                <Box
+                  w="full"
+                  p={3}
+                  bg="red.50"
+                  borderRadius="md"
+                  borderWidth="1px"
+                  borderColor="red.200"
+                  role="alert"
+                >
+                  <Text color="red.700" fontSize="sm">
+                    {error}
+                  </Text>
+                </Box>
+              )}
+              <Button
+                onClick={() => void handleSignIn()}
+                disabled={isLoading}
+                variant="outline"
+                size="lg"
+                w="full"
+                borderColor="gray.300"
+                gap={2}
+              >
+                <GoogleIcon />
+                {isLoading ? 'Redirecting…' : 'Sign in with Google'}
+              </Button>
+            </VStack>
+          </Box>
+        </VStack>
+      </Container>
+    </Box>
   )
 }
 

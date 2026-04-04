@@ -54,7 +54,7 @@ function CreateFamilyView() {
 
   return (
     <Box display="flex" justifyContent="center" pt={12}>
-      <Card.Root maxW="md" w="full">
+      <Card.Root maxW="md" w="full" borderTopWidth="3px" borderTopColor="teal.500">
         <Card.Header>
           <Heading as="h2" size="lg" textAlign="center">
             Create Your Family
@@ -101,7 +101,7 @@ function CreateFamilyView() {
             </Box>
             <Button
               type="submit"
-              colorPalette="blue"
+              colorPalette="brand"
               w="full"
               loading={mutation.isPending}
               disabled={name.trim().length === 0}

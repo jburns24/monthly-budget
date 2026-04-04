@@ -24,7 +24,7 @@ function HomePage() {
   return (
     <Container maxW="container.md" py={8}>
       <VStack spacing={6} align="start">
-        <Heading as="h1" size="2xl">
+        <Heading as="h1" size="2xl" color="brand.500">
           Monthly Budget
         </Heading>
         <Text fontSize="lg">Frontend is running.</Text>
