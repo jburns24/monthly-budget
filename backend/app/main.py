@@ -63,3 +63,9 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(family.router)
+
+# Dev-only endpoints (auth bypass + test-reset) — never exposed in production
+if settings.environment.lower() in ("development", "test"):
+    from app.routers import dev_auth  # noqa: PLC0415
+
+    app.include_router(dev_auth.router)

@@ -6,7 +6,7 @@
 #   pre-commit install          # register hooks for git commit
 #   pre-commit run --all-files  # run all checks against the entire codebase
 
-default_install_hook_types: [pre-commit]
+default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   # ---------------------------------------------------------------------------
@@ -92,6 +92,18 @@ repos:
         entry: bash -c 'cd frontend && npx tsc --noEmit'
         types_or: [ts, tsx]
         pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # E2e: Playwright — runs on pre-push (requires Tilt services to be running)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: playwright-e2e
+        name: playwright e2e tests
+        language: system
+        entry: bash -c 'cd e2e && npx playwright test'
+        pass_filenames: false
+        stages: [pre-push]
 
   # ---------------------------------------------------------------------------
   # Security: detect-secrets

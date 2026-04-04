@@ -59,3 +59,9 @@ tilt_modules/
 
 # Taskfile
 .task/
+
+# Playwright e2e
+e2e/playwright/.auth/
+e2e/test-results/
+e2e/playwright-report/
+e2e/node_modules/

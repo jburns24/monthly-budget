@@ -53,3 +53,28 @@ tasks:
   clean:
     desc: Clean generated files and caches
     deps: [be:clean, fe:clean]
+
+  e2e:
+    desc: Run Playwright e2e tests
+    dir: e2e
+    cmds:
+      - npx playwright test
+
+  e2e:ui:
+    desc: Run Playwright e2e tests with interactive UI
+    dir: e2e
+    cmds:
+      - npx playwright test --ui
+
+  e2e:headed:
+    desc: Run Playwright e2e tests in headed (visible browser) mode
+    dir: e2e
+    cmds:
+      - npx playwright test --headed
+
+  e2e:install:
+    desc: Install Playwright dependencies and Chromium browser
+    dir: e2e
+    cmds:
+      - npm install
+      - npx playwright install --with-deps chromium
