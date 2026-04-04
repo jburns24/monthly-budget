@@ -103,6 +103,7 @@ repos:
         language: system
         entry: bash -c 'cd e2e && npx playwright test'
         pass_filenames: false
+        always_run: true
         stages: [pre-push]
 
   # ---------------------------------------------------------------------------
