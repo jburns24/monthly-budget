@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Box, Button, Container, Flex, Heading, Spinner, Text } from '@chakra-ui/react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useFamilyContext } from '../contexts/FamilyContext'
 import { getBudgetSummary } from '../api/expenses'
+import { getGoals } from '../api/goals'
+import { getCategories } from '../api/categories'
 import type { BudgetCategorySummary } from '../types/expenses'
+import type { MonthlyGoal } from '../types/goals'
 import PendingInvites from '../components/family/PendingInvites'
 import FAB from '../components/expenses/FAB'
+import SetGoalDialog from '../components/goals/SetGoalDialog'
+import BulkGoalsEditor from '../components/goals/BulkGoalsEditor'
+import RolloverPrompt from '../components/goals/RolloverPrompt'
 
 function formatCents(cents: number): string {
   return (
@@ -52,14 +58,29 @@ function getStatusColor(status: string): string {
 interface CategoryCardProps {
   summary: BudgetCategorySummary
   yearMonth: string
+  isAdmin: boolean
+  existingGoal: MonthlyGoal | undefined
   onClick: (categoryId: string, yearMonth: string) => void
+  onGoalClick: (categoryId: string, categoryName: string, goal: MonthlyGoal | undefined) => void
 }
 
-function CategoryCard({ summary, yearMonth, onClick }: CategoryCardProps) {
+const CategoryCard = memo(function CategoryCard({
+  summary,
+  yearMonth,
+  isAdmin,
+  existingGoal,
+  onClick,
+  onGoalClick,
+}: CategoryCardProps) {
   const barPercent = summary.goal_cents
     ? Math.min((summary.spent_cents / summary.goal_cents) * 100, 100)
     : 0
   const statusColor = getStatusColor(summary.status)
+
+  function handleGoalButtonClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    onGoalClick(summary.category_id, summary.category_name, existingGoal)
+  }
 
   return (
     <Box
@@ -115,9 +136,28 @@ function CategoryCard({ summary, yearMonth, onClick }: CategoryCardProps) {
           />
         )}
       </Box>
+
+      {/* Goal button — admin only */}
+      {isAdmin && (
+        <Flex justify="flex-end" mt={2}>
+          <Button
+            size="xs"
+            variant="ghost"
+            colorPalette="brand"
+            data-testid={
+              existingGoal
+                ? `edit-goal-btn-${summary.category_id}`
+                : `set-goal-btn-${summary.category_id}`
+            }
+            onClick={handleGoalButtonClick}
+          >
+            {existingGoal ? 'Edit Goal \u270F\uFE0F' : 'Set Goal +'}
+          </Button>
+        </Flex>
+      )}
     </Box>
   )
-}
+})
 
 function PrevIcon() {
   return (
@@ -155,10 +195,26 @@ function NextIcon() {
   )
 }
 
+interface GoalDialogState {
+  open: boolean
+  categoryId: string
+  categoryName: string
+  existingGoal: MonthlyGoal | null
+}
+
 function DashboardPage() {
-  const { familyId } = useFamilyContext()
+  const { familyId, role } = useFamilyContext()
   const navigate = useNavigate()
   const [currentMonth, setCurrentMonth] = useState(getCurrentYearMonth)
+  const isAdmin = role === 'admin'
+
+  const [goalDialog, setGoalDialog] = useState<GoalDialogState>({
+    open: false,
+    categoryId: '',
+    categoryName: '',
+    existingGoal: null,
+  })
+  const [bulkEditorOpen, setBulkEditorOpen] = useState(false)
 
   const {
     data: summary,
@@ -168,6 +224,19 @@ function DashboardPage() {
     queryKey: ['budget-summary', familyId, currentMonth],
     queryFn: () => getBudgetSummary(familyId!, currentMonth),
     enabled: familyId !== null,
+    staleTime: 30_000,
+  })
+
+  const { data: goalsData } = useQuery({
+    queryKey: ['goals', familyId, currentMonth],
+    queryFn: () => getGoals(familyId!, currentMonth),
+    enabled: familyId !== null,
+  })
+
+  const { data: categories } = useQuery({
+    queryKey: ['categories', familyId],
+    queryFn: () => getCategories(familyId!),
+    enabled: familyId !== null && isAdmin,
   })
 
   function handlePrevMonth() {
@@ -182,7 +251,38 @@ function DashboardPage() {
     navigate(`/expenses?category=${categoryId}&month=${yearMonth}`)
   }
 
+  function handleGoalClick(
+    categoryId: string,
+    categoryName: string,
+    existingGoal: MonthlyGoal | undefined
+  ) {
+    setGoalDialog({
+      open: true,
+      categoryId,
+      categoryName,
+      existingGoal: existingGoal ?? null,
+    })
+  }
+
+  function handleGoalDialogClose() {
+    setGoalDialog((prev) => ({ ...prev, open: false }))
+  }
+
+  function handleRolloverComplete() {
+    // Goals query will be invalidated by RolloverPrompt; nothing extra needed here
+  }
+
+  const goals = goalsData?.goals ?? []
+  const hasPreviousGoals = goalsData?.has_previous_goals ?? false
+  const previousMonth = addMonths(currentMonth, -1)
+  const hasNoGoals = goals.length === 0
+  const showRolloverPrompt = isAdmin && hasNoGoals && hasPreviousGoals
+
   const hasExpenses = summary ? summary.categories.some((c) => c.spent_cents > 0) : false
+
+  function getGoalForCategory(categoryId: string): MonthlyGoal | undefined {
+    return goals.find((g) => g.category_id === categoryId)
+  }
 
   return (
     <Container maxW="container.md" py={6}>
@@ -237,6 +337,19 @@ function DashboardPage() {
         </Box>
       )}
 
+      {/* Rollover prompt — admin only, no goals for month, previous month has goals */}
+      {familyId && showRolloverPrompt && (
+        <Box mb={4}>
+          <RolloverPrompt
+            familyId={familyId}
+            yearMonth={currentMonth}
+            hasPreviousGoals={hasPreviousGoals}
+            previousMonth={previousMonth}
+            onRolloverComplete={handleRolloverComplete}
+          />
+        </Box>
+      )}
+
       {/* Budget summary */}
       {summary && (
         <>
@@ -277,12 +390,55 @@ function DashboardPage() {
                   key={cat.category_id}
                   summary={cat}
                   yearMonth={currentMonth}
+                  isAdmin={isAdmin}
+                  existingGoal={getGoalForCategory(cat.category_id)}
                   onClick={handleCategoryClick}
+                  onGoalClick={handleGoalClick}
                 />
               ))}
             </Flex>
           )}
+
+          {/* Manage All Goals button — admin only */}
+          {isAdmin && summary.categories.length > 0 && (
+            <Flex justify="flex-start" mt={4}>
+              <Button
+                variant="outline"
+                size="sm"
+                colorPalette="brand"
+                data-testid="manage-goals-btn"
+                onClick={() => setBulkEditorOpen(true)}
+              >
+                Manage All Goals
+              </Button>
+            </Flex>
+          )}
         </>
+      )}
+
+      {/* SetGoalDialog */}
+      {familyId && goalDialog.open && (
+        <SetGoalDialog
+          open={goalDialog.open}
+          onOpenChange={(open) => !open && handleGoalDialogClose()}
+          familyId={familyId}
+          yearMonth={currentMonth}
+          categoryId={goalDialog.categoryId}
+          categoryName={goalDialog.categoryName}
+          existingGoal={goalDialog.existingGoal}
+        />
+      )}
+
+      {/* BulkGoalsEditor */}
+      {familyId && isAdmin && (
+        <BulkGoalsEditor
+          isOpen={bulkEditorOpen}
+          onClose={() => setBulkEditorOpen(false)}
+          familyId={familyId}
+          yearMonth={currentMonth}
+          categories={categories ?? []}
+          currentGoals={goals}
+        />
       )}
     </Container>
   )

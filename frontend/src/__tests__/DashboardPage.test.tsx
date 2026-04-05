@@ -23,6 +23,24 @@ vi.mock('../api/expenses', () => ({
   deleteExpense: vi.fn(() => new Promise(() => {})),
 }))
 
+// Mock goals API to prevent real HTTP calls
+vi.mock('../api/goals', () => ({
+  getGoals: vi.fn(() => new Promise(() => {})),
+  updateGoal: vi.fn(() => new Promise(() => {})),
+  updateGoalsBulk: vi.fn(() => new Promise(() => {})),
+  deleteGoal: vi.fn(() => new Promise(() => {})),
+  rolloverGoals: vi.fn(() => new Promise(() => {})),
+}))
+
+// Mock categories API to prevent real HTTP calls
+vi.mock('../api/categories', () => ({
+  getCategories: vi.fn(() => new Promise(() => {})),
+  createCategory: vi.fn(() => new Promise(() => {})),
+  updateCategory: vi.fn(() => new Promise(() => {})),
+  deleteCategory: vi.fn(() => new Promise(() => {})),
+  seedCategories: vi.fn(() => new Promise(() => {})),
+}))
+
 // Mock PendingInvites to avoid sub-tree complexity
 vi.mock('../components/family/PendingInvites', () => ({
   default: vi.fn(() => <div data-testid="pending-invites" />),
@@ -35,8 +53,30 @@ vi.mock('../components/expenses/CreateExpenseDialog', () => ({
   ),
 }))
 
+// Mock SetGoalDialog to avoid complex form dependencies in these tests
+vi.mock('../components/goals/SetGoalDialog', () => ({
+  default: vi.fn(({ open }: { open: boolean }) =>
+    open ? <div role="dialog" data-testid="set-goal-dialog" /> : null
+  ),
+}))
+
+// Mock BulkGoalsEditor to avoid complex form dependencies in these tests
+vi.mock('../components/goals/BulkGoalsEditor', () => ({
+  default: vi.fn(({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div role="dialog" data-testid="bulk-goals-editor" /> : null
+  ),
+}))
+
+// Mock RolloverPrompt to simplify rollover banner testing
+vi.mock('../components/goals/RolloverPrompt', () => ({
+  default: vi.fn(({ hasPreviousGoals }: { hasPreviousGoals: boolean }) =>
+    hasPreviousGoals ? <div data-testid="rollover-prompt" /> : null
+  ),
+}))
+
 import { useAuth } from '../hooks/useAuth'
 import { getBudgetSummary } from '../api/expenses'
+import { getGoals } from '../api/goals'
 
 const FAMILY_ID = 'fam-123'
 
@@ -48,6 +88,17 @@ function makeUserWithFamily() {
     avatar_url: null,
     timezone: 'UTC',
     family: { id: FAMILY_ID, name: 'Test Family', role: 'member' as const },
+  }
+}
+
+function makeAdminWithFamily() {
+  return {
+    id: 'user-admin',
+    email: 'admin@example.com',
+    display_name: 'Admin User',
+    avatar_url: null,
+    timezone: 'UTC',
+    family: { id: FAMILY_ID, name: 'Test Family', role: 'admin' as const },
   }
 }
 
@@ -429,5 +480,217 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('expenses-page')).toBeInTheDocument()
     })
+  })
+
+  // ------------------------------------------------------------------ goal buttons (admin)
+  it('admin sees "Set Goal" buttons on category cards when no goals exist', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeAdminWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: false,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    // Admin should see "Set Goal +" buttons (one per category)
+    const setGoalButtons = screen.getAllByText(/set goal/i)
+    expect(setGoalButtons.length).toBeGreaterThan(0)
+  })
+
+  it('admin sees "Edit Goal" button on category card when goal exists', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeAdminWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [
+        {
+          id: 'goal-1',
+          family_id: FAMILY_ID,
+          category_id: 'cat-1',
+          year_month: '2026-04',
+          amount_cents: 10000,
+          version: 1,
+          created_at: '2026-04-01T00:00:00Z',
+          updated_at: '2026-04-01T00:00:00Z',
+        },
+      ],
+      has_previous_goals: false,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    // The cat-1 (Groceries) card should have "Edit Goal" button
+    expect(screen.getByTestId('edit-goal-btn-cat-1')).toBeInTheDocument()
+    // Other categories should still have "Set Goal" buttons
+    expect(screen.getByTestId('set-goal-btn-cat-2')).toBeInTheDocument()
+  })
+
+  it('member does not see goal buttons on category cards', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: false,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    // Members should NOT see goal buttons
+    expect(screen.queryByText(/set goal/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/edit goal/i)).not.toBeInTheDocument()
+  })
+
+  // ------------------------------------------------------------------ manage all goals button
+  it('admin sees "Manage All Goals" button when categories are loaded', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeAdminWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: false,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('manage-goals-btn')).toBeInTheDocument()
+    })
+  })
+
+  it('member does not see "Manage All Goals" button', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: false,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('manage-goals-btn')).not.toBeInTheDocument()
+  })
+
+  // ------------------------------------------------------------------ rollover prompt
+  it('admin sees rollover prompt when no goals for current month but previous month has goals', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeAdminWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: true,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rollover-prompt')).toBeInTheDocument()
+    })
+  })
+
+  it('member does not see rollover prompt even when previous goals exist', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: true,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('rollover-prompt')).not.toBeInTheDocument()
+  })
+
+  it('rollover prompt is not shown when current month already has goals', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeAdminWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [
+        {
+          id: 'goal-1',
+          family_id: FAMILY_ID,
+          category_id: 'cat-1',
+          year_month: '2026-04',
+          amount_cents: 10000,
+          version: 1,
+          created_at: '2026-04-01T00:00:00Z',
+          updated_at: '2026-04-01T00:00:00Z',
+        },
+      ],
+      has_previous_goals: true,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('rollover-prompt')).not.toBeInTheDocument()
   })
 })
