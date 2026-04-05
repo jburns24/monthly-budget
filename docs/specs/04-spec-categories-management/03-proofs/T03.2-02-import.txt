@@ -1,0 +1,9 @@
+Type: cli
+Command: cd backend && uv run python -c "from app.routers.categories import router; print('Router imported OK, routes:', [r.path for r in router.routes])"
+Expected: Router imported OK with 5 routes
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+Router imported OK, routes: ['/api/families/{family_id}/categories', '/api/families/{family_id}/categories', '/api/families/{family_id}/categories/{category_id}', '/api/families/{family_id}/categories/{category_id}', '/api/families/{family_id}/categories/seed']
+
+Status: PASS
