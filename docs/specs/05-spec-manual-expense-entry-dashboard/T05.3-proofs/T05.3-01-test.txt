@@ -1,0 +1,35 @@
+Type: test
+Command: cd frontend && npm run test:run -- --reporter=verbose src/__tests__/ExpensesPage.test.tsx
+Expected: All ExpensesPage component tests pass
+Timestamp: 2026-04-04T23:18:14Z
+
+Output:
+> frontend@0.0.0 test:run
+> vitest run --reporter=verbose src/__tests__/ExpensesPage.test.tsx
+
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ ✓ ExpensesPage > renders loading spinner while expenses are fetching 26ms
+ ✓ ExpensesPage > renders expense list with correct data when loaded 20ms
+ ✓ ExpensesPage > shows month display in header 5ms
+ ✓ ExpensesPage > prev/next month buttons are present and clickable 56ms
+ ✓ ExpensesPage > shows category filter when categories are available 15ms
+ ✓ ExpensesPage > does not show category filter when no categories 6ms
+ ✓ ExpensesPage > category filter change triggers new query 33ms
+ ✓ ExpensesPage > shows pagination controls when total_count > per_page 15ms
+ ✓ ExpensesPage > does not show pagination controls when total_count <= per_page 12ms
+ ✓ ExpensesPage > shows empty state message when no expenses for the month 9ms
+ ✓ ExpensesPage > shows Add Expense button when user has a family 3ms
+ ✓ ExpensesPage > does not show Add Expense button when user has no family 2ms
+ ✓ ExpensesPage > shows "no family" message when user has no family 3ms
+ ✓ ExpensesPage > opens create expense dialog when Add Expense button is clicked 21ms
+ ✓ ExpensesPage > shows error message when expenses query fails 8ms
+ ✓ ExpensesPage > initializes month from URL search params 3ms
+ ✓ ExpensesPage > shows month label with expense count in summary line 9ms
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  23:18:14
+   Duration  1.26s
+
+Status: PASS
