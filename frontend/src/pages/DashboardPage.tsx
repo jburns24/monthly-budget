@@ -252,7 +252,7 @@ function DashboardPage() {
             <Text fontSize="sm" color="gray.500">
               Total Spent
             </Text>
-            <Text fontSize="2xl" fontWeight="bold" color="brand.500">
+            <Text fontSize="2xl" fontWeight="bold" color="brand.500" data-testid="total-spent">
               {formatCents(summary.total_spent_cents)}
             </Text>
           </Box>

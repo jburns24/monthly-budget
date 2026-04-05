@@ -102,8 +102,8 @@ test('member creates expense via FAB on dashboard and sees it reflected', async 
   // Navigate back to dashboard and verify the total updated.
   await dashboard.goto()
   await expect(dashboard.totalSpent).toBeVisible({ timeout: 10_000 })
-  // Dashboard total should include $25 (rendered without cents when whole dollars)
-  await expect(page.getByText(/Total Spent:.*\$25/)).toBeVisible({ timeout: 5_000 })
+  // Dashboard total should reflect the new expense
+  await expect(dashboard.totalSpent).toContainText('$25')
 })
 
 // ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ test('member creates expense via expenses page and sees it in filtered list', as
 
   // The new expense should appear in the current month's list.
   await expect(page.getByText('Bus fare')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('$12.00')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('$12.00', { exact: true })).toBeVisible({ timeout: 5_000 })
 
   // Filter by Transport category — "Bus fare" should still appear.
   await expensesPage.filterByCategory(transportCategoryId)
@@ -242,8 +242,8 @@ test('member deletes an expense and it is removed from the list', async ({ page 
   const dashboard = new DashboardPage(page)
   await dashboard.goto()
   await expect(dashboard.totalSpent).toBeVisible({ timeout: 10_000 })
-  // After deletion the total spent should be $0 (formatted without decimals).
-  await expect(page.getByText(/Total Spent:.*\$0/)).toBeVisible({ timeout: 5_000 })
+  // After deletion the total spent should be $0.
+  await expect(dashboard.totalSpent).toContainText('$0')
 })
 
 // ---------------------------------------------------------------------------
@@ -273,12 +273,12 @@ test('month selector filters expenses and dashboard by month', async ({ page }) 
   const dashboard = new DashboardPage(page)
   await dashboard.goto()
   await expect(dashboard.totalSpent).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/Total Spent:.*\$50/)).toBeVisible({ timeout: 5_000 })
+  await expect(dashboard.totalSpent).toContainText('$50')
 
   // Navigate to previous month on dashboard.
   await dashboard.goToPrevMonth()
   // After month navigation the total should reflect the previous month ($30).
-  await expect(page.getByText(/Total Spent:.*\$30/)).toBeVisible({ timeout: 10_000 })
+  await expect(dashboard.totalSpent).toContainText('$30', { timeout: 10_000 })
 
   // Also verify the expenses page month selector works.
   const expensesPage = new ExpensesPage(page)
@@ -376,6 +376,6 @@ test("multiple family members can create and see each other's expenses", async (
 
   // Verify the user attribution shows the creator's name.
   // The ExpenseList renders display_name in a data-testid="expense-user-{id}" element.
-  await expect(page.getByText('Alice')).toBeVisible({ timeout: 5_000 })
-  await expect(page.getByText('Bob')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('Alice', { exact: true })).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('Bob', { exact: true })).toBeVisible({ timeout: 5_000 })
 })

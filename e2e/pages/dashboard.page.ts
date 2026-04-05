@@ -38,8 +38,8 @@ export class DashboardPage {
     // The dashboard renders month as a Heading inside the month selector flex
     this.monthLabel = page.getByRole('heading').filter({ hasText: /\w+ \d{4}/ })
 
-    // Total spent text — rendered as a bold text with "Total Spent:" prefix
-    this.totalSpent = page.locator('text=/Total Spent:/')
+    // Total spent value — identified by data-testid
+    this.totalSpent = page.getByTestId('total-spent')
 
     // Category cards are rendered as role="button" with aria-label "{name} category"
     this.categoryCards = page.locator('[role="button"][aria-label$=" category"]')
