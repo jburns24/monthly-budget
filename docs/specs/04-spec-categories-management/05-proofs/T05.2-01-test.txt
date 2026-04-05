@@ -1,0 +1,18 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/e2e && npx playwright test tests/categories.spec.ts --reporter=list
+Expected: 6 tests pass (admin create, edit, delete, seed defaults, member read-only)
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+Running 6 tests using 1 worker
+
+  ✓  1 [setup] › tests/auth.setup.ts:14:6 › authenticate primary test user (26ms)
+  ✓  2 [chromium] › tests/categories.spec.ts:41:5 › admin creates a category and sees it in the list (614ms)
+  ✓  3 [chromium] › tests/categories.spec.ts:64:5 › admin edits a category name and sees the updated name (712ms)
+  ✓  4 [chromium] › tests/categories.spec.ts:101:5 › admin deletes a category with no expenses and it disappears (746ms)
+  ✓  5 [chromium] › tests/categories.spec.ts:128:5 › seed defaults creates 6 default categories (440ms)
+  ✓  6 [chromium] › tests/categories.spec.ts:155:5 › member can view categories but cannot see admin action buttons (337ms)
+
+  6 passed (3.5s)
+
+Status: PASS

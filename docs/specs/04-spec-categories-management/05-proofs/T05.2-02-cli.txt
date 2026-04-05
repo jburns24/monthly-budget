@@ -1,0 +1,22 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/e2e && npx playwright test tests/categories.spec.ts --list
+Expected: 5 test titles listed
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+Listing tests:
+  [chromium] › tests/categories.spec.ts:41:5 › admin creates a category and sees it in the list
+  [chromium] › tests/categories.spec.ts:64:5 › admin edits a category name and sees the updated name
+  [chromium] › tests/categories.spec.ts:101:5 › admin deletes a category with no expenses and it disappears
+  [chromium] › tests/categories.spec.ts:128:5 › seed defaults creates 6 default categories
+  [chromium] › tests/categories.spec.ts:155:5 › member can view categories but cannot see admin action buttons
+
+Files covered:
+  e2e/tests/categories.spec.ts  (created)
+  frontend/src/api/categories.ts  (fixed PATCH→PUT to match backend PUT endpoint)
+
+Notes:
+  - sendInviteViaApi returns GenericMessage (no id), so member test retrieves invite id via GET /api/invites
+  - Backend categories update endpoint uses PUT; frontend API was sending PATCH (bug fixed in categories.ts)
+
+Status: PASS

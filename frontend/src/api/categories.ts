@@ -33,7 +33,7 @@ export async function updateCategory(
   data: CategoryUpdate
 ): Promise<Category> {
   const response = await apiClient(`/api/families/${familyId}/categories/${categoryId}`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
