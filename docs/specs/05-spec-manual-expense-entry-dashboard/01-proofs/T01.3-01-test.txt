@@ -1,0 +1,35 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run pytest tests/test_expenses_models.py -v
+Expected: 17 tests pass covering Expense and MonthlyGoal model constraints
+Timestamp: 2026-04-04T23:45:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0 -- .venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jburns/git/monthly-budget/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 17 items
+
+tests/test_expenses_models.py::test_expense_create_and_retrieve_all_fields PASSED [  5%]
+tests/test_expenses_models.py::test_expense_year_month_is_populated PASSED [ 11%]
+tests/test_expenses_models.py::test_expense_amount_cents_check_constraint_rejects_zero PASSED [ 17%]
+tests/test_expenses_models.py::test_expense_amount_cents_check_constraint_rejects_negative PASSED [ 23%]
+tests/test_expenses_models.py::test_expense_cascade_delete_with_family PASSED [ 29%]
+tests/test_expenses_models.py::test_expense_restrict_prevents_category_deletion PASSED [ 35%]
+tests/test_expenses_models.py::test_expense_id_auto_generated PASSED     [ 41%]
+tests/test_expenses_models.py::test_expense_description_defaults_to_empty_string PASSED [ 47%]
+tests/test_expenses_models.py::test_expense_receipt_id_is_nullable PASSED [ 52%]
+tests/test_expenses_models.py::test_expense_query_by_family_and_year_month PASSED [ 58%]
+tests/test_expenses_models.py::test_monthly_goal_create_and_retrieve_all_fields PASSED [ 64%]
+tests/test_expenses_models.py::test_monthly_goal_unique_constraint_raises_on_duplicate PASSED [ 70%]
+tests/test_expenses_models.py::test_monthly_goal_unique_constraint_allows_different_month PASSED [ 76%]
+tests/test_expenses_models.py::test_monthly_goal_unique_constraint_allows_different_category PASSED [ 82%]
+tests/test_expenses_models.py::test_monthly_goal_cascade_delete_with_family PASSED [ 88%]
+tests/test_expenses_models.py::test_monthly_goal_id_auto_generated PASSED [ 94%]
+tests/test_expenses_models.py::test_monthly_goal_amount_cents_is_nullable PASSED [100%]
+
+============================== 17 passed in 0.50s ==============================
+
+Status: PASS

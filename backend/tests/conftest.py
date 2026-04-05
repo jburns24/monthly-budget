@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.config import settings
 from app.models.category import Category
+from app.models.expense import Expense
 from app.models.family import Family
 from app.models.family_member import FamilyMember
 from app.models.invite import Invite
@@ -283,6 +284,69 @@ async def create_test_category(db: AsyncSession, family: Family, **overrides: An
     await db.flush()
     await db.refresh(category)
     return category
+
+
+# ---------------------------------------------------------------------------
+# Expense factory (plain async function, not a fixture — call it from any fixture
+# or test that already has a db_session)
+# ---------------------------------------------------------------------------
+
+
+async def create_test_expense(
+    db: AsyncSession,
+    family: Family,
+    user: User,
+    category: Category,
+    **overrides: Any,
+) -> "Expense":
+    """Insert an Expense into the test database and return the ORM object.
+
+    Parameters
+    ----------
+    db:
+        Active async session (typically from the :func:`db_session` fixture).
+    family:
+        The Family the expense belongs to.
+    user:
+        The User who recorded the expense.
+    category:
+        The Category the expense is in.
+    **overrides:
+        Field values that replace the auto-generated defaults.  Pass any
+        combination of Expense column names.
+
+    Returns
+    -------
+    Expense
+        The persisted :class:`~app.models.expense.Expense` instance.
+
+    Example::
+
+        expense = await create_test_expense(db_session, family, user, category, amount_cents=5000)
+    """
+    from datetime import date as date_type
+
+    from app.models.expense import Expense
+
+    now = datetime.now(tz=timezone.utc)
+    defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "family_id": family.id,
+        "user_id": user.id,
+        "category_id": category.id,
+        "amount_cents": 1000,
+        "description": "Test expense",
+        "expense_date": date_type(2026, 4, 1),
+        "year_month": "2026-04",
+        "created_at": now,
+        "updated_at": now,
+    }
+    defaults.update(overrides)
+    expense = Expense(**defaults)
+    db.add(expense)
+    await db.flush()
+    await db.refresh(expense)
+    return expense
 
 
 # ---------------------------------------------------------------------------

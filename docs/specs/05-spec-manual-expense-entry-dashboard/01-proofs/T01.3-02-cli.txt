@@ -1,0 +1,16 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run ruff check tests/test_expenses_models.py tests/conftest.py
+Expected: All checks passed with no lint errors in task scope files
+Timestamp: 2026-04-04T23:45:00Z
+
+All checks passed!
+
+Also verified create_test_expense factory added to conftest.py:
+- Function signature: create_test_expense(db, family, user, category, **overrides) -> Expense
+- Default amount_cents: 1000
+- Default expense_date: date(2026, 4, 1)
+- Default year_month: "2026-04"
+
+Full test suite: 194 passed (up from 159 pre-task)
+
+Status: PASS
