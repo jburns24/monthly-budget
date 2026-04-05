@@ -1,0 +1,23 @@
+Type: file
+Command: ls -la frontend/src/components/expenses/CreateExpenseDialog.tsx
+Expected: File exists and is non-empty
+Timestamp: 2026-04-04T23:04:37Z
+
+Output:
+-rw-r--r--  1 jburns  staff  4218 Apr  4 23:04 frontend/src/components/expenses/CreateExpenseDialog.tsx
+
+Key features verified in file:
+- DialogRoot/DialogBackdrop/DialogContent pattern (matches CreateCategoryDialog)
+- Props: open, onOpenChange, familyId
+- amount input with inputMode="decimal" and autoFocus via ref
+- description input with maxLength={500}
+- NativeSelectRoot/NativeSelectField for category dropdown
+- useQuery for getCategories with enabled:open
+- Default category from localStorage LAST_USED_CATEGORY_KEY
+- date input type="date" defaulting to today
+- useMutation calling createExpense
+- onSuccess: localStorage.setItem, invalidate ['expenses', familyId] and ['budget-summary', familyId], toaster.create success
+- onError: toaster.create error
+- data-testid attributes for all inputs and submit button
+
+Status: PASS

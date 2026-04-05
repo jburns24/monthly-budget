@@ -1,0 +1,12 @@
+Type: cli
+Command: cd frontend && npm run lint
+Expected: No ESLint errors in CreateExpenseDialog.tsx
+Timestamp: 2026-04-04T23:04:30Z
+
+Output:
+> frontend@0.0.0 lint
+> eslint .
+
+(no output = no errors)
+
+Status: PASS
