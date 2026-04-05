@@ -1,0 +1,16 @@
+Type: cli
+Command: python -c "inspect get_budget_summary signature and validate schema compatibility"
+Expected: Function signature matches (db, family_id, year_month) -> BudgetSummaryResponse; schemas instantiate correctly
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+Function signature: (db: sqlalchemy.ext.asyncio.session.AsyncSession, family_id: uuid.UUID, year_month: str) -> app.schemas.expense.BudgetSummaryResponse
+Return annotation: <class 'app.schemas.expense.BudgetSummaryResponse'>
+
+BudgetCategorySummary fields: ['category_id', 'category_name', 'icon', 'spent_cents', 'goal_cents', 'percentage', 'status']
+BudgetSummaryResponse fields: ['year_month', 'total_spent_cents', 'categories']
+
+Sample BudgetCategorySummary: {'category_id': UUID('...'), 'category_name': 'Food', 'icon': 'fork', 'spent_cents': 5000, 'goal_cents': 10000, 'percentage': 0.5, 'status': 'green'}
+Sample BudgetSummaryResponse: {'year_month': '2026-04', 'total_spent_cents': 5000, 'categories': [...]}
+
+Status: PASS

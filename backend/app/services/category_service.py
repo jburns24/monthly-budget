@@ -3,12 +3,13 @@
 import uuid
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging import get_logger
 from app.models.category import Category
+from app.models.expense import Expense
 
 logger = get_logger(__name__)
 
@@ -106,18 +107,9 @@ async def update_category(
 
 
 async def _count_category_expenses(db: AsyncSession, category_id: uuid.UUID) -> int:
-    """Return the number of expenses that reference this category.
-
-    Currently returns 0 because the expenses table does not exist yet.
-    When the expenses model is added, replace this stub with a real query:
-
-        from app.models.expense import Expense
-        result = await db.execute(
-            select(func.count()).where(Expense.category_id == category_id)
-        )
-        return result.scalar_one()
-    """
-    return 0
+    """Return the number of expenses that reference this category."""
+    result = await db.execute(select(func.count()).select_from(Expense).where(Expense.category_id == category_id))
+    return result.scalar_one()
 
 
 async def delete_category(

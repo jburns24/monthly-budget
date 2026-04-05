@@ -5,13 +5,15 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, outerjoin, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.logging import get_logger
 from app.models.category import Category
 from app.models.expense import Expense
+from app.models.monthly_goal import MonthlyGoal
+from app.schemas.expense import BudgetCategorySummary, BudgetSummaryResponse
 
 logger = get_logger(__name__)
 
@@ -254,4 +256,118 @@ async def delete_expense(
         "expense_deleted",
         expense_id=str(expense_id),
         family_id=str(family_id),
+    )
+
+
+def _compute_status(spent_cents: int, goal_cents: int | None) -> str:
+    """Compute spending status relative to goal.
+
+    Returns "none" when no goal is set.
+    Returns "green" when spent < 80% of goal.
+    Returns "yellow" when spent is 80-99% of goal.
+    Returns "red" when spent >= 100% of goal.
+    """
+    if goal_cents is None or goal_cents == 0:
+        return "none"
+    percentage = spent_cents / goal_cents
+    if percentage >= 1.0:
+        return "red"
+    if percentage >= 0.8:
+        return "yellow"
+    return "green"
+
+
+async def get_budget_summary(
+    db: AsyncSession,
+    family_id: uuid.UUID,
+    year_month: str,
+) -> BudgetSummaryResponse:
+    """Return budget summary for a family for the given month.
+
+    Executes a single aggregation query joining categories with expenses and
+    monthly_goals for the given family and year_month. Only includes active
+    categories belonging to the family.
+
+    Returns per-category data (spent, goal, percentage, status) and total_spent_cents.
+    """
+    # Build a scalar subquery for goal_cents per category
+    goal_subq = (
+        select(MonthlyGoal.category_id, MonthlyGoal.amount_cents)
+        .where(
+            MonthlyGoal.family_id == family_id,
+            MonthlyGoal.year_month == year_month,
+        )
+        .subquery()
+    )
+
+    # Build the aggregation query:
+    # SELECT categories.*, SUM(expenses.amount_cents), goal_subq.amount_cents
+    # FROM categories
+    # LEFT JOIN expenses ON expenses.category_id = categories.id AND ...
+    # LEFT JOIN goal_subq ON goal_subq.category_id = categories.id
+    # WHERE categories.family_id = ? AND categories.is_active = true
+    # GROUP BY categories.id, goal_subq.amount_cents
+    expenses_filtered = outerjoin(
+        Category,
+        Expense,
+        (Expense.category_id == Category.id) & (Expense.family_id == family_id) & (Expense.year_month == year_month),
+    ).outerjoin(
+        goal_subq,
+        goal_subq.c.category_id == Category.id,
+    )
+
+    stmt = (
+        select(
+            Category.id,
+            Category.name,
+            Category.icon,
+            func.coalesce(func.sum(Expense.amount_cents), 0).label("spent_cents"),
+            goal_subq.c.amount_cents.label("goal_cents"),
+        )
+        .select_from(expenses_filtered)
+        .where(
+            Category.family_id == family_id,
+            Category.is_active.is_(True),
+        )
+        .group_by(Category.id, Category.name, Category.icon, goal_subq.c.amount_cents)
+        .order_by(Category.sort_order, Category.name)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    category_summaries: list[BudgetCategorySummary] = []
+    total_spent_cents = 0
+
+    for row in rows:
+        spent = int(row.spent_cents)
+        goal: int | None = int(row.goal_cents) if row.goal_cents is not None else None
+        percentage = (spent / goal) if goal else 0.0
+        status = _compute_status(spent, goal)
+
+        category_summaries.append(
+            BudgetCategorySummary(
+                category_id=row.id,
+                category_name=row.name,
+                icon=row.icon,
+                spent_cents=spent,
+                goal_cents=goal,
+                percentage=round(percentage, 4),
+                status=status,
+            )
+        )
+        total_spent_cents += spent
+
+    logger.info(
+        "budget_summary_fetched",
+        family_id=str(family_id),
+        year_month=year_month,
+        category_count=len(category_summaries),
+        total_spent_cents=total_spent_cents,
+    )
+
+    return BudgetSummaryResponse(
+        year_month=year_month,
+        total_spent_cents=total_spent_cents,
+        categories=category_summaries,
     )

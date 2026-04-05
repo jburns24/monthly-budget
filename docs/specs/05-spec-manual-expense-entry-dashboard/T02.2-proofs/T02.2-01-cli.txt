@@ -1,0 +1,11 @@
+Type: cli
+Command: python -c "... (AST parse of expense_service.py to verify function presence)"
+Expected: get_budget_summary and _compute_status functions defined in expense_service.py
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+Async functions defined: ['_validate_category', 'create_expense', 'list_expenses', 'get_expense', 'update_expense', 'delete_expense', 'get_budget_summary']
+has get_budget_summary: True
+has _compute_status helper: True
+
+Status: PASS

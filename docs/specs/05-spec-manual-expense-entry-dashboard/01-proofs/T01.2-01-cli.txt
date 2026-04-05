@@ -1,0 +1,20 @@
+Type: cli
+Command: uv run alembic upgrade head (after autogenerate)
+Expected: Migration runs successfully, expenses and monthly_goals tables created
+Timestamp: 2026-04-04T22:57:56Z
+Status: PASS
+
+--- OUTPUT ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 587bc20d2058 -> ab32c81d8481, add expenses and monthly_goals tables
+
+--- CURRENT HEAD ---
+ab32c81d8481 (head)
+
+--- MIGRATION HISTORY ---
+587bc20d2058 -> ab32c81d8481 (head), add expenses and monthly_goals tables
+f3a9c2d1e4b7 -> 587bc20d2058, add categories table
+d2457cd3ba1a -> f3a9c2d1e4b7, add family management tables
+e508f2e08a06 -> d2457cd3ba1a, create users and refresh_token_blacklist tables
+<base> -> e508f2e08a06, initial empty migration

@@ -1,0 +1,19 @@
+Type: cli
+Command: python -c "from app.services.expense_service import _compute_status; test all boundary cases"
+Expected: All 9 boundary tests pass for green/yellow/red/none status logic
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+PASS: spent=0, goal=None -> none (expected none)
+PASS: spent=50, goal=None -> none (expected none)
+PASS: spent=0, goal=1000 -> green (expected green)
+PASS: spent=799, goal=1000 -> green (expected green)
+PASS: spent=800, goal=1000 -> yellow (expected yellow)
+PASS: spent=999, goal=1000 -> yellow (expected yellow)
+PASS: spent=1000, goal=1000 -> red (expected red)
+PASS: spent=1500, goal=1000 -> red (expected red)
+PASS: spent=0, goal=0 -> none (expected none)
+
+All tests passed: True
+
+Status: PASS

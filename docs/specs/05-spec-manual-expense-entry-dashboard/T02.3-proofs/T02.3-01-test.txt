@@ -1,0 +1,37 @@
+Type: test
+Command: cd backend && uv run pytest tests/test_categories_service.py -v
+Expected: All tests pass, including new archive test
+Timestamp: 2026-04-04T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+tests/test_categories_service.py::test_create_category_returns_orm_with_correct_fields PASSED
+tests/test_categories_service.py::test_create_category_icon_can_be_none PASSED
+tests/test_categories_service.py::test_create_category_sort_order_defaults_to_zero PASSED
+tests/test_categories_service.py::test_create_category_duplicate_name_raises_409 PASSED
+tests/test_categories_service.py::test_create_category_same_name_different_family_succeeds PASSED
+tests/test_categories_service.py::test_list_active_categories_returns_only_active PASSED
+tests/test_categories_service.py::test_list_active_categories_sorted_by_sort_order_then_name PASSED
+tests/test_categories_service.py::test_list_active_categories_empty_when_none_exist PASSED
+tests/test_categories_service.py::test_list_active_categories_excludes_other_families PASSED
+tests/test_categories_service.py::test_update_category_name_only PASSED
+tests/test_categories_service.py::test_update_category_icon_only PASSED
+tests/test_categories_service.py::test_update_category_sort_order_only PASSED
+tests/test_categories_service.py::test_update_category_not_found_raises_404 PASSED
+tests/test_categories_service.py::test_update_category_wrong_family_raises_404 PASSED
+tests/test_categories_service.py::test_update_category_duplicate_name_raises_409 PASSED
+tests/test_categories_service.py::test_delete_category_hard_deletes_when_no_expenses PASSED
+tests/test_categories_service.py::test_delete_category_not_found_raises_404 PASSED
+tests/test_categories_service.py::test_delete_category_wrong_family_raises_404 PASSED
+tests/test_categories_service.py::test_delete_category_archives_when_expenses_exist PASSED
+tests/test_categories_service.py::test_seed_default_categories_creates_six PASSED
+tests/test_categories_service.py::test_seed_default_categories_correct_names_and_icons PASSED
+tests/test_categories_service.py::test_seed_default_categories_idempotent PASSED
+tests/test_categories_service.py::test_seed_default_categories_skips_existing_names PASSED
+tests/test_categories_service.py::test_seed_default_categories_all_active PASSED
+
+============================== 24 passed in 0.70s ==============================
+
+Status: PASS

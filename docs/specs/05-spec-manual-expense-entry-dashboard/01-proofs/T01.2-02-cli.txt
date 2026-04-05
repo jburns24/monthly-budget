@@ -1,0 +1,23 @@
+Type: cli
+Command: uv run alembic downgrade -1 && uv run alembic upgrade head
+Expected: Downgrade removes expenses/monthly_goals tables; re-upgrade recreates them
+Timestamp: 2026-04-04T22:57:56Z
+Status: PASS
+
+--- DOWNGRADE OUTPUT ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade ab32c81d8481 -> 587bc20d2058, add expenses and monthly_goals tables
+
+--- RE-UPGRADE OUTPUT ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 587bc20d2058 -> ab32c81d8481, add expenses and monthly_goals tables
+
+--- FINAL STATE ---
+ab32c81d8481 (head)
+
+Both upgrade and downgrade paths verified successfully.
+Tables created: expenses, monthly_goals
+Indexes created: idx_expenses_category, idx_expenses_family, idx_expenses_family_year_month, idx_monthly_goals_family_year_month
+Constraints: ck_expenses_amount_positive, ck_monthly_goals_amount_positive, uq_monthly_goals_family_category_month

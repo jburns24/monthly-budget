@@ -19,6 +19,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.models.category import Category
+from app.models.expense import Expense
 from app.models.family import Family
 from app.models.family_member import FamilyMember  # noqa: F401 — registers with Base.metadata
 from app.models.invite import Invite  # noqa: F401 — registers with Base.metadata
@@ -344,6 +345,31 @@ async def test_delete_category_wrong_family_raises_404(db_session: AsyncSession)
         await delete_category(db_session, family2.id, cat.id)
 
     assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_category_archives_when_expenses_exist(db_session: AsyncSession) -> None:
+    """delete_category returns archived result and sets is_active=False when expenses reference it."""
+    family = await _make_family(db_session)
+    owner = await create_test_user(db_session)
+    cat = await _insert_category(db_session, family, name="WithExpenses")
+
+    # Insert an expense referencing this category
+    expense = Expense(
+        family_id=family.id,
+        category_id=cat.id,
+        user_id=owner.id,
+        amount_cents=1000,
+        description="Test expense",
+    )
+    db_session.add(expense)
+    await db_session.flush()
+
+    result = await delete_category(db_session, family.id, cat.id)
+
+    assert result == {"deleted": False, "archived": True, "expense_count": 1}
+    await db_session.refresh(cat)
+    assert cat.is_active is False
 
 
 # ---------------------------------------------------------------------------
