@@ -1,0 +1,43 @@
+Type: cli
+Command: cd backend && uv run alembic revision --autogenerate -m "add categories table"
+Expected: Migration file generated with CREATE TABLE categories, UniqueConstraint, Index, FK with CASCADE
+Timestamp: 2026-04-04T19:49:27Z
+
+=== MIGRATION GENERATION OUTPUT ===
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.autogenerate.compare.tables] Detected added table 'categories'
+INFO  [alembic.autogenerate.compare.constraints] Detected added index 'idx_categories_family' on '('family_id',)'
+Generating /Users/jburns/git/monthly-budget/backend/alembic/versions/587bc20d2058_add_categories_table.py ... done
+
+=== MIGRATION FILE CONTENT ===
+revision: 587bc20d2058
+down_revision: f3a9c2d1e4b7
+
+upgrade():
+  - op.create_table('categories',
+      sa.Column('id', sa.UUID(), nullable=False),
+      sa.Column('family_id', sa.UUID(), nullable=False),
+      sa.Column('name', sa.String(length=100), nullable=False),
+      sa.Column('icon', sa.String(length=50), nullable=True),
+      sa.Column('sort_order', sa.Integer(), nullable=False),
+      sa.Column('is_active', sa.Boolean(), nullable=False),
+      sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), server_default='now()', nullable=False),
+      sa.ForeignKeyConstraint(['family_id'], ['families.id'], ondelete='CASCADE'),
+      sa.PrimaryKeyConstraint('id'),
+      sa.UniqueConstraint('family_id', 'name', name='uq_categories_family_name')
+  )
+  - op.create_index('idx_categories_family', 'categories', ['family_id'], unique=False)
+
+downgrade():
+  - op.drop_index('idx_categories_family', table_name='categories')
+  - op.drop_table('categories')
+
+=== VERIFICATION CHECKLIST ===
+[PASS] CREATE TABLE categories with all required columns
+[PASS] UniqueConstraint on (family_id, name) named uq_categories_family_name
+[PASS] Index idx_categories_family on family_id
+[PASS] ForeignKeyConstraint to families.id with ondelete='CASCADE'
+[PASS] Downgrade drops index then table
+
+Status: PASS

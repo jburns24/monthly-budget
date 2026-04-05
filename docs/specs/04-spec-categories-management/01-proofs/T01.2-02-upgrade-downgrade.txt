@@ -1,0 +1,30 @@
+Type: cli
+Command: uv run alembic upgrade head && uv run alembic downgrade -1 && uv run alembic upgrade head
+Expected: All three operations succeed with no errors
+Timestamp: 2026-04-04T19:50:00Z
+
+=== UPGRADE HEAD (first) ===
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade f3a9c2d1e4b7 -> 587bc20d2058, add categories table
+
+Result: SUCCESS
+
+=== DOWNGRADE -1 ===
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running downgrade 587bc20d2058 -> f3a9c2d1e4b7, add categories table
+
+Result: SUCCESS
+
+=== UPGRADE HEAD (second) ===
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade f3a9c2d1e4b7 -> 587bc20d2058, add categories table
+
+Result: SUCCESS
+
+=== FINAL STATE ===
+Current revision: 587bc20d2058 (head)
+
+Status: PASS
