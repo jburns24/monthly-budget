@@ -7,7 +7,7 @@ These endpoints are only registered when ``settings.environment`` is
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +16,7 @@ from app.database import get_db
 from app.logging import get_logger
 from app.models.family_member import FamilyMember
 from app.models.invite import Invite
+from app.models.monthly_goal import MonthlyGoal
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist
 from app.models.user import User
 from app.services.jwt_service import create_access_token, create_refresh_token
@@ -149,3 +150,66 @@ async def test_reset(
 
     logger.info("test_reset_complete")
     return {"message": "Test data reset complete"}
+
+
+# ---------------------------------------------------------------------------
+# Test helper: create monthly goal
+# ---------------------------------------------------------------------------
+
+
+class CreateMonthlyGoalRequest(BaseModel):
+    family_id: str
+    category_id: str
+    year_month: str
+    amount_cents: int
+
+
+class CreateMonthlyGoalResponse(BaseModel):
+    id: str
+    family_id: str
+    category_id: str
+    year_month: str
+    amount_cents: int
+
+
+@router.post(
+    "/api/test/monthly-goals",
+    response_model=CreateMonthlyGoalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_test_monthly_goal(
+    body: CreateMonthlyGoalRequest,
+    db: AsyncSession = Depends(get_db),
+) -> CreateMonthlyGoalResponse:
+    """Create a monthly spending goal directly (dev/test only).
+
+    Used by E2E tests to seed goal data without a UI flow.
+    """
+    try:
+        family_id = uuid.UUID(body.family_id)
+        category_id = uuid.UUID(body.category_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    now = datetime.now(tz=timezone.utc)
+    goal = MonthlyGoal(
+        id=uuid.uuid4(),
+        family_id=family_id,
+        category_id=category_id,
+        year_month=body.year_month,
+        amount_cents=body.amount_cents,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(goal)
+    await db.flush()
+
+    logger.info("test_monthly_goal_created", family_id=body.family_id, category_id=body.category_id)
+
+    return CreateMonthlyGoalResponse(
+        id=str(goal.id),
+        family_id=str(goal.family_id),
+        category_id=str(goal.category_id),
+        year_month=goal.year_month,
+        amount_cents=body.amount_cents,
+    )

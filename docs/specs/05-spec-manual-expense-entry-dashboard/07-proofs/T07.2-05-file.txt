@@ -1,0 +1,21 @@
+Type: file
+Description: Verify e2e TypeScript type-check passes for all E2E files including the new spec
+Expected: npx tsc --noEmit exits with no errors
+Timestamp: 2026-04-04T00:00:00Z
+
+=== File Check ===
+Path: e2e/tests/expenses.spec.ts
+Status: EXISTS
+
+=== TypeScript type-check ===
+Command: cd /Users/jburns/git/monthly-budget/e2e && npx tsc --noEmit
+Output: (no output — clean exit)
+Exit code: 0
+
+=== Imports verified ===
+- ExpensesPage from ../pages/expenses.page
+- DashboardPage from ../pages/dashboard.page
+- resetTestData, createFamilyViaApi, createCategoryViaApi, createExpenseViaApi,
+  createMonthlyGoalViaApi, sendInviteViaApi from ../fixtures/test-data
+
+Status: PASS

@@ -1,0 +1,22 @@
+Type: file
+Description: Verify e2e/fixtures/test-data.ts was updated with createMonthlyGoalViaApi helper
+Expected: createMonthlyGoalViaApi function exported from test-data.ts
+Timestamp: 2026-04-04T00:00:00Z
+
+=== File Check ===
+Path: e2e/fixtures/test-data.ts
+Status: EXISTS
+
+=== Function signature ===
+export async function createMonthlyGoalViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  categoryId: string,
+  amountCents: number,
+  yearMonth: string,
+): Promise<{ id: string; family_id: string; category_id: string; year_month: string; amount_cents: number }>
+
+Calls: POST /api/test/monthly-goals with { family_id, category_id, year_month, amount_cents }
+Error handling: throws on non-ok response with status + body
+
+Status: PASS

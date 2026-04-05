@@ -1,0 +1,45 @@
+Type: file
+Description: Verify e2e/tests/expenses.spec.ts was created with all 7 required test scenarios
+Expected: File exists with tests for create-via-FAB, create-via-expenses-page, edit, delete, month-selector, progress-colors, multi-member
+Timestamp: 2026-04-04T00:00:00Z
+
+=== File Check ===
+Path: e2e/tests/expenses.spec.ts
+Status: EXISTS
+
+=== Test scenarios found ===
+1. "member creates expense via FAB on dashboard and sees it reflected"
+   - Uses DashboardPage POM, openCreateDialogViaFab(), waitForResponse POST /expenses
+   - Verifies expense appears in ExpensesPage and dashboard total updates
+
+2. "member creates expense via expenses page and sees it in filtered list"
+   - Uses ExpensesPage POM, openCreateDialog(), fillExpenseForm()
+   - Verifies expense appears in list and category filter works
+
+3. "member edits an expense amount and description"
+   - Seeds expense via createExpenseViaApi()
+   - Uses editExpense(id), waitForResponse PUT /expenses/{id}
+   - Verifies updated values, old values absent
+
+4. "member deletes an expense and it is removed from the list"
+   - Seeds expense via createExpenseViaApi()
+   - Uses deleteExpense(id), waitForResponse DELETE /expenses/{id}
+   - Verifies expense absent, dashboard total is $0
+
+5. "month selector filters expenses and dashboard by month"
+   - Seeds expenses in two months
+   - Verifies dashboard month navigation (prevMonth)
+   - Verifies expenses page month navigation
+
+6. "dashboard shows yellow/orange progress color when spending is near goal"
+   - Uses createMonthlyGoalViaApi() (new helper)
+   - Seeds $90 expense against $100 goal
+   - Verifies 90% progress bar aria-label
+
+7. "multiple family members can create and see each other's expenses"
+   - Creates User A (Alice) expense, invites User B (Bob)
+   - Bob creates his own expense
+   - Switches browser to Bob's session
+   - Verifies both expenses visible with correct creator attribution
+
+Status: PASS

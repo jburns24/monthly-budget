@@ -1,0 +1,13 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run pytest tests/ -x -q
+Expected: All backend tests pass (no regressions from dev_auth.py changes)
+Timestamp: 2026-04-04T00:00:00Z
+
+=== Output ===
+........................................................................ [ 33%]
+........................................................................ [ 66%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+217 passed in 5.84s
+
+Status: PASS

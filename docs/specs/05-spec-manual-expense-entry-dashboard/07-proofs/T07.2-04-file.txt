@@ -1,0 +1,23 @@
+Type: file
+Description: Verify backend/app/routers/dev_auth.py updated with POST /api/test/monthly-goals endpoint
+Expected: New endpoint creates a MonthlyGoal record; registered in dev/test environments only
+Timestamp: 2026-04-04T00:00:00Z
+
+=== File Check ===
+Path: backend/app/routers/dev_auth.py
+Status: EXISTS
+
+=== New endpoint ===
+Route: POST /api/test/monthly-goals
+Request body: { family_id: str, category_id: str, year_month: str, amount_cents: int }
+Response: 201 Created with { id, family_id, category_id, year_month, amount_cents }
+Validates UUIDs, creates MonthlyGoal ORM record, flushes to DB
+
+=== Ruff lint ===
+Command: uv run ruff check app/routers/dev_auth.py
+Output: All checks passed!
+
+=== mypy (dev_auth.py specific errors) ===
+No errors specific to dev_auth.py
+
+Status: PASS

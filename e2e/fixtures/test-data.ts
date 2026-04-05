@@ -111,6 +111,38 @@ export async function createExpenseViaApi(
 }
 
 /**
+ * Create a monthly spending goal for the given family and category via the
+ * dev-only backend test endpoint.  `amountCents` is in cents (e.g. 10000 = $100).
+ * `yearMonth` must be in YYYY-MM format.
+ */
+export async function createMonthlyGoalViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  categoryId: string,
+  amountCents: number,
+  yearMonth: string,
+): Promise<{ id: string; family_id: string; category_id: string; year_month: string; amount_cents: number }> {
+  const res = await ctx.post(`${API_BASE}/api/test/monthly-goals`, {
+    data: {
+      family_id: familyId,
+      category_id: categoryId,
+      year_month: yearMonth,
+      amount_cents: amountCents,
+    },
+  })
+  if (!res.ok()) {
+    throw new Error(`createMonthlyGoal failed: ${res.status()} ${await res.text()}`)
+  }
+  return res.json() as Promise<{
+    id: string
+    family_id: string
+    category_id: string
+    year_month: string
+    amount_cents: number
+  }>
+}
+
+/**
  * Send an invite from the authenticated context *ctx* for *familyId* to
  * *inviteeEmail*.  Returns the invite object.
  */
