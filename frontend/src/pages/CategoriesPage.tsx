@@ -35,7 +35,7 @@ function CategoriesPage() {
       queryClient.invalidateQueries({ queryKey: ['categories', familyId] })
       toaster.create({
         title: 'Default categories added',
-        description: `${data.count} categories have been seeded.`,
+        description: `${data.created_count} categories have been seeded.`,
         type: 'success',
         duration: 4000,
       })
