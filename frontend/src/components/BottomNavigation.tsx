@@ -43,6 +43,25 @@ function CategoriesIcon() {
   )
 }
 
+function ExpensesIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+    </svg>
+  )
+}
+
 function FamilyIcon() {
   return (
     <svg
@@ -163,6 +182,7 @@ function BottomNavigation() {
     >
       <Flex>
         <NavItem to="/" icon={<DashboardIcon />} label="Dashboard" />
+        <NavItem to="/expenses" icon={<ExpensesIcon />} label="Expenses" />
         <NavItem to="/categories" icon={<CategoriesIcon />} label="Categories" />
         <NavItem to="/family" icon={<FamilyIcon />} label="Family" />
         <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" disabled />

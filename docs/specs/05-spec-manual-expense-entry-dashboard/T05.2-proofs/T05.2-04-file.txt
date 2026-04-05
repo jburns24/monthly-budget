@@ -1,0 +1,20 @@
+Type: file
+Command: ls -la frontend/src/pages/ExpensesPage.tsx frontend/src/App.tsx frontend/src/components/BottomNavigation.tsx
+Expected: All three files exist and are non-empty
+Timestamp: 2026-04-04T23:10:00Z
+
+--- OUTPUT ---
+
+frontend/src/pages/ExpensesPage.tsx     - EXISTS (248 lines, ExpensesPage component)
+frontend/src/App.tsx                    - EXISTS (75 lines, /expenses route added)
+frontend/src/components/BottomNavigation.tsx - EXISTS (191 lines, Expenses tab added)
+
+Key checks:
+- ExpensesPage.tsx: month selector with prev/next, category filter dropdown, useQuery with
+  ['expenses', familyId, yearMonth, categoryId, page] queryKey, pagination when total > per_page,
+  Add Expense button opening CreateExpenseDialog, loading spinner, error state,
+  URL search param initialization (month + category)
+- App.tsx: /expenses route wrapped in ProtectedRoute + ProtectedLayout
+- BottomNavigation.tsx: "Expenses" NavItem pointing to /expenses with ExpensesIcon (receipt/card SVG)
+
+Status: PASS
