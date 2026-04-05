@@ -1,0 +1,38 @@
+Type: test
+Command: npm run --prefix frontend test:run -- --reporter=verbose
+Expected: All DashboardPage tests pass including new admin/member goal button tests
+Timestamp: 2026-04-05T15:17:00Z
+
+=== OUTPUT ===
+
+DashboardPage test results:
+
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > renders loading spinner while budget summary is fetching
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > renders total spent and category cards when data loads
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > green status renders accent color for category under 80%
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > yellow status shown for category between 80-99%
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > red status shown for category at or above 100%
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > renders month selector with prev and next buttons
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > clicking next month changes the month heading
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > clicking prev month changes the month heading
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > renders FAB button when user has a family
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > does not render FAB when user has no family
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > clicking FAB opens create expense dialog
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > shows empty state CTA when family exists but no expenses this month
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > shows pending invites and CTA when user has no family
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > navigates to /family when "Create or join a family" button clicked
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > shows error message when budget summary query fails
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > clicking a category card navigates to expenses page filtered by category
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > admin sees "Set Goal" buttons on category cards when no goals exist
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > admin sees "Edit Goal" button on category card when goal exists
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > member does not see goal buttons on category cards
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > admin sees "Manage All Goals" button when categories are loaded
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > member does not see "Manage All Goals" button
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > admin sees rollover prompt when no goals for current month but previous month has goals
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > member does not see rollover prompt even when previous goals exist
+ PASS  src/__tests__/DashboardPage.test.tsx > DashboardPage > rollover prompt is not shown when current month already has goals
+
+ Test Files  19 passed (19)
+      Tests  153 passed (153)
+
+Status: PASS
