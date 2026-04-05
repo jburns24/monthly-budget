@@ -1,0 +1,40 @@
+Type: test
+Command: uv run pytest -k "test_expenses_api or test_expenses_integration" -v
+Expected: 23 tests pass covering all expense API endpoints and integration scenarios
+Timestamp: 2026-04-04T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/jburns/git/monthly-budget/backend
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None
+
+tests/test_expenses_api.py::test_create_expense_returns_201_for_member PASSED
+tests/test_expenses_api.py::test_create_expense_validates_amount_greater_than_zero PASSED
+tests/test_expenses_api.py::test_create_expense_validates_amount_negative PASSED
+tests/test_expenses_api.py::test_create_expense_validates_inactive_category PASSED
+tests/test_expenses_api.py::test_create_expense_non_member_returns_404 PASSED
+tests/test_expenses_api.py::test_list_expenses_by_month PASSED
+tests/test_expenses_api.py::test_list_expenses_paginates_correctly PASSED
+tests/test_expenses_api.py::test_list_expenses_filters_by_category PASSED
+tests/test_expenses_api.py::test_list_expenses_non_member_returns_404 PASSED
+tests/test_expenses_api.py::test_get_single_expense_returns_200 PASSED
+tests/test_expenses_api.py::test_get_expense_not_found_returns_404 PASSED
+tests/test_expenses_api.py::test_update_expense_updates_fields PASSED
+tests/test_expenses_api.py::test_update_expense_returns_409_on_stale_updated_at PASSED
+tests/test_expenses_api.py::test_update_expense_not_found_returns_404 PASSED
+tests/test_expenses_api.py::test_delete_expense_removes_record PASSED
+tests/test_expenses_api.py::test_delete_expense_not_found_returns_404 PASSED
+tests/test_expenses_api.py::test_delete_expense_non_member_returns_404 PASSED
+tests/test_expenses_api.py::test_budget_summary_returns_correct_aggregation PASSED
+tests/test_expenses_api.py::test_budget_summary_non_member_returns_404 PASSED
+tests/test_expenses_integration.py::test_full_expense_lifecycle PASSED
+tests/test_expenses_integration.py::test_budget_summary_multiple_categories PASSED
+tests/test_expenses_integration.py::test_rbac_member_can_crud_expenses PASSED
+tests/test_expenses_integration.py::test_rbac_non_member_gets_404 PASSED
+
+====================== 23 passed, 194 deselected in 0.95s ======================
+
+Status: PASS

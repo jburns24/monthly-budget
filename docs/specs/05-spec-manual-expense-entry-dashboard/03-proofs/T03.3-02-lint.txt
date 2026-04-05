@@ -1,0 +1,8 @@
+Type: cli
+Command: uv run ruff check tests/test_expenses_api.py tests/test_expenses_integration.py
+Expected: No lint errors in new test files
+Timestamp: 2026-04-04T00:00:00Z
+
+All checks passed!
+
+Status: PASS
