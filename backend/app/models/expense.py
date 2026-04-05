@@ -1,7 +1,7 @@
 """SQLAlchemy ORM model for the expenses table."""
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
@@ -20,6 +20,9 @@ class Expense(Base):
         Index("idx_expenses_family", "family_id"),
         Index("idx_expenses_family_year_month", "family_id", "year_month"),
         Index("idx_expenses_category", "category_id"),
+        Index("idx_expenses_family_category_month", "family_id", "category_id", "year_month"),
+        Index("idx_expenses_user", "user_id"),
+        Index("idx_expenses_date", "expense_date"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -44,8 +47,8 @@ class Expense(Base):
     )
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    expense_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    year_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    expense_date: Mapped[date] = mapped_column(Date, nullable=False)
+    year_month: Mapped[str] = mapped_column(String(7), nullable=False)
     receipt_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         nullable=True,
@@ -59,7 +62,7 @@ class Expense(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default="now()",
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(tz=timezone.utc),
     )
 
     # Relationships

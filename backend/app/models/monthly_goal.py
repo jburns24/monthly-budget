@@ -1,7 +1,7 @@
 """SQLAlchemy ORM model for the monthly_goals table."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
@@ -37,7 +37,7 @@ class MonthlyGoal(Base):
         nullable=False,
     )
     year_month: Mapped[str] = mapped_column(String(7), nullable=False)
-    amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
@@ -48,7 +48,7 @@ class MonthlyGoal(Base):
         TIMESTAMP(timezone=True),
         nullable=False,
         server_default="now()",
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(tz=timezone.utc),
     )
 
     # Relationships

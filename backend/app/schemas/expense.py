@@ -16,7 +16,7 @@ class ExpenseCreate(BaseModel):
 
 
 class ExpenseUpdate(BaseModel):
-    """Request body for PATCH /api/expenses/{expense_id}."""
+    """Request body for PUT /api/families/{family_id}/expenses/{expense_id}."""
 
     amount_cents: int | None = Field(default=None, gt=0)
     description: str | None = Field(default=None, max_length=500)
