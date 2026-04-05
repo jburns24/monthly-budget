@@ -1,0 +1,10 @@
+Type: file
+Command: ls frontend/src/components/categories/
+Expected: CreateCategoryDialog.tsx and EditCategoryDialog.tsx present
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+CreateCategoryDialog.tsx
+EditCategoryDialog.tsx
+
+Status: PASS

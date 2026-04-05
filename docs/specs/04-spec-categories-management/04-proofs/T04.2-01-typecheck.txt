@@ -1,0 +1,11 @@
+Type: cli
+Command: cd frontend && npx tsc --noEmit
+Expected: No TypeScript errors (exit 0, empty output)
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+(empty — no errors)
+
+Exit code: 0
+
+Status: PASS

@@ -1,0 +1,19 @@
+Type: file
+Command: ls -la frontend/src/components/categories/CategoryList.tsx
+Expected: File exists with correct content including CategoryListProps interface, useFamilyContext hook, admin-only controls
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+-rw-r--r--  1 jburns  staff  2347 Apr  4 2026 frontend/src/components/categories/CategoryList.tsx
+
+File content summary:
+- Props interface: CategoryListProps { categories: Category[], onEdit, onDelete }
+- Uses useFamilyContext() to get role, derives isAdmin = role === 'admin'
+- Renders empty state when categories.length === 0
+- Each category row shows: emoji icon (or 📁 placeholder), name, sort_order, active/archived badge
+- Edit and Delete buttons are rendered only when isAdmin === true
+- Buttons include aria-label for accessibility
+- Uses Chakra UI v3 Box, Flex, Text, Button components
+- Uses brand.50 / brand.300 color tokens consistent with design system
+
+Status: PASS

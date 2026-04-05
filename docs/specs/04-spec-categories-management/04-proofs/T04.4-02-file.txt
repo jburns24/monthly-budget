@@ -1,0 +1,20 @@
+Type: file
+Command: ls -la frontend/src/components/categories/ArchiveCategoryDialog.tsx
+Expected: File exists with correct structure
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+File: frontend/src/components/categories/ArchiveCategoryDialog.tsx
+Lines: 97
+
+Component implements:
+- Props: open, onOpenChange, familyId, category (Category | null)
+- useMutation with deleteCategory API call
+- onSuccess: checks data.deleted -> "Category deleted successfully" toast
+- onSuccess: checks data.archived -> "Category archived (N expense[s] reference it)" toast
+- queryClient.invalidateQueries({ queryKey: ['categories', familyId] }) on success
+- toaster.create() for error feedback
+- DialogRoot pattern with Cancel + Delete (colorPalette="red") buttons
+- Follows RemoveMemberDialog / RoleChangeDialog Chakra UI v3 pattern exactly
+
+Status: PASS
