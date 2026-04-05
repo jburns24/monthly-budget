@@ -1,0 +1,13 @@
+Type: cli
+Command: cd backend && uv run ruff check app/routers/dev_auth.py tests/test_categories_models.py
+Expected: No lint errors
+Timestamp: 2026-04-04T00:00:00Z
+
+All checks passed!
+2 files already formatted
+
+Verified changes in dev_auth.py:
+- Added: await db.execute(text("DELETE FROM categories")) before families delete
+- Updated docstring to include categories in the truncation order
+
+Status: PASS
