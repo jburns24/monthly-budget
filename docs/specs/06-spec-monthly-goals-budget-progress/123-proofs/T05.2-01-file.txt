@@ -1,0 +1,75 @@
+Type: file
+Description: Verify e2e/tests/monthly-goals.spec.ts exists and contains required test scenarios
+Timestamp: 2026-04-05T00:00:00Z
+
+=== File Existence Check ===
+File: e2e/tests/monthly-goals.spec.ts
+Status: EXISTS
+
+=== TypeScript Compilation ===
+Command: cd e2e && npx tsc --noEmit
+Result: No errors (exit code 0)
+Status: PASS
+
+=== Test Scenarios Included ===
+1. admin sets a goal via SetGoalDialog and progress bar appears
+   - Uses set-goal-btn-{categoryId} test ID
+   - Fills goal-amount-input, clicks goal-save-btn
+   - Verifies progress bar aria-label appears
+   - Verifies edit-goal-btn replaces set-goal-btn
+   Status: PRESENT
+
+2. admin edits an existing goal and sees updated progress bar
+   - Seeds goal via createMonthlyGoalViaApi
+   - Uses edit-goal-btn-{categoryId} test ID
+   - Verifies updated amount displayed
+   Status: PRESENT
+
+3. admin sets goals for all categories using BulkGoalsEditor
+   - Opens manage-goals-btn
+   - Fills goal-input-{categoryId} for multiple categories
+   - Clicks bulk-goals-save-btn
+   - Verifies both category amounts update
+   Status: PRESENT
+
+4. rollover prompt appears and admin copies goals from previous month
+   - Seeds prior-month goals via createMonthlyGoalViaApi
+   - Verifies rollover-prompt appears
+   - Clicks rollover-copy-btn
+   - Waits for POST /goals/rollover (HTTP 200)
+   - Verifies prompt disappears and goals appear
+   Status: PRESENT
+
+5. admin dismisses rollover prompt by choosing Start Fresh
+   - Clicks rollover-start-fresh-btn
+   - Verifies prompt disappears without API call
+   Status: PRESENT
+
+6. member sees category cards but not goal management buttons
+   - Creates member user (User B), accepts invite
+   - Switches browser session to member
+   - Verifies progress bar visible
+   - Verifies edit-goal-btn, set-goal-btn, manage-goals-btn are NOT visible
+   Status: PRESENT
+
+=== Fixtures Used ===
+- resetTestData (beforeEach cleanup)
+- createFamilyViaApi
+- createCategoryViaApi
+- createExpenseViaApi
+- createMonthlyGoalViaApi (existing fixture from test-data.ts)
+- sendInviteViaApi
+
+=== Test IDs Referenced (from production code) ===
+- set-goal-btn-{categoryId}      -> DashboardPage.tsx line 143
+- edit-goal-btn-{categoryId}     -> DashboardPage.tsx line 141
+- goal-amount-input              -> SetGoalDialog.tsx line 105
+- goal-save-btn                  -> SetGoalDialog.tsx line 122
+- manage-goals-btn               -> DashboardPage.tsx line 403
+- goal-input-{categoryId}        -> BulkGoalsEditor.tsx line 117
+- bulk-goals-save-btn            -> BulkGoalsEditor.tsx line 139
+- rollover-prompt                -> RolloverPrompt.tsx line 69
+- rollover-copy-btn              -> RolloverPrompt.tsx line 80
+- rollover-start-fresh-btn       -> RolloverPrompt.tsx line 90
+
+Status: PASS
