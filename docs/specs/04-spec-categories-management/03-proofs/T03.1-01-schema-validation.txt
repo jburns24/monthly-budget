@@ -1,0 +1,16 @@
+Type: cli
+Command: cd backend && uv run python -c "from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse, CategoryDeleteResponse, SeedResponse; ..."
+Expected: All five schema classes importable and functional with correct validation
+Timestamp: 2026-04-04T00:00:00Z
+
+OUTPUT:
+CategoryCreate: {'name': 'Groceries', 'icon': 'cart', 'sort_order': 1}
+CategoryCreate empty name rejected (correct)
+CategoryUpdate: {'name': 'Food', 'icon': None, 'sort_order': 2}
+CategoryUpdate all-None: {'name': None, 'icon': None, 'sort_order': None}
+CategoryResponse: {'id': UUID('12345678-1234-5678-1234-567812345678'), 'family_id': UUID('87654321-4321-8765-4321-876543218765'), 'name': 'Groceries', 'icon': 'cart', 'sort_order': 1, 'is_active': True, 'created_at': datetime.datetime(2026, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)}
+CategoryDeleteResponse: {'message': 'deleted', 'deleted': True, 'archived': False, 'expense_count': 0}
+SeedResponse: {'message': 'seeded', 'created_count': 5}
+All schema tests PASSED
+
+Status: PASS
