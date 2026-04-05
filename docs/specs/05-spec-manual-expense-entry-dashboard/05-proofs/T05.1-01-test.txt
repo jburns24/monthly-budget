@@ -1,0 +1,34 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/frontend && npm run test:run -- --reporter=verbose src/__tests__/ExpenseList.test.tsx
+Expected: All 14 ExpenseList component tests pass
+Timestamp: 2026-04-04T22:52:22Z
+
+--- OUTPUT ---
+
+> frontend@0.0.0 test:run
+> vitest run --reporter=verbose src/__tests__/ExpenseList.test.tsx
+
+
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > renders empty state when no expenses 16ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > does not render the empty state when expenses exist 13ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > renders a card for each expense 5ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows formatted amount (cents to dollars) 5ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows expense description 5ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows category name on each card 5ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows category icon on each card 4ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows user display name on each card 4ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows expense date on each card 5ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > renders edit and delete buttons on each card 4ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > calls onEdit with the correct expense when edit is clicked 19ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > calls onDelete with the correct expense when delete is clicked 13ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows fallback icon when category has no icon 3ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > shows fallback description text when description is empty 2ms
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  22:52:22
+   Duration  1.10s (transform 375ms, setup 24ms, import 798ms, tests 105ms, environment 89ms)
+
+Status: PASS

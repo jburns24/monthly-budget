@@ -1,0 +1,24 @@
+Type: file
+Check: ExpenseList component file exists at expected location
+Expected: File frontend/src/components/expenses/ExpenseList.tsx exists and exports a React component
+Timestamp: 2026-04-04T22:52:30Z
+
+--- OUTPUT ---
+
+File: /Users/jburns/git/monthly-budget/frontend/src/components/expenses/ExpenseList.tsx
+Size: 4349 bytes
+Lines: 138
+
+Key exports verified:
+- Default export: ExpenseList functional component
+- Props: expenses (Expense[]), onEdit (Expense => void), onDelete (Expense => void)
+- data-testid attributes: expense-list, expense-list-empty, expense-card-{id},
+  expense-amount-{id}, expense-description-{id}, expense-category-name-{id},
+  expense-category-icon-{id}, expense-user-{id}, expense-date-{id},
+  expense-edit-btn-{id}, expense-delete-btn-{id}
+- Empty state: renders "No expenses this month" when expenses array is empty
+- Amount formatting: converts cents to dollars (e.g., 4523 -> "$45.23")
+- Category icon displayed with fallback "📁" when null
+- Edit and delete buttons visible for all users
+
+Status: PASS
