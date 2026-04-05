@@ -1,0 +1,7 @@
+Type: cli
+Command: cd backend && uv run ruff check tests/test_monthly_goals_service.py
+Expected: All checks passed
+Timestamp: 2026-04-05T01:00:00Z
+Status: PASS
+
+All checks passed!

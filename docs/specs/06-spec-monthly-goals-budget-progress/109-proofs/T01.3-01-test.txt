@@ -1,0 +1,58 @@
+Type: test
+Command: cd backend && uv run pytest tests/test_monthly_goals_service.py -v
+Expected: All 41 tests pass (36 existing + 5 new)
+Timestamp: 2026-04-05T01:00:00Z
+Status: PASS
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0 -- /Users/jburns/git/monthly-budget/backend/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jburns/git/monthly-budget/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 41 items
+
+tests/test_monthly_goals_service.py::test_get_previous_month_mid_year PASSED [  2%]
+tests/test_monthly_goals_service.py::test_get_previous_month_january_wraps_to_previous_year PASSED [  4%]
+tests/test_monthly_goals_service.py::test_get_previous_month_february PASSED [  7%]
+tests/test_monthly_goals_service.py::test_get_current_budget_month_la_timezone PASSED [  9%]
+tests/test_monthly_goals_service.py::test_get_current_budget_month_auckland_timezone PASSED [ 12%]
+tests/test_monthly_goals_service.py::test_get_current_budget_month_returns_yyyymm_format PASSED [ 14%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_returns_goals_when_exist PASSED [ 17%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_no_goals_with_previous PASSED [ 19%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_no_goals_no_previous PASSED [ 21%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_future_months_ignored PASSED [ 24%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_copies_correctly PASSED [ 26%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_returns_zero_when_no_source PASSED [ 29%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_finds_most_recent_skipping_gaps PASSED [ 31%]
+tests/test_monthly_goals_service.py::test_copy_goals_resets_version_to_one PASSED [ 34%]
+tests/test_monthly_goals_service.py::test_list_goals_returns_goals_when_exist PASSED [ 36%]
+tests/test_monthly_goals_service.py::test_list_goals_returns_has_previous_true_when_prior_goals_exist PASSED [ 39%]
+tests/test_monthly_goals_service.py::test_list_goals_returns_has_previous_false_when_no_goals_anywhere PASSED [ 41%]
+tests/test_monthly_goals_service.py::test_list_goals_isolates_by_family PASSED [ 43%]
+tests/test_monthly_goals_service.py::test_list_goals_multiple_categories PASSED [ 46%]
+tests/test_monthly_goals_service.py::test_create_goal_success PASSED     [ 48%]
+tests/test_monthly_goals_service.py::test_create_goal_returns_409_on_duplicate PASSED [ 51%]
+tests/test_monthly_goals_service.py::test_create_goal_raises_404_for_unknown_category PASSED [ 53%]
+tests/test_monthly_goals_service.py::test_create_goal_raises_400_for_inactive_category PASSED [ 56%]
+tests/test_monthly_goals_service.py::test_update_goal_success PASSED     [ 58%]
+tests/test_monthly_goals_service.py::test_update_goal_raises_404_for_unknown_goal PASSED [ 60%]
+tests/test_monthly_goals_service.py::test_update_goal_raises_409_on_version_mismatch PASSED [ 63%]
+tests/test_monthly_goals_service.py::test_update_goal_rejects_wrong_family PASSED [ 65%]
+tests/test_monthly_goals_service.py::test_delete_goal_success PASSED     [ 68%]
+tests/test_monthly_goals_service.py::test_delete_goal_raises_404_for_unknown_goal PASSED [ 70%]
+tests/test_monthly_goals_service.py::test_delete_goal_rejects_wrong_family PASSED [ 73%]
+tests/test_monthly_goals_service.py::test_bulk_upsert_goals_creates_new_goals PASSED [ 75%]
+tests/test_monthly_goals_service.py::test_bulk_upsert_goals_updates_existing_goals PASSED [ 78%]
+tests/test_monthly_goals_service.py::test_bulk_upsert_goals_deletes_omitted_goals PASSED [ 80%]
+tests/test_monthly_goals_service.py::test_bulk_upsert_goals_empty_list_deletes_all PASSED [ 82%]
+tests/test_monthly_goals_service.py::test_bulk_upsert_goals_raises_404_for_unknown_category PASSED [ 85%]
+tests/test_monthly_goals_service.py::test_bulk_upsert_goals_raises_400_for_inactive_category PASSED [ 87%]
+tests/test_monthly_goals_service.py::test_bulk_upsert_goals_isolates_by_family PASSED [ 90%]
+tests/test_monthly_goals_service.py::test_copy_goals_race_condition_handled PASSED [ 92%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_isolates_by_family PASSED [ 95%]
+tests/test_monthly_goals_service.py::test_create_goal_assigns_uuid_id PASSED [ 97%]
+tests/test_monthly_goals_service.py::test_update_goal_does_not_change_year_month PASSED [100%]
+
+============================== 41 passed in 1.08s ==============================
