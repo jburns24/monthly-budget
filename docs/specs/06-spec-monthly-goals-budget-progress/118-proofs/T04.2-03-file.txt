@@ -1,0 +1,35 @@
+Type: file
+Command: ls -la frontend/src/components/goals/SetGoalDialog.tsx
+Expected: File exists and exports SetGoalDialog as default
+Timestamp: 2026-04-05T14:45:00Z
+
+--- File Existence Check ---
+$ ls -la frontend/src/components/goals/SetGoalDialog.tsx
+-rw-r--r--  1 jburns  staff  4238 Apr  5 14:44 frontend/src/components/goals/SetGoalDialog.tsx
+
+--- Exported Interface (from source) ---
+Component: SetGoalDialog (default export)
+Props interface (SetGoalDialogProps - also exported):
+  - open: boolean
+  - onOpenChange: (open: boolean) => void
+  - familyId: string
+  - yearMonth: string
+  - categoryId: string
+  - categoryName: string
+  - existingGoal?: MonthlyGoal | null
+
+Key behaviors verified in source:
+  - Dialog title: "Set Goal — {categoryName}" when no existingGoal
+  - Dialog title: "Edit Goal — {categoryName}" when existingGoal is provided
+  - Amount input auto-focused on mount (setTimeout 50ms)
+  - Amount input uses inputMode="decimal", type="number"
+  - Save button disabled when amount is invalid or zero
+  - On success: invalidates ['goals', familyId, yearMonth] and ['budget-summary', familyId, yearMonth]
+  - On success: shows success toast with category name
+  - On error: shows error toast, dialog stays open
+  - On cancel: calls onOpenChange(false)
+  - Uses updateGoal() for existing goals (with optimistic locking via expected_version)
+  - Uses updateGoalsBulk() for new goals (bulk upsert API)
+  - GoalForm is key-reset on each open to clear stale state
+
+Status: PASS

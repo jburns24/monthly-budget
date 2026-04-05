@@ -1,0 +1,18 @@
+Type: test
+Command: cd frontend && npm run test:run
+Expected: All existing tests pass (no regressions introduced by SetGoalDialog.tsx)
+Timestamp: 2026-04-05T14:45:41Z
+
+--- Test Run Output ---
+$ npm run test:run
+> frontend@0.0.0 test:run
+> vitest run
+
+ Test Files  19 passed (19)
+      Tests  145 passed (145)
+   Start at  14:45:41
+   Duration  3.72s
+
+No regressions. All 145 tests across 19 test files pass.
+
+Status: PASS
