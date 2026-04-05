@@ -1,0 +1,52 @@
+Type: test
+Command: npm run test:run -- --reporter=verbose src/__tests__/CreateExpenseDialog.test.tsx src/__tests__/EditExpenseDialog.test.tsx src/__tests__/DeleteExpenseDialog.test.tsx
+Expected: All 35 tests pass across 3 test files
+Timestamp: 2026-04-05T00:01:00Z
+
+--- OUTPUT ---
+
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ ✓ CreateExpenseDialog > renders dialog with all required fields when open 44ms
+ ✓ CreateExpenseDialog > does not render dialog when closed 4ms
+ ✓ CreateExpenseDialog > amount field has inputMode="decimal" 15ms
+ ✓ CreateExpenseDialog > date field defaults to today 10ms
+ ✓ CreateExpenseDialog > category dropdown populates from categories API 18ms
+ ✓ CreateExpenseDialog > submit button is disabled when amount is empty 10ms
+ ✓ CreateExpenseDialog > submit button is enabled when valid amount and category are set 51ms
+ ✓ CreateExpenseDialog > submit calls createExpense with amount converted to cents 58ms
+ ✓ CreateExpenseDialog > on success, invalidates expenses and budget-summary queries 49ms
+ ✓ CreateExpenseDialog > calls onOpenChange(false) when Cancel is clicked 21ms
+
+ ✓ EditExpenseDialog > renders dialog when open with an expense 44ms
+ ✓ EditExpenseDialog > does not render dialog when closed 4ms
+ ✓ EditExpenseDialog > pre-populates amount field with expense amount in dollars 14ms
+ ✓ EditExpenseDialog > pre-populates description field with expense description 10ms
+ ✓ EditExpenseDialog > pre-populates date field with expense date 9ms
+ ✓ EditExpenseDialog > amount field has inputMode="decimal" 9ms
+ ✓ EditExpenseDialog > category dropdown populates from categories API 14ms
+ ✓ EditExpenseDialog > pre-selects the current category in the dropdown 13ms
+ ✓ EditExpenseDialog > submit calls updateExpense with correct data 125ms
+ ✓ EditExpenseDialog > on success, invalidates expenses and budget-summary queries 22ms
+ ✓ EditExpenseDialog > shows conflict toast when updateExpense throws CONFLICT error 17ms
+ ✓ EditExpenseDialog > shows generic error toast on non-conflict update failure 20ms
+ ✓ EditExpenseDialog > calls onOpenChange(false) when Cancel is clicked 17ms
+
+ ✓ DeleteExpenseDialog > renders dialog when open with an expense 36ms
+ ✓ DeleteExpenseDialog > does not render dialog when closed 4ms
+ ✓ DeleteExpenseDialog > shows expense description and formatted amount in confirmation message 12ms
+ ✓ DeleteExpenseDialog > shows "(no description)" when expense has no description 7ms
+ ✓ DeleteExpenseDialog > shows confirm Delete button 6ms
+ ✓ DeleteExpenseDialog > shows Cancel button 8ms
+ ✓ DeleteExpenseDialog > calls deleteExpense with correct ids on confirmation 20ms
+ ✓ DeleteExpenseDialog > on success, invalidates expenses and budget-summary queries 17ms
+ ✓ DeleteExpenseDialog > shows success toast after deletion 15ms
+ ✓ DeleteExpenseDialog > shows error toast when deletion fails 16ms
+ ✓ DeleteExpenseDialog > calls onOpenChange(false) when Cancel is clicked 15ms
+ ✓ DeleteExpenseDialog > Delete button is disabled when expense is null 4ms
+
+ Test Files  3 passed (3)
+       Tests  35 passed (35)
+    Duration  1.55s
+
+Status: PASS
