@@ -10,6 +10,7 @@ per-function event loop scope.
 
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import date
 
 import pytest
 from fastapi import HTTPException
@@ -361,6 +362,8 @@ async def test_delete_category_archives_when_expenses_exist(db_session: AsyncSes
         user_id=owner.id,
         amount_cents=1000,
         description="Test expense",
+        expense_date=date(2026, 4, 1),
+        year_month="2026-04",
     )
     db_session.add(expense)
     await db_session.flush()

@@ -253,7 +253,7 @@ function DashboardPage() {
               Total Spent
             </Text>
             <Text fontSize="2xl" fontWeight="bold" color="brand.500">
-              Total Spent: {formatCents(summary.total_spent_cents)}
+              {formatCents(summary.total_spent_cents)}
             </Text>
           </Box>
 

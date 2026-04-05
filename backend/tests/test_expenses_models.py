@@ -499,24 +499,24 @@ async def test_monthly_goal_id_auto_generated(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_monthly_goal_amount_cents_is_nullable(db_session: AsyncSession) -> None:
-    """MonthlyGoal.amount_cents is nullable (goal may not be set yet)."""
+async def test_monthly_goal_amount_cents_is_not_null(db_session: AsyncSession) -> None:
+    """MonthlyGoal.amount_cents is NOT NULL (spec R02.3 requires a value)."""
     owner = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, owner)
     category = await create_test_category(db_session, family)
     now = datetime.now(tz=timezone.utc)
 
-    goal = MonthlyGoal(
-        family_id=family.id,
-        category_id=category.id,
-        year_month="2026-04",
-        amount_cents=None,
-        version=1,
-        created_at=now,
-        updated_at=now,
-    )
-    db_session.add(goal)
-    await db_session.flush()
-    await db_session.refresh(goal)
-
-    assert goal.amount_cents is None
+    with pytest.raises((IntegrityError, Exception)):
+        async with db_session.begin_nested():
+            db_session.add(
+                MonthlyGoal(
+                    family_id=family.id,
+                    category_id=category.id,
+                    year_month="2026-04",
+                    amount_cents=None,  # type: ignore[arg-type]
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            await db_session.flush()

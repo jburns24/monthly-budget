@@ -460,7 +460,7 @@ describe('ExpensesPage', () => {
 
     renderExpensesPage('/expenses?month=2025-06')
 
-    expect(screen.getByTestId('month-display')).toHaveTextContent('2025-06')
+    expect(screen.getByTestId('month-display')).toHaveTextContent('June 2025')
   })
 
   it('shows month label with expense count in summary line', async () => {

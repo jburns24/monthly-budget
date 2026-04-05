@@ -52,7 +52,7 @@ export async function updateExpense(
   data: ExpenseUpdate
 ): Promise<Expense> {
   const response = await apiClient(`/api/families/${familyId}/expenses/${expenseId}`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
