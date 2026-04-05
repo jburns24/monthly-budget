@@ -1,0 +1,27 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0 -- /Users/jburns/git/monthly-budget/backend/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jburns/git/monthly-budget/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 16 items
+
+tests/test_categories_api.py::test_list_categories_returns_active_for_member PASSED [  6%]
+tests/test_categories_api.py::test_list_categories_non_member_returns_404 PASSED [ 12%]
+tests/test_categories_api.py::test_list_categories_empty_list_when_none PASSED [ 18%]
+tests/test_categories_api.py::test_create_category_returns_201_for_admin PASSED [ 25%]
+tests/test_categories_api.py::test_create_category_returns_403_for_non_admin PASSED [ 31%]
+tests/test_categories_api.py::test_create_category_duplicate_name_returns_409 PASSED [ 37%]
+tests/test_categories_api.py::test_update_category_updates_fields_for_admin PASSED [ 43%]
+tests/test_categories_api.py::test_update_category_not_found_returns_404 PASSED [ 50%]
+tests/test_categories_api.py::test_update_category_returns_403_for_non_admin PASSED [ 56%]
+tests/test_categories_api.py::test_delete_category_hard_deletes_for_admin PASSED [ 62%]
+tests/test_categories_api.py::test_delete_category_returns_403_for_non_admin PASSED [ 68%]
+tests/test_categories_api.py::test_delete_category_not_found_returns_404 PASSED [ 75%]
+tests/test_categories_api.py::test_seed_categories_creates_six_defaults PASSED [ 81%]
+tests/test_categories_api.py::test_seed_categories_idempotent PASSED     [ 87%]
+tests/test_categories_api.py::test_seed_categories_returns_403_for_non_admin PASSED [ 93%]
+tests/test_categories_api.py::test_seed_categories_non_member_returns_404 PASSED [100%]
+
+============================== 16 passed in 0.59s ==============================

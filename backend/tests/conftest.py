@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.config import settings
+from app.models.category import Category
 from app.models.family import Family
 from app.models.family_member import FamilyMember
 from app.models.invite import Invite
@@ -235,6 +236,53 @@ async def create_test_invite(
     await db.flush()
     await db.refresh(invite)
     return invite
+
+
+# ---------------------------------------------------------------------------
+# Category factory (plain async function, not a fixture — call it from any fixture
+# or test that already has a db_session)
+# ---------------------------------------------------------------------------
+
+
+async def create_test_category(db: AsyncSession, family: Family, **overrides: Any) -> Category:
+    """Insert a Category into the test database and return the ORM object.
+
+    Parameters
+    ----------
+    db:
+        Active async session (typically from the :func:`db_session` fixture).
+    family:
+        The Family the category belongs to.
+    **overrides:
+        Field values that replace the auto-generated defaults.  Pass any
+        combination of Category column names.
+
+    Returns
+    -------
+    Category
+        The persisted :class:`~app.models.category.Category` instance.
+
+    Example::
+
+        category = await create_test_category(db_session, family, name="Groceries", icon="cart")
+    """
+    now = datetime.now(tz=timezone.utc)
+    unique = uuid.uuid4().hex[:8]
+    defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "family_id": family.id,
+        "name": f"Test Category {unique}",
+        "icon": None,
+        "sort_order": 0,
+        "is_active": True,
+        "created_at": now,
+    }
+    defaults.update(overrides)
+    category = Category(**defaults)
+    db.add(category)
+    await db.flush()
+    await db.refresh(category)
+    return category
 
 
 # ---------------------------------------------------------------------------
