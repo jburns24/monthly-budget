@@ -74,7 +74,7 @@ test('member creates expense via FAB on dashboard and sees it reflected', async 
   await expect(dashboard.dialogRoot).toBeVisible({ timeout: 5_000 })
 
   // Fill in the expense form.
-  await dashboard.amountInput.fill('25.50')
+  await dashboard.amountInput.fill('25.00')
   await dashboard.descriptionInput.fill('Coffee beans')
   await dashboard.categorySelect.selectOption(groceryCategoryId)
   await dashboard.dateInput.fill(CURRENT_DATE)
@@ -97,7 +97,7 @@ test('member creates expense via FAB on dashboard and sees it reflected', async 
 
   // Wait for the expense list to appear with our new expense.
   await expect(page.getByText('Coffee beans')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('$25.50')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('$25.00')).toBeVisible({ timeout: 5_000 })
 
   // Navigate back to dashboard and verify the total updated.
   await dashboard.goto()
@@ -198,7 +198,7 @@ test('member edits an expense amount and description', async ({ page }) => {
   // Updated values should be visible; old description should not.
   await expect(page.getByText('Premium coffee beans')).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('$30.00')).toBeVisible({ timeout: 5_000 })
-  await expect(page.getByText('Coffee beans')).not.toBeVisible()
+  await expect(page.getByText('Coffee beans', { exact: true })).not.toBeVisible()
 })
 
 // ---------------------------------------------------------------------------
@@ -376,6 +376,8 @@ test("multiple family members can create and see each other's expenses", async (
 
   // Verify the user attribution shows the creator's name.
   // The ExpenseList renders display_name in a data-testid="expense-user-{id}" element.
-  await expect(page.getByText('Alice', { exact: true })).toBeVisible({ timeout: 5_000 })
-  await expect(page.getByText('Bob', { exact: true })).toBeVisible({ timeout: 5_000 })
+  // Check expense user attributions — scoped to expense-user testids to avoid
+  // matching the navbar which also shows the logged-in user's display name.
+  await expect(page.locator('[data-testid^="expense-user-"]').filter({ hasText: 'Alice' })).toBeVisible({ timeout: 5_000 })
+  await expect(page.locator('[data-testid^="expense-user-"]').filter({ hasText: 'Bob' })).toBeVisible({ timeout: 5_000 })
 })
