@@ -1,0 +1,22 @@
+Type: file
+Description: Verify expense API client file exists with all required functions
+Timestamp: 2026-04-04T22:51:00Z
+
+Command: ls -la frontend/src/api/expenses.ts && grep "^export async function" frontend/src/api/expenses.ts
+
+Output:
+-rw-r--r--  1 jburns  staff  2139 Apr  4 22:51 frontend/src/api/expenses.ts
+
+export async function getExpenses(
+export async function createExpense(
+export async function getExpense(
+export async function updateExpense(
+export async function deleteExpense(
+export async function getBudgetSummary(
+
+Functions defined: getExpenses, createExpense, getExpense, updateExpense, deleteExpense, getBudgetSummary
+
+All functions use apiClient() from ./client with the established error-handling pattern from categories.ts.
+updateExpense includes special 409 Conflict detection, throwing Error('CONFLICT') for optimistic locking.
+
+Status: PASS

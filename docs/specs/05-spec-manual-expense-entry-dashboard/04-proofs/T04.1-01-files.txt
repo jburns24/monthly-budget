@@ -1,0 +1,74 @@
+Type: file
+Description: Verify expense TypeScript type definitions file exists with all required interfaces
+Timestamp: 2026-04-04T22:51:00Z
+
+Command: ls -la frontend/src/types/expenses.ts && cat frontend/src/types/expenses.ts
+
+Output:
+-rw-r--r--  1 jburns  staff  838 Apr  4 22:51 frontend/src/types/expenses.ts
+
+export interface CategoryBrief {
+  id: string
+  name: string
+  icon: string | null
+}
+
+export interface UserBrief {
+  id: string
+  display_name: string
+}
+
+export interface Expense {
+  id: string
+  family_id: string
+  category: CategoryBrief
+  created_by_user: UserBrief
+  amount_cents: number
+  description: string
+  expense_date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ExpenseCreate {
+  amount_cents: number
+  description?: string
+  category_id: string
+  expense_date: string
+}
+
+export interface ExpenseUpdate {
+  amount_cents?: number
+  description?: string
+  category_id?: string
+  expense_date?: string
+  expected_updated_at: string
+}
+
+export interface ExpenseListResponse {
+  expenses: Expense[]
+  total_count: number
+  page: number
+  per_page: number
+}
+
+export interface BudgetCategorySummary {
+  category_id: string
+  category_name: string
+  icon: string | null
+  spent_cents: number
+  goal_cents: number | null
+  percentage: number
+  status: string
+}
+
+export interface BudgetSummaryResponse {
+  year_month: string
+  total_spent_cents: number
+  categories: BudgetCategorySummary[]
+}
+
+Interfaces defined: CategoryBrief, UserBrief, Expense, ExpenseCreate, ExpenseUpdate,
+                    ExpenseListResponse, BudgetCategorySummary, BudgetSummaryResponse
+
+Status: PASS
