@@ -1,0 +1,23 @@
+Type: file
+Check: e2e/fixtures/test-data.ts contains createExpenseViaApi helper
+Timestamp: 2026-04-04T00:00:00Z
+
+--- Function signature ---
+export async function createExpenseViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  categoryId: string,
+  amountCents: number,
+  description: string | undefined,
+  expenseDate: string,
+): Promise<{ id: string; amount_cents: number; description: string | null; expense_date: string }>
+
+--- API endpoint used ---
+POST /api/families/{familyId}/expenses
+Body: { amount_cents, category_id, expense_date, description? }
+
+--- TypeScript compile check ---
+cd /Users/jburns/git/monthly-budget/e2e && npx tsc --noEmit
+Exit code: 0 (no errors)
+
+Status: PASS

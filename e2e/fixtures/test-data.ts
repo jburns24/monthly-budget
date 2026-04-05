@@ -78,6 +78,39 @@ export async function createCategoryViaApi(
 }
 
 /**
+ * Create an expense for the given family and category via the backend API.
+ * `amountCents` is the integer amount in cents (e.g. 1050 = $10.50).
+ * `expenseDate` must be a date string in YYYY-MM-DD format.
+ * Returns the created expense object.
+ */
+export async function createExpenseViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  categoryId: string,
+  amountCents: number,
+  description: string | undefined,
+  expenseDate: string,
+): Promise<{ id: string; amount_cents: number; description: string | null; expense_date: string }> {
+  const res = await ctx.post(`${API_BASE}/api/families/${familyId}/expenses`, {
+    data: {
+      amount_cents: amountCents,
+      category_id: categoryId,
+      expense_date: expenseDate,
+      ...(description !== undefined ? { description } : {}),
+    },
+  })
+  if (!res.ok()) {
+    throw new Error(`createExpense failed: ${res.status()} ${await res.text()}`)
+  }
+  return res.json() as Promise<{
+    id: string
+    amount_cents: number
+    description: string | null
+    expense_date: string
+  }>
+}
+
+/**
  * Send an invite from the authenticated context *ctx* for *familyId* to
  * *inviteeEmail*.  Returns the invite object.
  */

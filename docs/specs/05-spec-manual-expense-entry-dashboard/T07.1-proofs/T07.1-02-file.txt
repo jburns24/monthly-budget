@@ -1,0 +1,32 @@
+Type: file
+Check: e2e/pages/dashboard.page.ts exists and exports DashboardPage class
+Timestamp: 2026-04-04T00:00:00Z
+
+--- File listing ---
+e2e/pages/dashboard.page.ts
+
+--- Exported class: DashboardPage ---
+Locators defined:
+  - prevMonthButton        (aria-label="Previous month")
+  - nextMonthButton        (aria-label="Next month")
+  - monthLabel             (role="heading" matching /\w+ \d{4}/)
+  - totalSpent             (text matching /Total Spent:/)
+  - categoryCards          ([role="button"][aria-label$=" category"])
+  - fabButton              (data-testid="fab-add-expense")
+  - amountInput            (data-testid="expense-amount-input")
+  - descriptionInput       (data-testid="expense-description-input")
+  - categorySelect         (data-testid="expense-category-select")
+  - dateInput              (data-testid="expense-date-input")
+  - submitButton           (data-testid="expense-submit-btn")
+  - dialogRoot             ([role="dialog"])
+
+Methods defined:
+  - goto()
+  - openCreateDialogViaFab()
+  - goToPrevMonth()
+  - goToNextMonth()
+  - clickCategoryCard(categoryName)
+  - categoryCard(categoryName)
+  - categoryProgressIndicator(categoryName)
+
+Status: PASS

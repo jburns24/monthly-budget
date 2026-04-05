@@ -1,0 +1,44 @@
+Type: file
+Check: e2e/pages/expenses.page.ts exists and exports ExpensesPage class
+Timestamp: 2026-04-04T00:00:00Z
+
+--- File listing ---
+e2e/pages/expenses.page.ts
+
+--- Exported class: ExpensesPage ---
+Locators defined:
+  - addExpenseButton    (data-testid="add-expense-btn")
+  - fabButton           (data-testid="fab-add-expense")
+  - prevMonthButton     (data-testid="prev-month-btn")
+  - nextMonthButton     (data-testid="next-month-btn")
+  - monthDisplay        (data-testid="month-display")
+  - categoryFilterSelect (data-testid="category-filter-select")
+  - amountInput         (data-testid="expense-amount-input")
+  - descriptionInput    (data-testid="expense-description-input")
+  - categorySelect      (data-testid="expense-category-select")
+  - dateInput           (data-testid="expense-date-input")
+  - submitButton        (data-testid="expense-submit-btn")
+  - expenseList         (data-testid="expense-list")
+  - expenseListEmpty    (data-testid="expense-list-empty")
+  - editButtons         ([data-testid^="expense-edit-btn-"])
+  - deleteButtons       ([data-testid^="expense-delete-btn-"])
+  - paginationControls  (data-testid="pagination-controls")
+  - prevPageButton      (data-testid="prev-page-btn")
+  - nextPageButton      (data-testid="next-page-btn")
+  - pageIndicator       (data-testid="page-indicator")
+  - dialogRoot          ([role="dialog"])
+
+Methods defined:
+  - goto()
+  - openCreateDialog()
+  - openCreateDialogViaFab()
+  - fillExpenseForm(opts)
+  - editExpense(expenseId)
+  - deleteExpense(expenseId)
+  - goToPrevMonth()
+  - goToNextMonth()
+  - filterByCategory(categoryId)
+  - expenseCard(expenseId)
+  - get expenseCards
+
+Status: PASS
