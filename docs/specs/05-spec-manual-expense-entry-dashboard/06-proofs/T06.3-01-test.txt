@@ -1,0 +1,34 @@
+Type: test
+Command: cd frontend && npm run test:run -- --reporter=verbose src/__tests__/DashboardPage.test.tsx
+Expected: All 16 DashboardPage component tests pass
+Timestamp: 2026-04-04T23:48:31Z
+
+OUTPUT:
+> frontend@0.0.0 test:run
+> vitest run --reporter=verbose src/__tests__/DashboardPage.test.tsx
+
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ ✓ DashboardPage > renders loading spinner while budget summary is fetching 25ms
+ ✓ DashboardPage > renders total spent and category cards when data loads 19ms
+ ✓ DashboardPage > green status renders accent color for category under 80% 12ms
+ ✓ DashboardPage > yellow status shown for category between 80-99% 12ms
+ ✓ DashboardPage > red status shown for category at or above 100% 10ms
+ ✓ DashboardPage > renders month selector with prev and next buttons 10ms
+ ✓ DashboardPage > clicking next month changes the month heading 24ms
+ ✓ DashboardPage > clicking prev month changes the month heading 22ms
+ ✓ DashboardPage > renders FAB button when user has a family 3ms
+ ✓ DashboardPage > does not render FAB when user has no family 3ms
+ ✓ DashboardPage > clicking FAB opens create expense dialog 15ms
+ ✓ DashboardPage > shows empty state CTA when family exists but no expenses this month 8ms
+ ✓ DashboardPage > shows pending invites and CTA when user has no family 3ms
+ ✓ DashboardPage > navigates to /family when "Create or join a family" button clicked 14ms
+ ✓ DashboardPage > shows error message when budget summary query fails 8ms
+ ✓ DashboardPage > clicking a category card navigates to expenses page filtered by category 21ms
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Start at  23:48:31
+   Duration  1.22s
+
+Status: PASS
