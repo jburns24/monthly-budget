@@ -1,0 +1,9 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run ruff check app/routers/monthly_goals.py
+Expected: All checks passed
+Timestamp: 2026-04-05T00:00:00Z
+
+Output:
+All checks passed!
+
+Status: PASS
