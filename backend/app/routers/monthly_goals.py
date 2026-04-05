@@ -17,6 +17,8 @@ from app.schemas.monthly_goal import (
     GoalsListResponse,
     MonthlyGoalResponse,
     MonthlyGoalUpdate,
+    RolloverRequest,
+    RolloverResponse,
 )
 from app.services import monthly_goal_service
 
@@ -93,6 +95,42 @@ async def bulk_upsert_goals(
         deleted=counts["deleted"],
         goals=[MonthlyGoalResponse.model_validate(g) for g in updated_goals],
     )
+
+
+@router.post(
+    "/families/{family_id}/goals/rollover",
+    response_model=RolloverResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def rollover_goals(
+    family_id: uuid.UUID,
+    body: RolloverRequest,
+    membership: tuple[User, FamilyMember] = Depends(require_family_admin),
+    db: AsyncSession = Depends(get_db),
+) -> RolloverResponse:
+    """Copy goals from source_month to target_month (admin only).
+
+    Calls copy_goals_from_previous_month ignoring source_month — the service
+    finds the most-recent prior month automatically. The body's target_month
+    is used directly as the destination month.
+    """
+    current_user, _ = membership
+    _validate_year_month(body.source_month)
+    _validate_year_month(body.target_month)
+    copied_count = await monthly_goal_service.copy_goals_from_previous_month(
+        db,
+        family_id=family_id,
+        target_month=body.target_month,
+    )
+    logger.info(
+        "rollover_goals_endpoint",
+        family_id=str(family_id),
+        source_month=body.source_month,
+        target_month=body.target_month,
+        user_id=str(current_user.id),
+        copied_count=copied_count,
+    )
+    return RolloverResponse(copied_count=copied_count)
 
 
 @router.put(

@@ -58,3 +58,16 @@ class GoalsListResponse(BaseModel):
     year_month: str
     goals: list[MonthlyGoalResponse]
     has_previous_goals: bool
+
+
+class RolloverRequest(BaseModel):
+    """Request body for the rollover endpoint."""
+
+    source_month: str = Field(pattern=r"^\d{4}-\d{2}$")
+    target_month: str = Field(pattern=r"^\d{4}-\d{2}$")
+
+
+class RolloverResponse(BaseModel):
+    """Response body for the rollover endpoint."""
+
+    copied_count: int
