@@ -1,0 +1,12 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run pytest -x -q --tb=short
+Expected: All 158 tests pass (no regressions from new ORM models)
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+......................................................................................[ 45%]
+......................................................................................[ 91%]
+..............                                                                       [100%]
+158 passed in 4.02s
+
+Status: PASS

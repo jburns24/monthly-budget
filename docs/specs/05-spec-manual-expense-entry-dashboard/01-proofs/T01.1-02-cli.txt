@@ -1,0 +1,22 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run python -c "verify model structure"
+Expected: Expense and MonthlyGoal models have correct columns, FKs, constraints, and relationships
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+Expense columns: ['id', 'family_id', 'category_id', 'user_id', 'amount_cents', 'description', 'expense_date', 'year_month', 'receipt_id', 'created_at', 'updated_at']
+Expense check constraints: ['amount_cents > 0']
+Expense FK ondelete: {'family_id': 'CASCADE', 'category_id': 'RESTRICT', 'user_id': 'RESTRICT'}
+
+MonthlyGoal columns: ['id', 'family_id', 'category_id', 'year_month', 'amount_cents', 'version', 'created_at', 'updated_at']
+MonthlyGoal unique constraints: [None, None, None, 'ck_monthly_goals_amount_positive', 'uq_monthly_goals_family_category_month']
+
+Family has expenses rel: True
+Family has monthly_goals rel: True
+Category has expenses rel: True
+Category has monthly_goals rel: True
+User has expenses rel: True
+
+All checks PASSED
+
+Status: PASS

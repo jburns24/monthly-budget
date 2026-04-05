@@ -45,3 +45,13 @@ class Category(Base):
         "Family",
         back_populates="categories",
     )
+    expenses: Mapped[list["Expense"]] = relationship(  # noqa: F821
+        "Expense",
+        back_populates="category",
+        passive_deletes=True,
+    )
+    monthly_goals: Mapped[list["MonthlyGoal"]] = relationship(  # noqa: F821
+        "MonthlyGoal",
+        back_populates="category",
+        passive_deletes=True,
+    )

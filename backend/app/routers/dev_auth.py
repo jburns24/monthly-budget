@@ -135,6 +135,9 @@ async def test_reset(
     """
     await db.execute(delete(Invite))
     await db.execute(delete(FamilyMember))
+    # expenses and monthly_goals have FKs to categories, so delete them first.
+    await db.execute(text("DELETE FROM expenses"))
+    await db.execute(text("DELETE FROM monthly_goals"))
     # categories has FK to families (CASCADE), so delete categories before families.
     await db.execute(text("DELETE FROM categories"))
     # families has FK from family_members (cascade) and invites (cascade),

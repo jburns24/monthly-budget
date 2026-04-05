@@ -46,3 +46,15 @@ class Family(Base):
         back_populates="family",
         cascade="all, delete-orphan",
     )
+    expenses: Mapped[list["Expense"]] = relationship(  # noqa: F821
+        "Expense",
+        back_populates="family",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    monthly_goals: Mapped[list["MonthlyGoal"]] = relationship(  # noqa: F821
+        "MonthlyGoal",
+        back_populates="family",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

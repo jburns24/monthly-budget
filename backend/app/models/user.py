@@ -38,3 +38,8 @@ class User(Base):
         foreign_keys="Invite.invited_user_id",
         back_populates="invited_user",
     )
+    expenses: Mapped[list["Expense"]] = relationship(  # noqa: F821
+        "Expense",
+        back_populates="user",
+        passive_deletes=True,
+    )
