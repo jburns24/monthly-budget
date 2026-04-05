@@ -49,6 +49,8 @@ function InviteForm({ familyId }: InviteFormProps) {
       <form onSubmit={handleSubmit}>
         <Flex gap={3}>
           <Input
+            id="invite-email"
+            name="invite-email"
             type="email"
             placeholder="Enter email address"
             value={email}

@@ -70,6 +70,8 @@ function CreateFamilyView() {
                 Family Name
               </Text>
               <Input
+                id="family-name"
+                name="family-name"
                 placeholder="e.g. The Smiths"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -82,6 +84,8 @@ function CreateFamilyView() {
               </Text>
               <Box
                 as="select"
+                id="timezone"
+                name="timezone"
                 w="full"
                 h="40px"
                 px={3}
