@@ -1,0 +1,9 @@
+Type: cli
+Command: cd e2e && npx tsc --noEmit
+Expected: No TypeScript errors (exit code 0, empty output)
+Timestamp: 2026-04-04T20:40:00Z
+
+--- OUTPUT ---
+(no output — exit code 0)
+
+Status: PASS

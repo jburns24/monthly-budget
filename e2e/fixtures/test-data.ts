@@ -59,6 +59,25 @@ export async function createFamilyViaApi(
 }
 
 /**
+ * Create a category for the given family via the backend API.
+ * Returns the created category object ({ id, name }).
+ */
+export async function createCategoryViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  name: string,
+  icon?: string,
+): Promise<{ id: string; name: string }> {
+  const res = await ctx.post(`${API_BASE}/api/families/${familyId}/categories`, {
+    data: { name, ...(icon !== undefined ? { icon } : {}) },
+  })
+  if (!res.ok()) {
+    throw new Error(`createCategory failed: ${res.status()} ${await res.text()}`)
+  }
+  return res.json() as Promise<{ id: string; name: string }>
+}
+
+/**
  * Send an invite from the authenticated context *ctx* for *familyId* to
  * *inviteeEmail*.  Returns the invite object.
  */
