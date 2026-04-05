@@ -177,6 +177,19 @@ async def test_get_current_budget_month_returns_yyyymm_format() -> None:
     assert result[5:].isdigit()
 
 
+@pytest.mark.asyncio
+async def test_get_current_budget_month_utc() -> None:
+    """get_current_budget_month returns the correct month for UTC timezone."""
+    from datetime import datetime as dt
+
+    # 2026-06-15T12:00:00Z is 2026-06 in UTC
+    fixed_utc = dt(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    with patch("app.services.monthly_goal_service.datetime") as mock_dt:
+        mock_dt.now.return_value = fixed_utc
+        result = get_current_budget_month("UTC")
+    assert result == "2026-06"
+
+
 # ---------------------------------------------------------------------------
 # get_or_check_previous_goals
 # ---------------------------------------------------------------------------

@@ -1,0 +1,35 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run pytest tests/test_monthly_goals_service.py tests/test_monthly_goals_api.py -v -k 'rollover or timezone or previous or utc'
+Expected: All rollover/timezone/previous tests pass
+Timestamp: 2026-04-05T00:00:00Z
+
+============================= test session starts ==============================
+collecting ... collected 63 items / 40 deselected / 23 selected
+
+tests/test_monthly_goals_service.py::test_get_previous_month_mid_year PASSED [  4%]
+tests/test_monthly_goals_service.py::test_get_previous_month_january_wraps_to_previous_year PASSED [  8%]
+tests/test_monthly_goals_service.py::test_get_previous_month_february PASSED [ 13%]
+tests/test_monthly_goals_service.py::test_get_current_budget_month_la_timezone PASSED [ 17%]
+tests/test_monthly_goals_service.py::test_get_current_budget_month_auckland_timezone PASSED [ 21%]
+tests/test_monthly_goals_service.py::test_get_current_budget_month_utc PASSED [ 26%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_returns_goals_when_exist PASSED [ 30%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_no_goals_with_previous PASSED [ 34%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_no_goals_no_previous PASSED [ 39%]
+tests/test_monthly_goals_service.py::test_get_or_check_previous_goals_future_months_ignored PASSED [ 43%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_copies_correctly PASSED [ 47%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_returns_zero_when_no_source PASSED [ 52%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_finds_most_recent_skipping_gaps PASSED [ 56%]
+tests/test_monthly_goals_service.py::test_list_goals_returns_has_previous_true_when_prior_goals_exist PASSED [ 60%]
+tests/test_monthly_goals_service.py::test_list_goals_returns_has_previous_false_when_no_goals_anywhere PASSED [ 65%]
+tests/test_monthly_goals_service.py::test_copy_goals_from_previous_month_isolates_by_family PASSED [ 69%]
+tests/test_monthly_goals_api.py::test_rollover_copies_goals_for_admin PASSED [ 73%]
+tests/test_monthly_goals_api.py::test_rollover_returns_zero_when_no_source PASSED [ 78%]
+tests/test_monthly_goals_api.py::test_rollover_forbidden_for_non_admin_member PASSED [ 82%]
+tests/test_monthly_goals_api.py::test_rollover_returns_404_for_non_member PASSED [ 86%]
+tests/test_monthly_goals_api.py::test_rollover_invalid_month_format PASSED [ 91%]
+tests/test_monthly_goals_api.py::test_rollover_copies_multiple_goals PASSED [ 95%]
+tests/test_monthly_goals_api.py::test_list_goals_has_previous_goals_flag PASSED [100%]
+
+====================== 23 passed, 40 deselected in 0.69s =======================
+
+Status: PASS

@@ -189,6 +189,27 @@ async def test_rollover_returns_404_for_non_member(db_session: AsyncSession, aut
 
 
 @pytest.mark.asyncio
+async def test_rollover_invalid_month_format(db_session: AsyncSession, authenticated_client) -> None:
+    """POST rollover returns 422 when source_month or target_month is not YYYY-MM format."""
+    from app.main import app
+
+    admin = await create_test_user(db_session, display_name="Admin")
+    family, _ = await create_test_family(db_session, admin)
+
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        async with authenticated_client(admin) as client:
+            resp = await client.post(
+                f"/api/families/{family.id}/goals/rollover",
+                json={"source_month": "March-2026", "target_month": "April-2026"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_rollover_copies_multiple_goals(db_session: AsyncSession, authenticated_client) -> None:
     """POST rollover copies all goals from the source month."""
     from app.main import app
