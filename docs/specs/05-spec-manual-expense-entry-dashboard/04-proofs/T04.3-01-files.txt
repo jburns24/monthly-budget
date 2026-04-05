@@ -1,0 +1,28 @@
+Type: file
+Command: ls -la frontend/src/components/expenses/
+Expected: EditExpenseDialog.tsx and DeleteExpenseDialog.tsx exist
+Timestamp: 2026-04-04T23:05:00Z
+
+--- Output ---
+frontend/src/components/expenses/DeleteExpenseDialog.tsx (2701 bytes)
+frontend/src/components/expenses/EditExpenseDialog.tsx (6241 bytes)
+
+--- File Contents Summary ---
+
+EditExpenseDialog.tsx:
+- EditExpenseDialogProps interface: open, onOpenChange, familyId, expense (Expense | null)
+- EditForm sub-component pattern (key={expense.id + expense.updated_at} to reset form on expense change)
+- Fetches categories via useQuery(['categories', familyId]) for dropdown
+- Sends expected_updated_at for optimistic locking
+- On 409 (CONFLICT error): shows toast "This expense was modified by someone else. Please refresh and try again."
+- Invalidates ['expenses', familyId] and ['budget-summary', familyId] on success
+- Fields: amount (inputMode="decimal"), description, category dropdown (Box as="select"), date (type="date")
+
+DeleteExpenseDialog.tsx:
+- DeleteExpenseDialogProps interface: open, onOpenChange, familyId, expense (Expense | null)
+- Shows expense description and formatted amount in confirmation text
+- Calls deleteExpense(familyId, expense.id) on confirm
+- Invalidates ['expenses', familyId] and ['budget-summary', familyId] on success
+- Follows ArchiveCategoryDialog pattern exactly
+
+Status: PASS
