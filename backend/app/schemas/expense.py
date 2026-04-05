@@ -87,3 +87,4 @@ class BudgetSummaryResponse(BaseModel):
     year_month: str  # e.g. "2026-04"
     total_spent_cents: int
     categories: list[BudgetCategorySummary]
+    is_editable: bool = True  # False when grace period has expired for this month

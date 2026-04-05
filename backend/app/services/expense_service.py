@@ -12,8 +12,10 @@ from sqlalchemy.orm import selectinload
 from app.logging import get_logger
 from app.models.category import Category
 from app.models.expense import Expense
+from app.models.family import Family
 from app.models.monthly_goal import MonthlyGoal
 from app.schemas.expense import BudgetCategorySummary, BudgetSummaryResponse
+from app.services.grace_period import is_within_grace_period
 
 logger = get_logger(__name__)
 
@@ -288,7 +290,8 @@ async def get_budget_summary(
     monthly_goals for the given family and year_month. Only includes active
     categories belonging to the family.
 
-    Returns per-category data (spent, goal, percentage, status) and total_spent_cents.
+    Returns per-category data (spent, goal, percentage, status), total_spent_cents,
+    and is_editable (whether the month is still within the grace period).
     """
     # Build a scalar subquery for goal_cents per category
     goal_subq = (
@@ -358,16 +361,23 @@ async def get_budget_summary(
         )
         total_spent_cents += spent
 
+    # Compute is_editable via grace period check
+    family_result = await db.execute(select(Family).where(Family.id == family_id))
+    family = family_result.scalar_one()
+    editable = is_within_grace_period(family, year_month)
+
     logger.info(
         "budget_summary_fetched",
         family_id=str(family_id),
         year_month=year_month,
         category_count=len(category_summaries),
         total_spent_cents=total_spent_cents,
+        is_editable=editable,
     )
 
     return BudgetSummaryResponse(
         year_month=year_month,
         total_spent_cents=total_spent_cents,
         categories=category_summaries,
+        is_editable=editable,
     )

@@ -2,12 +2,14 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import require_family_member
 from app.logging import get_logger
+from app.models.family import Family
 from app.models.family_member import FamilyMember
 from app.models.user import User
 from app.schemas.expense import (
@@ -18,6 +20,7 @@ from app.schemas.expense import (
     ExpenseUpdate,
 )
 from app.services import expense_service
+from app.services.grace_period import is_within_grace_period
 
 logger = get_logger(__name__)
 
@@ -111,6 +114,17 @@ async def update_expense(
 ) -> ExpenseResponse:
     """Update an expense with optimistic locking."""
     current_user, _ = membership
+
+    # Fetch the expense first to know its month, then enforce grace period
+    existing = await expense_service.get_expense(db, family_id=family_id, expense_id=expense_id)
+    family_result = await db.execute(select(Family).where(Family.id == family_id))
+    family = family_result.scalar_one()
+    if not is_within_grace_period(family, existing.year_month):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Grace period expired. Past-month expenses are read-only.",
+        )
+
     expense = await expense_service.update_expense(
         db,
         family_id=family_id,
@@ -137,6 +151,17 @@ async def delete_expense(
 ) -> dict[str, str]:
     """Delete an expense."""
     current_user, _ = membership
+
+    # Fetch the expense to know its month, then enforce grace period
+    existing = await expense_service.get_expense(db, family_id=family_id, expense_id=expense_id)
+    family_result = await db.execute(select(Family).where(Family.id == family_id))
+    family = family_result.scalar_one()
+    if not is_within_grace_period(family, existing.year_month):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Grace period expired. Past-month expenses are read-only.",
+        )
+
     await expense_service.delete_expense(db, family_id=family_id, expense_id=expense_id)
     logger.info("expense_deleted_endpoint", expense_id=str(expense_id), user_id=str(current_user.id))
     return {"message": "Expense deleted"}
