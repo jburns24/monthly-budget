@@ -52,7 +52,7 @@ class ExpenseResponse(BaseModel):
     id: uuid.UUID
     family_id: uuid.UUID
     category: CategoryBrief
-    created_by_user: UserBrief
+    created_by_user: UserBrief = Field(validation_alias="user")
     amount_cents: int
     description: str
     expense_date: date

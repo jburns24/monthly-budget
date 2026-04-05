@@ -10,7 +10,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import settings
 from app.database import engine
 from app.logging import configure_logging, get_logger
-from app.routers import auth, categories, family, health, users
+from app.routers import auth, categories, expenses, family, health, users
 
 # Configure structured logging as early as possible so all startup
 # log messages are captured in the correct format.
@@ -64,6 +64,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(family.router)
 app.include_router(categories.router)
+app.include_router(expenses.router)
 
 # Dev-only endpoints (auth bypass + test-reset) — never exposed in production
 if settings.environment.lower() in ("development", "test"):
