@@ -1,0 +1,17 @@
+Type: cli
+Command: uv run python -c "[schema validation tests for all 8 schema classes]"
+Expected: All schema classes instantiate correctly and field validators (gt=0, max_length=500) reject invalid inputs
+Timestamp: 2026-04-04T05:46:10Z
+
+Output:
+ExpenseCreate OK: {'amount_cents': 1000, 'description': 'Coffee', 'category_id': UUID('...'), 'expense_date': datetime.date(2026, 4, 4)}
+ExpenseUpdate OK: {'amount_cents': 2000, 'description': None, 'category_id': None, 'expense_date': None, 'expected_updated_at': datetime.datetime(...)}
+CategoryBrief OK: {'id': UUID('...'), 'name': 'Food', 'icon': 'food-emoji'}
+UserBrief OK: {'id': UUID('...'), 'display_name': 'Alice'}
+BudgetCategorySummary OK: {'category_id': UUID('...'), 'category_name': 'Food', 'icon': 'food-emoji', 'spent_cents': 5000, 'goal_cents': 10000, 'percentage': 50.0, 'status': 'on_track'}
+BudgetSummaryResponse OK: {'year_month': '2026-04', 'total_spent_cents': 15000, 'categories': [...]}
+Validation OK (amount_cents=0 rejected): ValidationError
+Validation OK (description>500 rejected): ValidationError
+All schema validation tests PASSED
+
+Status: PASS

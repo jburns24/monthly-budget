@@ -1,0 +1,9 @@
+Type: cli
+Command: uv run python -c "from app.schemas.expense import ExpenseCreate, ExpenseUpdate, CategoryBrief, UserBrief, ExpenseResponse, ExpenseListResponse, BudgetCategorySummary, BudgetSummaryResponse; print('All schemas imported successfully')"
+Expected: All schemas imported successfully
+Timestamp: 2026-04-04T05:46:00Z
+
+Output:
+All schemas imported successfully
+
+Status: PASS
