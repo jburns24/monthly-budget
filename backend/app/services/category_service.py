@@ -103,3 +103,100 @@ async def update_category(
         family_id=str(family_id),
     )
     return category
+
+
+async def _count_category_expenses(db: AsyncSession, category_id: uuid.UUID) -> int:
+    """Return the number of expenses that reference this category.
+
+    Currently returns 0 because the expenses table does not exist yet.
+    When the expenses model is added, replace this stub with a real query:
+
+        from app.models.expense import Expense
+        result = await db.execute(
+            select(func.count()).where(Expense.category_id == category_id)
+        )
+        return result.scalar_one()
+    """
+    return 0
+
+
+async def delete_category(
+    db: AsyncSession,
+    family_id: uuid.UUID,
+    category_id: uuid.UUID,
+) -> dict:
+    """Delete or archive a category.
+
+    - If no expenses reference the category: hard-delete it and return {"deleted": True}.
+    - If expenses exist: set is_active=False (archive) and return
+      {"deleted": False, "archived": True, "expense_count": N}.
+
+    Raises HTTPException(404) if the category is not found or belongs to a different family.
+    """
+    result = await db.execute(select(Category).where(Category.id == category_id, Category.family_id == family_id))
+    category = result.scalar_one_or_none()
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    expense_count = await _count_category_expenses(db, category_id)
+
+    if expense_count > 0:
+        category.is_active = False
+        await db.flush()
+        logger.info(
+            "category_archived",
+            category_id=str(category_id),
+            family_id=str(family_id),
+            expense_count=expense_count,
+        )
+        return {"deleted": False, "archived": True, "expense_count": expense_count}
+
+    await db.delete(category)
+    await db.flush()
+    logger.info(
+        "category_deleted",
+        category_id=str(category_id),
+        family_id=str(family_id),
+    )
+    return {"deleted": True}
+
+
+_DEFAULT_CATEGORIES: list[tuple[str, str, int]] = [
+    ("Groceries", "\U0001f6d2", 0),  # 🛒
+    ("Dining", "\U0001f374", 1),  # 🍴
+    ("Transport", "\U0001f697", 2),  # 🚗
+    ("Entertainment", "\U0001f3a5", 3),  # 🎥
+    ("Bills", "\U0001f9fe", 4),  # 🧾
+    ("Other", "\U0001f4c1", 5),  # 📁
+]
+
+
+async def seed_default_categories(
+    db: AsyncSession,
+    family_id: uuid.UUID,
+) -> int:
+    """Bulk-create the 6 default categories for a family.
+
+    Idempotent: skips any category whose name already exists in the family.
+    Returns the number of newly created categories.
+    """
+    existing_result = await db.execute(select(Category.name).where(Category.family_id == family_id))
+    existing_names: set[str] = set(existing_result.scalars().all())
+
+    created = 0
+    for name, icon, sort_order in _DEFAULT_CATEGORIES:
+        if name in existing_names:
+            continue
+        db.add(Category(family_id=family_id, name=name, icon=icon, sort_order=sort_order, is_active=True))
+        created += 1
+
+    if created:
+        await db.flush()
+
+    logger.info(
+        "default_categories_seeded",
+        family_id=str(family_id),
+        created=created,
+        skipped=len(_DEFAULT_CATEGORIES) - created,
+    )
+    return created

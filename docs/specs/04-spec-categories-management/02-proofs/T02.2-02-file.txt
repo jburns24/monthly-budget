@@ -1,0 +1,27 @@
+Type: file
+Command: verify backend/app/services/category_service.py contains delete_category and seed_default_categories
+Expected: Both functions present with correct signatures
+Timestamp: 2026-04-04T00:00:00Z
+
+--- FUNCTION SIGNATURES FOUND ---
+async def _count_category_expenses(db: AsyncSession, category_id: uuid.UUID) -> int:
+async def delete_category(db: AsyncSession, family_id: uuid.UUID, category_id: uuid.UUID) -> dict:
+async def seed_default_categories(db: AsyncSession, family_id: uuid.UUID) -> int:
+
+--- BEHAVIOR SUMMARY ---
+delete_category:
+  - Raises HTTPException(404) if category not found or wrong family
+  - Calls _count_category_expenses() stub (returns 0 until expenses table exists)
+  - Hard-deletes when expense_count == 0, returns {"deleted": True}
+  - Archives (is_active=False) when expense_count > 0, returns {"deleted": False, "archived": True, "expense_count": N}
+  - Uses await db.flush() (not commit)
+
+seed_default_categories:
+  - Queries existing category names for family (idempotency check)
+  - Creates 6 defaults: Groceries/🛒, Dining/🍴, Transport/🚗, Entertainment/🎥, Bills/🧾, Other/📁
+  - Sort orders 0-5
+  - Skips existing names
+  - Returns count of newly created categories
+  - Uses await db.flush() only if created > 0
+
+Status: PASS
