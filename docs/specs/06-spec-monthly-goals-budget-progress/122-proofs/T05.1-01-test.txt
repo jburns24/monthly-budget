@@ -1,0 +1,38 @@
+Type: test
+Command: cd frontend && npx vitest run src/__tests__/DashboardPage.test.tsx --reporter=verbose
+Expected: All DashboardPage tests pass with memoization intact
+Timestamp: 2026-04-05T15:28:08Z
+
+Output:
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ ✓ DashboardPage > renders loading spinner while budget summary is fetching 26ms
+ ✓ DashboardPage > renders total spent and category cards when data loads 20ms
+ ✓ DashboardPage > green status renders accent color for category under 80% 12ms
+ ✓ DashboardPage > yellow status shown for category between 80-99% 9ms
+ ✓ DashboardPage > red status shown for category at or above 100% 10ms
+ ✓ DashboardPage > renders month selector with prev and next buttons 10ms
+ ✓ DashboardPage > clicking next month changes the month heading 25ms
+ ✓ DashboardPage > clicking prev month changes the month heading 21ms
+ ✓ DashboardPage > renders FAB button when user has a family 3ms
+ ✓ DashboardPage > does not render FAB when user has no family 4ms
+ ✓ DashboardPage > clicking FAB opens create expense dialog 15ms
+ ✓ DashboardPage > shows empty state CTA when family exists but no expenses this month 9ms
+ ✓ DashboardPage > shows pending invites and CTA when user has no family 3ms
+ ✓ DashboardPage > navigates to /family when "Create or join a family" button clicked 15ms
+ ✓ DashboardPage > shows error message when budget summary query fails 7ms
+ ✓ DashboardPage > clicking a category card navigates to expenses page filtered by category 20ms
+ ✓ DashboardPage > admin sees "Set Goal" buttons on category cards when no goals exist 13ms
+ ✓ DashboardPage > admin sees "Edit Goal" button on category card when goal exists 10ms
+ ✓ DashboardPage > member does not see goal buttons on category cards 10ms
+ ✓ DashboardPage > admin sees "Manage All Goals" button when categories are loaded 9ms
+ ✓ DashboardPage > member does not see "Manage All Goals" button 8ms
+ ✓ DashboardPage > admin sees rollover prompt when no goals for current month but previous month has goals 9ms
+ ✓ DashboardPage > member does not see rollover prompt even when previous goals exist 8ms
+ ✓ DashboardPage > rollover prompt is not shown when current month already has goals 9ms
+
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Duration  1.31s
+
+Status: PASS

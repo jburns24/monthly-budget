@@ -1,0 +1,25 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/frontend && npm run test:run -- src/__tests__/SetGoalDialog.test.tsx --reporter=verbose
+Expected: SetGoalDialog test suite passes with all required component tests
+Timestamp: 2026-04-05T15:27:49Z
+
+OUTPUT:
+> frontend@0.0.0 test:run
+> vitest run src/__tests__/SetGoalDialog.test.tsx --reporter=verbose
+
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ ✓ src/__tests__/SetGoalDialog.test.tsx > SetGoalDialog > renders "Set Goal" title with category name when no existing goal 53ms
+ ✓ src/__tests__/SetGoalDialog.test.tsx > SetGoalDialog > renders "Edit Goal" title with category name when existing goal is provided 16ms
+ ✓ src/__tests__/SetGoalDialog.test.tsx > SetGoalDialog > renders amount input and save/cancel buttons when open 15ms
+ ✓ src/__tests__/SetGoalDialog.test.tsx > SetGoalDialog > save button is disabled when amount input is empty 11ms
+ ✓ src/__tests__/SetGoalDialog.test.tsx > SetGoalDialog > calls updateGoalsBulk with correct cents and shows success toast on new goal save 60ms
+ ✓ src/__tests__/SetGoalDialog.test.tsx > SetGoalDialog > shows error toast and keeps dialog open when API call fails 50ms
+ ✓ src/__tests__/SetGoalDialog.test.tsx > SetGoalDialog > calls updateGoal with expected_version when editing an existing goal 54ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  15:27:49
+   Duration  2.57s (transform 1.41s, setup 25ms, import 2.11s, tests 261ms, environment 88ms)
+
+Status: PASS

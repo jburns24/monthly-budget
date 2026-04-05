@@ -1,0 +1,45 @@
+Type: file
+Command: Verify frontend/src/utils/format.ts exists and exports formatCents
+Expected: File exists with formatCents export; DashboardPage imports from utils/format instead of defining locally
+Timestamp: 2026-04-05T15:28:00Z
+
+=== frontend/src/utils/format.ts ===
+/**
+ * Format a cent amount as a US dollar string.
+ * e.g. 42300 → "$423"
+ */
+export function formatCents(cents: number): string {
+  return (
+    '$' +
+    (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  )
+}
+
+=== DashboardPage.tsx import (line 11) ===
+import { formatCents } from '../utils/format'
+
+=== Verification: no local formatCents definition in DashboardPage.tsx ===
+grep "^function formatCents" frontend/src/pages/DashboardPage.tsx → (no output = not present locally)
+
+=== TypeScript typecheck ===
+npx tsc --noEmit → exit 0 (no errors)
+
+=== React Query keys in DashboardPage.tsx ===
+queryKey: ['budget-summary', familyId, currentMonth]  (line 218)
+queryKey: ['goals', familyId, currentMonth]           (line 225)
+Both include yearMonth for targeted cache invalidation.
+
+=== Goal/expense mutation invalidateQueries (BulkGoalsEditor, SetGoalDialog, RolloverPrompt) ===
+queryClient.invalidateQueries({ queryKey: ['goals', familyId, yearMonth] })
+queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId, yearMonth] })
+All goal mutations already use targeted [familyId, yearMonth] key shape.
+
+=== CategoryCard memoization (DashboardPage.tsx line 67) ===
+const CategoryCard = memo(function CategoryCard({ ... }) { ... })
+React.memo applied — prevents re-renders when unrelated parent state changes.
+
+=== staleTime on budget-summary query (DashboardPage.tsx line 227) ===
+staleTime: 30_000
+30-second cache window reduces unnecessary refetches during month navigation.
+
+Status: PASS

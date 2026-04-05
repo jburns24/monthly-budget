@@ -1,0 +1,11 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/frontend && npx tsc --noEmit
+Expected: TypeScript type check passes with exit code 0
+Timestamp: 2026-04-05T15:27:55Z
+
+OUTPUT:
+(no output - clean exit)
+
+exit: 0
+
+Status: PASS

@@ -1,0 +1,17 @@
+Type: file
+Description: Verify SetGoalDialog.test.tsx file exists with all required test cases
+Expected: File exists at frontend/src/__tests__/SetGoalDialog.test.tsx with 7 tests covering dialog rendering, form validation, new goal mutation, error handling, and edit goal mutation
+Timestamp: 2026-04-05T15:27:58Z
+
+FILE: frontend/src/__tests__/SetGoalDialog.test.tsx
+
+Tests implemented:
+  1. renders "Set Goal" title with category name when no existing goal
+  2. renders "Edit Goal" title with category name when existing goal is provided
+  3. renders amount input and save/cancel buttons when open
+  4. save button is disabled when amount input is empty
+  5. calls updateGoalsBulk with correct cents and shows success toast on new goal save
+  6. shows error toast and keeps dialog open when API call fails
+  7. calls updateGoal with expected_version when editing an existing goal
+
+Status: PASS

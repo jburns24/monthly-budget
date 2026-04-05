@@ -8,18 +8,12 @@ import { getGoals } from '../api/goals'
 import { getCategories } from '../api/categories'
 import type { BudgetCategorySummary } from '../types/expenses'
 import type { MonthlyGoal } from '../types/goals'
+import { formatCents } from '../utils/format'
 import PendingInvites from '../components/family/PendingInvites'
 import FAB from '../components/expenses/FAB'
 import SetGoalDialog from '../components/goals/SetGoalDialog'
 import BulkGoalsEditor from '../components/goals/BulkGoalsEditor'
 import RolloverPrompt from '../components/goals/RolloverPrompt'
-
-function formatCents(cents: number): string {
-  return (
-    '$' +
-    (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-  )
-}
 
 function getMonthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-')
