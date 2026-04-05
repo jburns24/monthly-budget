@@ -161,7 +161,7 @@ function BottomNavigation() {
     >
       <Flex>
         <NavItem to="/" icon={<HomeIcon />} label="Home" />
-        <NavItem to="/categories" icon={<CategoriesIcon />} label="Categories" disabled />
+        <NavItem to="/categories" icon={<CategoriesIcon />} label="Categories" />
         <NavItem to="/family" icon={<FamilyIcon />} label="Family" />
         <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" disabled />
       </Flex>

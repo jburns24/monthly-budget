@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import FamilyPage from './pages/FamilyPage'
+import CategoriesPage from './pages/CategoriesPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Header from './components/Header'
 import BottomNavigation from './components/BottomNavigation'
@@ -41,6 +42,16 @@ function App() {
             <ProtectedRoute>
               <ProtectedLayout>
                 <FamilyPage />
+              </ProtectedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/categories"
+          element={
+            <ProtectedRoute>
+              <ProtectedLayout>
+                <CategoriesPage />
               </ProtectedLayout>
             </ProtectedRoute>
           }
