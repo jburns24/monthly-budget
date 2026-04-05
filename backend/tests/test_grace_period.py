@@ -455,5 +455,238 @@ async def test_budget_summary_is_editable_false_for_expired_month(
     assert data["is_editable"] is False
 
 
+# ---------------------------------------------------------------------------
+# R03.1.2 -- Expense CREATE allowed for past month within grace period
+# (The create endpoint intentionally has no grace period block — creation is
+# always permitted so family members can enter expenses they forgot.)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_expense_for_past_month_within_grace_period_succeeds(
+    db_session: AsyncSession,
+    authenticated_client,
+) -> None:
+    """POST /expenses with an expense dated in a past month succeeds within grace period.
+
+    Covers feature scenario: "Expense creation for a past month within grace period
+    is allowed."  The create endpoint must not enforce grace period restrictions.
+    """
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user, timezone="America/New_York", edit_grace_days=7)
+    category = await create_test_category(db_session, family)
+
+    # 5 days after March ended -- within 7-day grace
+    frozen_utc = datetime(2026, 4, 5, 12, 0, 0, tzinfo=timezone.utc)
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        with patch("app.services.grace_period._now_utc", return_value=frozen_utc):
+            async with authenticated_client(user) as client:
+                resp = await client.post(
+                    f"/api/families/{family.id}/expenses",
+                    json={
+                        "amount_cents": 1500,
+                        "description": "Late March expense",
+                        "category_id": str(category.id),
+                        "expense_date": "2026-03-28",
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["amount_cents"] == 1500
+
+
+@pytest.mark.asyncio
+async def test_create_expense_for_past_month_after_grace_period_still_succeeds(
+    db_session: AsyncSession,
+    authenticated_client,
+) -> None:
+    """POST /expenses with a past-month date is allowed even after grace period expires.
+
+    The spec allows creation at any time (only edit/delete are blocked after grace).
+    This verifies that the create endpoint never enforces the grace period.
+    """
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user, timezone="America/New_York", edit_grace_days=7)
+    category = await create_test_category(db_session, family)
+
+    # 10 days after March ended -- grace period expired for edits/deletes
+    frozen_utc = datetime(2026, 4, 10, 12, 0, 0, tzinfo=timezone.utc)
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        with patch("app.services.grace_period._now_utc", return_value=frozen_utc):
+            async with authenticated_client(user) as client:
+                resp = await client.post(
+                    f"/api/families/{family.id}/expenses",
+                    json={
+                        "amount_cents": 2500,
+                        "description": "Forgotten March expense",
+                        "category_id": str(category.id),
+                        "expense_date": "2026-03-15",
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["amount_cents"] == 2500
+
+
+# ---------------------------------------------------------------------------
+# R03.1.2 -- Grace period respects family timezone at API level
+# (Integration counterpart to the unit test test_timezone_respected_los_angeles)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_update_expense_respects_family_timezone_boundary(
+    db_session: AsyncSession,
+    authenticated_client,
+) -> None:
+    """PUT /expenses/{id} succeeds when UTC time appears past boundary but local time is within grace.
+
+    At UTC 2026-04-08T06:00:00Z the Los Angeles clock shows April 7 23:00 (within
+    7-day grace for March).  The API must accept the update.
+
+    Covers feature scenario: "Grace period respects family timezone at month boundary."
+    """
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    # Family is in Los Angeles (UTC-7 in April)
+    family, _ = await create_test_family(db_session, user, timezone="America/Los_Angeles", edit_grace_days=7)
+    category = await create_test_category(db_session, family)
+
+    expense = await create_test_expense(
+        db_session,
+        family,
+        user,
+        category,
+        expense_date=date(2026, 3, 20),
+        year_month="2026-03",
+    )
+
+    # April 8 06:00 UTC = April 7 23:00 LA -> still day 7 of the grace window
+    frozen_utc = datetime(2026, 4, 8, 6, 0, 0, tzinfo=timezone.utc)
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        with patch("app.services.grace_period._now_utc", return_value=frozen_utc):
+            async with authenticated_client(user) as client:
+                resp = await client.put(
+                    f"/api/families/{family.id}/expenses/{expense.id}",
+                    json={
+                        "amount_cents": 3000,
+                        "expected_updated_at": expense.updated_at.isoformat(),
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["amount_cents"] == 3000
+
+
+@pytest.mark.asyncio
+async def test_update_expense_blocked_just_after_timezone_boundary(
+    db_session: AsyncSession,
+    authenticated_client,
+) -> None:
+    """PUT /expenses/{id} returns 403 when local time has crossed the grace boundary.
+
+    The grace period uses whole-day arithmetic.  March ends at April 1 00:00 LA.
+    With 7 grace days, the window closes at April 9 00:00:00 LA (8 whole days after
+    April 1 00:00 would be > 7).  UTC 2026-04-09T08:00:00Z = April 9 01:00 LA = day 8,
+    past the 7-day limit.
+    """
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user, timezone="America/Los_Angeles", edit_grace_days=7)
+    category = await create_test_category(db_session, family)
+
+    expense = await create_test_expense(
+        db_session,
+        family,
+        user,
+        category,
+        expense_date=date(2026, 3, 20),
+        year_month="2026-03",
+    )
+
+    # April 9 08:00 UTC = April 9 01:00 LA (PDT, UTC-7) -> 8 whole days since March ended,
+    # which exceeds the 7-day grace window.
+    frozen_utc = datetime(2026, 4, 9, 8, 0, 0, tzinfo=timezone.utc)
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        with patch("app.services.grace_period._now_utc", return_value=frozen_utc):
+            async with authenticated_client(user) as client:
+                resp = await client.put(
+                    f"/api/families/{family.id}/expenses/{expense.id}",
+                    json={
+                        "amount_cents": 3000,
+                        "expected_updated_at": expense.updated_at.isoformat(),
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 403
+    assert "Grace period expired" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# R03.1.3 -- Delete 403 full error message
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_delete_expense_403_contains_full_error_message(
+    db_session: AsyncSession,
+    authenticated_client,
+) -> None:
+    """DELETE /expenses/{id} 403 response contains the complete error message.
+
+    Verifies the detail string matches: "Grace period expired. Past-month expenses
+    are read-only." (the full canonical message per spec R03.1.3).
+    """
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user, timezone="America/New_York", edit_grace_days=7)
+    category = await create_test_category(db_session, family)
+
+    expense = await create_test_expense(
+        db_session,
+        family,
+        user,
+        category,
+        expense_date=date(2026, 3, 15),
+        year_month="2026-03",
+    )
+
+    frozen_utc = datetime(2026, 4, 10, 12, 0, 0, tzinfo=timezone.utc)
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        with patch("app.services.grace_period._now_utc", return_value=frozen_utc):
+            async with authenticated_client(user) as client:
+                resp = await client.delete(
+                    f"/api/families/{family.id}/expenses/{expense.id}",
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 403
+    assert "Grace period expired" in resp.json()["detail"]
+    assert "Past-month expenses are read-only" in resp.json()["detail"]
+
+
 # Suppress unused import warning for timedelta (used in authenticated_client fixture)
 _ = timedelta

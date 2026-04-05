@@ -1,0 +1,32 @@
+Type: test
+Command: cd backend && uv run pytest tests/test_grace_period.py -v --no-header
+Expected: 20/20 tests pass
+Timestamp: 2026-04-05T22:33:30Z
+
+============================= test session starts ==============================
+collecting ... collected 20 items
+
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_current_month_always_editable PASSED [  5%]
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_within_grace_period_returns_true PASSED [ 10%]
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_expired_grace_period_returns_false PASSED [ 15%]
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_exactly_at_grace_boundary_returns_true PASSED [ 20%]
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_timezone_respected_los_angeles PASSED [ 25%]
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_zero_grace_days_past_month_not_editable PASSED [ 30%]
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_december_rollover PASSED [ 35%]
+tests/test_grace_period.py::TestIsWithinGracePeriod::test_future_month_is_editable PASSED [ 40%]
+tests/test_grace_period.py::test_update_expense_within_grace_period_succeeds PASSED [ 45%]
+tests/test_grace_period.py::test_update_expense_after_grace_period_returns_403 PASSED [ 50%]
+tests/test_grace_period.py::test_delete_expense_after_grace_period_returns_403 PASSED [ 55%]
+tests/test_grace_period.py::test_delete_expense_within_grace_period_succeeds PASSED [ 60%]
+tests/test_grace_period.py::test_monthly_goal_editable_regardless_of_grace_period PASSED [ 65%]
+tests/test_grace_period.py::test_budget_summary_is_editable_true_for_current_month PASSED [ 70%]
+tests/test_grace_period.py::test_budget_summary_is_editable_false_for_expired_month PASSED [ 75%]
+tests/test_grace_period.py::test_create_expense_for_past_month_within_grace_period_succeeds PASSED [ 80%]
+tests/test_grace_period.py::test_create_expense_for_past_month_after_grace_period_still_succeeds PASSED [ 85%]
+tests/test_grace_period.py::test_update_expense_respects_family_timezone_boundary PASSED [ 90%]
+tests/test_grace_period.py::test_update_expense_blocked_just_after_timezone_boundary PASSED [ 95%]
+tests/test_grace_period.py::test_delete_expense_403_contains_full_error_message PASSED [100%]
+
+============================== 20 passed in 0.57s ==============================
+
+Status: PASS
