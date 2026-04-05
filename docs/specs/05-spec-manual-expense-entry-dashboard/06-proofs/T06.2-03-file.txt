@@ -1,0 +1,26 @@
+Type: file
+Command: cat frontend/src/components/expenses/FAB.tsx
+Expected: FAB component with position fixed, bottom 80px, right 16px, circular brand button
+Timestamp: 2026-04-04T23:18:50Z
+
+--- OUTPUT ---
+File: frontend/src/components/expenses/FAB.tsx
+  - Circular button: borderRadius="full", w="56px", h="56px", minW="48px", minH="48px" (touch target >= 48px)
+  - Position: position="fixed", bottom="80px", right="16px", zIndex="overlay"
+  - Color: bg="brand.500", color="white"
+  - Opens CreateExpenseDialog: open={open} with useState(false)
+  - Accessible: aria-label="Add expense", data-testid="fab-add-expense"
+  - Plus icon: SVG with two perpendicular lines
+
+File: frontend/src/pages/DashboardPage.tsx
+  - Imports FAB from '../components/expenses/FAB'
+  - Renders {familyId && <FAB familyId={familyId} />} at top of return
+
+File: frontend/src/pages/ExpensesPage.tsx
+  - Inline FAB Box button using existing createOpen state (avoids duplicate dialog)
+  - position="fixed", bottom="80px", right="16px", zIndex="overlay"
+  - Circular: borderRadius="full", w="56px", h="56px", minW="48px", minH="48px"
+  - aria-label="Add expense", data-testid="fab-add-expense"
+  - onClick={() => setCreateOpen(true)}
+
+Status: PASS

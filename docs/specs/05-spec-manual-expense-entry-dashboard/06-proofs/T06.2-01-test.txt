@@ -1,0 +1,13 @@
+Type: test
+Command: npm run test:run --prefix frontend
+Expected: All tests pass including new FAB rendering
+Timestamp: 2026-04-04T23:18:37Z
+
+--- OUTPUT ---
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ Test Files  15 passed (15)
+      Tests  94 passed (94)
+   Duration  2.00s (transform 6.99s, setup 457ms, import 18.00s, tests 1.44s, environment 2.17s)
+
+Status: PASS

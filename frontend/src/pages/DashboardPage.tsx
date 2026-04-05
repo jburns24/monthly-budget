@@ -6,6 +6,7 @@ import { useFamilyContext } from '../contexts/FamilyContext'
 import { getBudgetSummary } from '../api/expenses'
 import type { BudgetCategorySummary } from '../types/expenses'
 import PendingInvites from '../components/family/PendingInvites'
+import FAB from '../components/expenses/FAB'
 
 function formatCents(cents: number): string {
   return (
@@ -185,6 +186,9 @@ function DashboardPage() {
 
   return (
     <Container maxW="container.md" py={6}>
+      {/* FAB for quick expense entry */}
+      {familyId && <FAB familyId={familyId} />}
+
       {/* Month selector */}
       <Flex align="center" justify="space-between" mb={4}>
         <Button
