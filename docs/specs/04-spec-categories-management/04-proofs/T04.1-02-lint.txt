@@ -1,0 +1,12 @@
+Type: cli
+Command: cd frontend && npm run lint
+Expected: No ESLint errors
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+> frontend@0.0.0 lint
+> eslint .
+
+(no errors)
+
+Status: PASS
