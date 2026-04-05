@@ -1,0 +1,31 @@
+Type: test
+Command: uv run pytest tests/test_expenses_service.py -v
+Expected: 18 tests passing, covering all expense service functions
+Timestamp: 2026-04-04T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+tests/test_expenses_service.py::test_create_expense_succeeds_with_valid_inputs PASSED [  5%]
+tests/test_expenses_service.py::test_create_expense_rejects_inactive_category PASSED [ 11%]
+tests/test_expenses_service.py::test_create_expense_rejects_nonexistent_category PASSED [ 16%]
+tests/test_expenses_service.py::test_create_expense_computes_year_month PASSED [ 22%]
+tests/test_expenses_service.py::test_list_expenses_filters_by_year_month PASSED [ 27%]
+tests/test_expenses_service.py::test_list_expenses_pagination PASSED     [ 33%]
+tests/test_expenses_service.py::test_list_expenses_filters_by_category PASSED [ 38%]
+tests/test_expenses_service.py::test_update_expense_partial_fields PASSED [ 44%]
+tests/test_expenses_service.py::test_update_expense_optimistic_locking_409 PASSED [ 50%]
+tests/test_expenses_service.py::test_update_expense_recomputes_year_month PASSED [ 55%]
+tests/test_expenses_service.py::test_delete_expense_removes_from_database PASSED [ 61%]
+tests/test_expenses_service.py::test_delete_expense_raises_404_when_not_found PASSED [ 66%]
+tests/test_expenses_service.py::test_budget_summary_aggregates_spending_per_category PASSED [ 72%]
+tests/test_expenses_service.py::test_budget_summary_zero_for_categories_with_no_expenses PASSED [ 77%]
+tests/test_expenses_service.py::test_budget_summary_with_no_expenses_total_is_zero PASSED [ 83%]
+tests/test_expenses_service.py::test_budget_summary_with_goals_computes_status PASSED [ 88%]
+tests/test_expenses_service.py::test_count_category_expenses_returns_correct_count PASSED [ 94%]
+tests/test_expenses_service.py::test_count_category_expenses_returns_zero_for_empty_category PASSED [100%]
+
+============================== 18 passed in 0.69s ==============================
+
+Status: PASS
