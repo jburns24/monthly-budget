@@ -1,0 +1,16 @@
+Type: file
+Description: Verify BulkGoalsEditor.tsx exists with required exports and props
+Expected: File exists, exports BulkGoalsEditorProps interface and default BulkGoalsEditor component
+Timestamp: 2026-04-05T00:00:00Z
+
+Checks:
+  [PASS] File exists: frontend/src/components/goals/BulkGoalsEditor.tsx
+  [PASS] Exports BulkGoalsEditorProps interface (isOpen, onClose, familyId, yearMonth, categories, currentGoals)
+  [PASS] Exports default BulkGoalsEditor component
+  [PASS] Uses updateGoalsBulk from ../../api/goals
+  [PASS] Dual invalidation: ['goals', familyId, yearMonth] and ['budget-summary', familyId, yearMonth]
+  [PASS] Toast notifications on success and error
+  [PASS] data-testid="bulk-goals-save-btn" on Save All button
+  [PASS] data-testid="goal-input-{cat.id}" on each category input
+
+Status: PASS

@@ -1,0 +1,9 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/frontend && npx tsc --noEmit
+Expected: No type errors
+Timestamp: 2026-04-05T00:00:00Z
+
+Output:
+(no output — exit code 0)
+
+Status: PASS

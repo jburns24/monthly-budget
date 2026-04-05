@@ -1,0 +1,12 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/frontend && npm run lint
+Expected: No lint errors
+Timestamp: 2026-04-05T00:00:00Z
+
+Output:
+> frontend@0.0.0 lint
+> eslint .
+
+(no errors — exit code 0)
+
+Status: PASS
