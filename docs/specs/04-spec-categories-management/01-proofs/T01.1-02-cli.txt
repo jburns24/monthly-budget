@@ -1,0 +1,13 @@
+Type: cli
+Command: uv run python -c "from app.models.category import Category; from app.models.family import Family; ..."
+Expected: Category model columns, constraints, indexes, and Family.categories relationship all verified
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+Columns: ['id', 'family_id', 'name', 'icon', 'sort_order', 'is_active', 'created_at']
+Constraints: ['ForeignKeyConstraint: ', 'PrimaryKeyConstraint: ', 'UniqueConstraint: uq_categories_family_name']
+Indexes: ['idx_categories_family']
+Family.categories relationship: Family.categories
+Category model OK
+
+Status: PASS

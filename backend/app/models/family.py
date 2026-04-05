@@ -41,3 +41,8 @@ class Family(Base):
         back_populates="family",
         cascade="all, delete-orphan",
     )
+    categories: Mapped[list["Category"]] = relationship(  # noqa: F821
+        "Category",
+        back_populates="family",
+        cascade="all, delete-orphan",
+    )

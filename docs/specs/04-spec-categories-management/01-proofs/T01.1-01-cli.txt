@@ -1,0 +1,10 @@
+Type: cli
+Command: uv run ruff check backend/app/models/ && uv run ruff format --check backend/app/models/
+Expected: All checks passed / files already formatted (exit 0)
+Timestamp: 2026-04-04T00:00:00Z
+
+--- OUTPUT ---
+All checks passed!
+7 files already formatted
+
+Status: PASS
