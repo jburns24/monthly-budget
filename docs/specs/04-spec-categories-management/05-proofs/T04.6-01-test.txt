@@ -1,0 +1,27 @@
+Type: test
+Command: cd frontend && npm run test:run -- --reporter=verbose CategoriesPage
+Expected: All 8 CategoriesPage tests pass
+Timestamp: 2026-04-04T20:38:29Z
+
+Output:
+> frontend@0.0.0 test:run
+> vitest run --reporter=verbose CategoriesPage
+
+
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/frontend
+
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > renders spinner when query is pending 29ms
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > renders categories in list when data is available 20ms
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > admin sees Add Category, Edit, and Delete buttons 22ms
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > member does not see Add, Edit, or Delete buttons 11ms
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > create dialog opens when Add Category button is clicked (admin) 36ms
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > empty state shows Seed defaults button for admin 15ms
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > empty state does NOT show seed button for member 9ms
+ ✓ src/__tests__/CategoriesPage.test.tsx > CategoriesPage > shows error message when query fails 9ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  20:38:29
+   Duration  1.18s (transform 407ms, setup 24ms, import 838ms, tests 153ms, environment 89ms)
+
+Status: PASS
