@@ -26,11 +26,15 @@ from app.models.monthly_goal import MonthlyGoal
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
 from app.models.user import User  # noqa: F401 — registers with Base.metadata
 from app.services.monthly_goal_service import (
+    bulk_upsert_goals,
     copy_goals_from_previous_month,
+    create_goal,
+    delete_goal,
     get_current_budget_month,
     get_or_check_previous_goals,
     get_previous_month,
     list_goals,
+    update_goal,
 )
 from tests.conftest import create_test_family, create_test_user
 
@@ -391,3 +395,336 @@ async def test_list_goals_multiple_categories(db_session: AsyncSession) -> None:
     assert has_previous is False
     amounts = {g.amount_cents for g in goals}
     assert amounts == {50000, 30000, 20000}
+
+
+# ---------------------------------------------------------------------------
+# create_goal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_goal_success(db_session: AsyncSession) -> None:
+    """create_goal creates a new goal and returns it."""
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Groceries")
+
+    goal = await create_goal(db_session, family.id, cat.id, "2026-04", 50000)
+
+    assert goal.family_id == family.id
+    assert goal.category_id == cat.id
+    assert goal.year_month == "2026-04"
+    assert goal.amount_cents == 50000
+    assert goal.version == 1
+
+
+@pytest.mark.asyncio
+async def test_create_goal_returns_409_on_duplicate(db_session: AsyncSession) -> None:
+    """create_goal raises HTTPException(409) when a duplicate goal already exists."""
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Groceries")
+    await _insert_goal(db_session, family, cat, "2026-04", 50000)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_goal(db_session, family.id, cat.id, "2026-04", 60000)
+
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_create_goal_raises_404_for_unknown_category(db_session: AsyncSession) -> None:
+    """create_goal raises HTTPException(404) when the category does not exist."""
+    import uuid
+
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_goal(db_session, family.id, uuid.uuid4(), "2026-04", 50000)
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_goal_raises_400_for_inactive_category(db_session: AsyncSession) -> None:
+    """create_goal raises HTTPException(400) when the category is inactive."""
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Archived")
+    cat.is_active = False
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_goal(db_session, family.id, cat.id, "2026-04", 50000)
+
+    assert exc_info.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# update_goal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_update_goal_success(db_session: AsyncSession) -> None:
+    """update_goal updates the amount and increments version."""
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Groceries")
+    goal = await _insert_goal(db_session, family, cat, "2026-04", 50000)
+    original_version = goal.version
+
+    updated = await update_goal(db_session, goal.id, family.id, 75000, original_version)
+
+    assert updated.amount_cents == 75000
+    assert updated.version == original_version + 1
+
+
+@pytest.mark.asyncio
+async def test_update_goal_raises_404_for_unknown_goal(db_session: AsyncSession) -> None:
+    """update_goal raises HTTPException(404) when the goal does not exist."""
+    import uuid
+
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await update_goal(db_session, uuid.uuid4(), family.id, 75000, 1)
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_goal_raises_409_on_version_mismatch(db_session: AsyncSession) -> None:
+    """update_goal raises HTTPException(409) when expected_version does not match."""
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Groceries")
+    goal = await _insert_goal(db_session, family, cat, "2026-04", 50000)
+
+    with pytest.raises(HTTPException) as exc_info:
+        # Pass wrong version (goal.version + 5)
+        await update_goal(db_session, goal.id, family.id, 75000, goal.version + 5)
+
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_goal_rejects_wrong_family(db_session: AsyncSession) -> None:
+    """update_goal raises HTTPException(404) when goal belongs to a different family."""
+    from fastapi import HTTPException
+
+    owner = await create_test_user(db_session)
+    family1, _ = await create_test_family(db_session, owner)
+    family2, _ = await create_test_family(db_session, owner)
+    cat = await _insert_category(db_session, family1, "Groceries")
+    goal = await _insert_goal(db_session, family1, cat, "2026-04", 50000)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await update_goal(db_session, goal.id, family2.id, 75000, goal.version)
+
+    assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# delete_goal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_delete_goal_success(db_session: AsyncSession) -> None:
+    """delete_goal removes the goal from the database."""
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Groceries")
+    goal = await _insert_goal(db_session, family, cat, "2026-04", 50000)
+    goal_id = goal.id
+
+    await delete_goal(db_session, goal_id, family.id)
+
+    result = await db_session.execute(select(MonthlyGoal).where(MonthlyGoal.id == goal_id))
+    assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_delete_goal_raises_404_for_unknown_goal(db_session: AsyncSession) -> None:
+    """delete_goal raises HTTPException(404) when the goal does not exist."""
+    import uuid
+
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await delete_goal(db_session, uuid.uuid4(), family.id)
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_goal_rejects_wrong_family(db_session: AsyncSession) -> None:
+    """delete_goal raises HTTPException(404) when goal belongs to a different family."""
+    from fastapi import HTTPException
+
+    owner = await create_test_user(db_session)
+    family1, _ = await create_test_family(db_session, owner)
+    family2, _ = await create_test_family(db_session, owner)
+    cat = await _insert_category(db_session, family1, "Groceries")
+    goal = await _insert_goal(db_session, family1, cat, "2026-04", 50000)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await delete_goal(db_session, goal.id, family2.id)
+
+    assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# bulk_upsert_goals
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_goals_creates_new_goals(db_session: AsyncSession) -> None:
+    """bulk_upsert_goals creates goals when none exist for the month."""
+    family = await _make_family(db_session)
+    cat1 = await _insert_category(db_session, family, "Groceries")
+    cat2 = await _insert_category(db_session, family, "Dining")
+
+    result = await bulk_upsert_goals(
+        db_session,
+        family.id,
+        "2026-04",
+        [
+            {"category_id": cat1.id, "amount_cents": 50000},
+            {"category_id": cat2.id, "amount_cents": 30000},
+        ],
+    )
+
+    assert result["created"] == 2
+    assert result["updated"] == 0
+    assert result["deleted"] == 0
+
+    goals_result = await db_session.execute(
+        select(MonthlyGoal).where(
+            MonthlyGoal.family_id == family.id,
+            MonthlyGoal.year_month == "2026-04",
+        )
+    )
+    goals = list(goals_result.scalars().all())
+    assert len(goals) == 2
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_goals_updates_existing_goals(db_session: AsyncSession) -> None:
+    """bulk_upsert_goals updates existing goals when they already exist."""
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Groceries")
+    existing = await _insert_goal(db_session, family, cat, "2026-04", 50000)
+    original_version = existing.version
+
+    result = await bulk_upsert_goals(
+        db_session,
+        family.id,
+        "2026-04",
+        [{"category_id": cat.id, "amount_cents": 75000}],
+    )
+
+    assert result["created"] == 0
+    assert result["updated"] == 1
+    assert result["deleted"] == 0
+
+    await db_session.refresh(existing)
+    assert existing.amount_cents == 75000
+    assert existing.version == original_version + 1
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession) -> None:
+    """bulk_upsert_goals deletes goals not present in the incoming list."""
+    family = await _make_family(db_session)
+    cat1 = await _insert_category(db_session, family, "Groceries")
+    cat2 = await _insert_category(db_session, family, "Dining")
+    goal1 = await _insert_goal(db_session, family, cat1, "2026-04", 50000)
+    await _insert_goal(db_session, family, cat2, "2026-04", 30000)
+
+    # Only keep cat1, delete cat2
+    result = await bulk_upsert_goals(
+        db_session,
+        family.id,
+        "2026-04",
+        [{"category_id": cat1.id, "amount_cents": 50000}],
+    )
+
+    assert result["created"] == 0
+    assert result["updated"] == 1
+    assert result["deleted"] == 1
+
+    goals_result = await db_session.execute(
+        select(MonthlyGoal).where(
+            MonthlyGoal.family_id == family.id,
+            MonthlyGoal.year_month == "2026-04",
+        )
+    )
+    remaining_goals = list(goals_result.scalars().all())
+    assert len(remaining_goals) == 1
+    assert remaining_goals[0].id == goal1.id
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_goals_empty_list_deletes_all(db_session: AsyncSession) -> None:
+    """bulk_upsert_goals with empty list deletes all existing goals for the month."""
+    family = await _make_family(db_session)
+    cat1 = await _insert_category(db_session, family, "Groceries")
+    cat2 = await _insert_category(db_session, family, "Dining")
+    await _insert_goal(db_session, family, cat1, "2026-04", 50000)
+    await _insert_goal(db_session, family, cat2, "2026-04", 30000)
+
+    result = await bulk_upsert_goals(db_session, family.id, "2026-04", [])
+
+    assert result["created"] == 0
+    assert result["updated"] == 0
+    assert result["deleted"] == 2
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_goals_raises_404_for_unknown_category(db_session: AsyncSession) -> None:
+    """bulk_upsert_goals raises HTTPException(404) when a category does not exist."""
+    import uuid
+
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await bulk_upsert_goals(
+            db_session,
+            family.id,
+            "2026-04",
+            [{"category_id": uuid.uuid4(), "amount_cents": 50000}],
+        )
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_goals_raises_400_for_inactive_category(db_session: AsyncSession) -> None:
+    """bulk_upsert_goals raises HTTPException(400) when a category is inactive."""
+    from fastapi import HTTPException
+
+    family = await _make_family(db_session)
+    cat = await _insert_category(db_session, family, "Archived")
+    cat.is_active = False
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await bulk_upsert_goals(
+            db_session,
+            family.id,
+            "2026-04",
+            [{"category_id": cat.id, "amount_cents": 50000}],
+        )
+
+    assert exc_info.value.status_code == 400
