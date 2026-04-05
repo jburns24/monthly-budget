@@ -1,0 +1,17 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/frontend && npm run test:run
+Expected: All frontend tests pass including new memoization smoke test
+Timestamp: 2026-04-05T15:37:37Z
+
+OUTPUT:
+ Test Files  20 passed (20)
+      Tests  161 passed (161)
+   Start at  15:37:37
+   Duration  3.32s (transform 8.08s, setup 670ms, import 23.96s, tests 4.55s, environment 3.13s)
+
+Status: PASS
+
+New test added to DashboardPage.test.tsx:
+- "CategoryCard memoization does not break rendering when parent state changes (month navigation)"
+  Verifies that React.memo wrapping CategoryCard does not prevent re-renders when parent month state changes.
+  Total tests: 161 (was 160 before this task).

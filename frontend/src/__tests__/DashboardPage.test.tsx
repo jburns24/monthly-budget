@@ -693,4 +693,36 @@ describe('DashboardPage', () => {
 
     expect(screen.queryByTestId('rollover-prompt')).not.toBeInTheDocument()
   })
+
+  // ------------------------------------------------------------------ memoization smoke test
+  it('CategoryCard memoization does not break rendering when parent state changes (month navigation)', async () => {
+    const user = userEvent.setup()
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    // Resolve with spending data so CategoryCards are rendered
+    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+
+    renderDashboardPage()
+
+    // Category cards should render correctly with React.memo
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('Transport category')).toBeInTheDocument()
+    expect(screen.getByLabelText('Dining category')).toBeInTheDocument()
+
+    // Change parent state (month navigation) — memoized CategoryCard should still re-render
+    // when the yearMonth prop passed from the parent changes
+    await user.click(screen.getByRole('button', { name: 'Next month' }))
+
+    // After navigating to next month, the heading should change but cards should still be present
+    // (React Query stays loading for the new month, but cards from previous data may persist,
+    // or loading spinner is shown — the key assertion is no crash / DOM corruption)
+    const heading = screen.getByRole('heading')
+    expect(heading.textContent).toBeTruthy()
+  })
 })

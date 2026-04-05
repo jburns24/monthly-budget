@@ -1,0 +1,30 @@
+Type: test
+Command: cd /Users/jburns/git/monthly-budget/e2e && npx playwright test expenses.spec.ts --reporter=list
+Expected: All expense E2E tests pass including new grace period tests
+Timestamp: 2026-04-05T15:37:00Z
+
+OUTPUT:
+Running 12 tests using 1 worker
+
+  ✓   1 [setup] › tests/auth.setup.ts:14:6 › authenticate primary test user (20ms)
+  ✓   2 [chromium] › tests/expenses.spec.ts:65:5 › member creates expense via FAB on dashboard and sees it reflected (918ms)
+  ✓   3 [chromium] › tests/expenses.spec.ts:113:5 › member creates expense via expenses page and sees it in filtered list (834ms)
+  ✓   4 [chromium] › tests/expenses.spec.ts:159:5 › member edits an expense amount and description (901ms)
+  ✓   5 [chromium] › tests/expenses.spec.ts:208:5 › member deletes an expense and it is removed from the list (1.0s)
+  ✓   6 [chromium] › tests/expenses.spec.ts:253:5 › month selector filters expenses and dashboard by month (704ms)
+  ✓   7 [chromium] › tests/expenses.spec.ts:301:5 › dashboard shows yellow/orange progress color when spending is near goal (337ms)
+  ✓   8 [chromium] › tests/expenses.spec.ts:330:5 › multiple family members can create and see each other's expenses (358ms)
+  ✓   9 [chromium] › tests/expenses.spec.ts:389:5 › expense edit succeeds for a month still within the grace period (827ms)
+  ✓  10 [chromium] › tests/expenses.spec.ts:442:5 › expense edit is blocked with 403 after the grace period has expired (844ms)
+  ✓  11 [chromium] › tests/expenses.spec.ts:491:5 › expense delete is blocked with 403 after the grace period has expired (823ms)
+  ✓  12 [chromium] › tests/expenses.spec.ts:537:5 › budget summary API returns is_editable=false for months past the grace period (369ms)
+
+  12 passed (8.7s)
+
+Status: PASS
+
+New grace period tests added (tests 9-12):
+- Test 9: expense edit succeeds for a month still within the grace period (March 2026, 4 days past, <= 7-day grace)
+- Test 10: expense edit is blocked with 403 after the grace period has expired (February 2026, 35 days past)
+- Test 11: expense delete is blocked with 403 after the grace period has expired (February 2026, 35 days past)
+- Test 12: budget summary API returns is_editable=false for months past the grace period

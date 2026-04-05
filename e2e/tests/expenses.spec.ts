@@ -381,3 +381,190 @@ test("multiple family members can create and see each other's expenses", async (
   await expect(page.locator('[data-testid^="expense-user-"]').filter({ hasText: 'Alice' })).toBeVisible({ timeout: 5_000 })
   await expect(page.locator('[data-testid^="expense-user-"]').filter({ hasText: 'Bob' })).toBeVisible({ timeout: 5_000 })
 })
+
+// ---------------------------------------------------------------------------
+// 8. Grace period: edit succeeds within grace period
+// ---------------------------------------------------------------------------
+
+test('expense edit succeeds for a month still within the grace period', async ({ page }) => {
+  // Seed an expense for March 2026 (ended 2026-04-01 — 4 days ago in America/New_York,
+  // within the default 7-day grace period).
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  const expense = await createExpenseViaApi(
+    ctx,
+    familyId,
+    groceryCategoryId,
+    3000,
+    'March groceries',
+    '2026-03-15',
+  )
+  await ctx.dispose()
+
+  const expensesPage = new ExpensesPage(page)
+  await expensesPage.goto()
+
+  // Navigate to March 2026 (two prev-month clicks from April 2026).
+  await expensesPage.goToPrevMonth()
+  await expect(expensesPage.monthDisplay).toContainText('March 2026', { timeout: 5_000 })
+
+  // The expense should be visible.
+  await expect(page.getByText('March groceries')).toBeVisible({ timeout: 10_000 })
+
+  // Click the edit button for the expense.
+  await expensesPage.editExpense(expense.id)
+  await expect(expensesPage.dialogRoot).toBeVisible({ timeout: 5_000 })
+
+  // Update the amount.
+  const amountInput = page.getByTestId('edit-expense-amount')
+  await expect(amountInput).toBeVisible({ timeout: 5_000 })
+  await amountInput.fill('35.00')
+
+  // Submit — should succeed with HTTP 200.
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (res) => res.url().includes('/expenses/') && res.request().method() === 'PUT',
+    ),
+    page.getByRole('button', { name: /save/i }).click(),
+  ])
+  expect(response.status()).toBe(200)
+
+  // Updated amount should be visible.
+  await expect(page.getByText('$35.00')).toBeVisible({ timeout: 10_000 })
+})
+
+// ---------------------------------------------------------------------------
+// 9. Grace period: edit blocked after grace period expires
+// ---------------------------------------------------------------------------
+
+test('expense edit is blocked with 403 after the grace period has expired', async ({ page }) => {
+  // Seed an expense for February 2026 (ended 2026-03-01 — 35 days ago,
+  // well beyond the default 7-day grace period).
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  const expense = await createExpenseViaApi(
+    ctx,
+    familyId,
+    groceryCategoryId,
+    2000,
+    'February groceries',
+    '2026-02-15',
+  )
+  await ctx.dispose()
+
+  const expensesPage = new ExpensesPage(page)
+  await expensesPage.goto()
+
+  // Navigate to February 2026 (two prev-month clicks from April 2026).
+  await expensesPage.goToPrevMonth()
+  await expensesPage.goToPrevMonth()
+  await expect(expensesPage.monthDisplay).toContainText('February 2026', { timeout: 5_000 })
+
+  // The expense should be visible.
+  await expect(page.getByText('February groceries')).toBeVisible({ timeout: 10_000 })
+
+  // Attempt edit — the API should return 403 (grace period expired).
+  await expensesPage.editExpense(expense.id)
+  await expect(expensesPage.dialogRoot).toBeVisible({ timeout: 5_000 })
+
+  const amountInput = page.getByTestId('edit-expense-amount')
+  await expect(amountInput).toBeVisible({ timeout: 5_000 })
+  await amountInput.fill('25.00')
+
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (res) => res.url().includes('/expenses/') && res.request().method() === 'PUT',
+    ),
+    page.getByRole('button', { name: /save/i }).click(),
+  ])
+  expect(response.status()).toBe(403)
+})
+
+// ---------------------------------------------------------------------------
+// 10. Grace period: delete blocked after grace period expires
+// ---------------------------------------------------------------------------
+
+test('expense delete is blocked with 403 after the grace period has expired', async ({ page }) => {
+  // Seed an expense for February 2026 (ended 2026-03-01 — 35 days ago,
+  // well beyond the default 7-day grace period).
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  const expense = await createExpenseViaApi(
+    ctx,
+    familyId,
+    groceryCategoryId,
+    1500,
+    'February transport',
+    '2026-02-20',
+  )
+  await ctx.dispose()
+
+  const expensesPage = new ExpensesPage(page)
+  await expensesPage.goto()
+
+  // Navigate to February 2026 (two prev-month clicks from April 2026).
+  await expensesPage.goToPrevMonth()
+  await expensesPage.goToPrevMonth()
+  await expect(expensesPage.monthDisplay).toContainText('February 2026', { timeout: 5_000 })
+
+  // The expense should be visible.
+  await expect(page.getByText('February transport')).toBeVisible({ timeout: 10_000 })
+
+  // Attempt delete — the API should return 403 (grace period expired).
+  await expensesPage.deleteExpense(expense.id)
+  await expect(expensesPage.dialogRoot).toBeVisible({ timeout: 5_000 })
+
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (res) => res.url().includes('/expenses/') && res.request().method() === 'DELETE',
+    ),
+    page.getByTestId('delete-expense-confirm').click(),
+  ])
+  expect(response.status()).toBe(403)
+})
+
+// ---------------------------------------------------------------------------
+// 11. Grace period: dashboard budget summary reports is_editable = false
+//     for months past the grace period
+// ---------------------------------------------------------------------------
+
+test('budget summary API returns is_editable=false for months past the grace period', async ({
+  page,
+}) => {
+  // Seed an expense for February 2026 (past the 7-day grace period).
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  await createExpenseViaApi(ctx, familyId, groceryCategoryId, 1000, 'Feb item', '2026-02-10')
+  await ctx.dispose()
+
+  // Intercept the budget summary API response and capture its body.
+  let capturedSummary: Record<string, unknown> | null = null
+  await page.route('**/budget/summary*', async (route) => {
+    const response = await route.fetch()
+    const body = await response.json()
+    capturedSummary = body as Record<string, unknown>
+    await route.fulfill({ response })
+  })
+
+  const dashboard = new DashboardPage(page)
+  await dashboard.goto()
+
+  // Navigate to February 2026 (two prev-month clicks from April 2026).
+  await dashboard.goToPrevMonth()
+  await dashboard.goToPrevMonth()
+
+  // Wait until the budget summary for February loads.
+  await page.waitForResponse((res) => res.url().includes('/budget/summary') && res.url().includes('2026-02'))
+
+  // The budget summary for February 2026 should report is_editable = false.
+  expect(capturedSummary).not.toBeNull()
+  expect((capturedSummary as Record<string, unknown>)['is_editable']).toBe(false)
+})
