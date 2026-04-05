@@ -1,0 +1,9 @@
+Type: cli
+Command: cd /Users/jburns/git/monthly-budget/backend && uv run python -c "from app.schemas.monthly_goal import MonthlyGoalCreate, MonthlyGoalResponse, BulkGoalsRequest"
+Expected: No import error (empty output)
+Timestamp: 2026-04-05T00:00:00Z
+
+Output:
+(no output — import succeeded without error)
+
+Status: PASS

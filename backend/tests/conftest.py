@@ -17,6 +17,7 @@ from app.models.expense import Expense
 from app.models.family import Family
 from app.models.family_member import FamilyMember
 from app.models.invite import Invite
+from app.models.monthly_goal import MonthlyGoal
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
 from app.models.user import User
 
@@ -347,6 +348,67 @@ async def create_test_expense(
     await db.flush()
     await db.refresh(expense)
     return expense
+
+
+# ---------------------------------------------------------------------------
+# MonthlyGoal factory (plain async function, not a fixture — call it from any fixture
+# or test that already has a db_session)
+# ---------------------------------------------------------------------------
+
+
+async def create_test_monthly_goal(
+    db: AsyncSession,
+    family: Family,
+    category: Category,
+    year_month: str = "2026-04",
+    amount_cents: int = 50000,
+    **overrides: Any,
+) -> MonthlyGoal:
+    """Insert a MonthlyGoal into the test database and return the ORM object.
+
+    Parameters
+    ----------
+    db:
+        Active async session (typically from the :func:`db_session` fixture).
+    family:
+        The Family the goal belongs to.
+    category:
+        The Category the goal is for.
+    year_month:
+        The month for the goal in YYYY-MM format (default: ``"2026-04"``).
+    amount_cents:
+        The goal amount in cents (default: ``50000``).
+    **overrides:
+        Field values that replace the auto-generated defaults.  Pass any
+        combination of MonthlyGoal column names.
+
+    Returns
+    -------
+    MonthlyGoal
+        The persisted :class:`~app.models.monthly_goal.MonthlyGoal` instance.
+
+    Example::
+
+        goal = await create_test_monthly_goal(db_session, family, category, amount_cents=10000)
+        assert goal.amount_cents == 10000
+    """
+    now = datetime.now(tz=timezone.utc)
+    defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "family_id": family.id,
+        "category_id": category.id,
+        "year_month": year_month,
+        "amount_cents": amount_cents,
+        "version": 1,
+        "created_at": now,
+        "updated_at": now,
+    }
+    defaults.update(overrides)
+    goal = MonthlyGoal(**defaults)
+    db.add(goal)
+    await db.flush()
+    await db.refresh(goal)
+    return goal
 
 
 # ---------------------------------------------------------------------------
