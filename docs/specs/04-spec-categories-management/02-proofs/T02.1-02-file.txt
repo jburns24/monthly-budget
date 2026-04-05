@@ -1,0 +1,22 @@
+Type: file
+Command: uv run python -c "import ast; ..."  (AST parse to verify required functions)
+Expected: All three async functions present (create_category, list_active_categories, update_category)
+Timestamp: 2026-04-04T00:00:00Z
+
+Output:
+Async functions found: ['create_category', 'list_active_categories', 'update_category']
+All required functions present: PASS
+
+File created: backend/app/services/category_service.py
+Functions implemented:
+  - create_category(db, family_id, name, icon, sort_order=0) -> Category
+      raises HTTPException(409) on duplicate name (via IntegrityError from UniqueConstraint)
+      uses db.flush(), logs with structlog
+  - list_active_categories(db, family_id) -> list[Category]
+      filters is_active=True, ordered by sort_order ASC, name ASC
+  - update_category(db, family_id, category_id, name, icon, sort_order) -> Category
+      updates only non-None fields
+      raises HTTPException(404) if not found or wrong family
+      raises HTTPException(409) on name conflict
+
+Status: PASS
