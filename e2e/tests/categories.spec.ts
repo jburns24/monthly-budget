@@ -90,8 +90,8 @@ test('admin edits a category name and sees the updated name', async ({ page }) =
   expect(response.status()).toBe(200)
 
   // Updated name must appear; old name must not.
-  await expect(page.getByText('New Name')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('Old Name')).not.toBeVisible()
+  await expect(page.getByText('New Name', { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Old Name', { exact: true })).not.toBeVisible()
 })
 
 // ---------------------------------------------------------------------------
