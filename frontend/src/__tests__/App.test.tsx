@@ -46,13 +46,15 @@ describe('App', () => {
     })
   })
 
-  it('renders Monthly Budget heading when authenticated', () => {
+  it('renders dashboard month heading when authenticated', () => {
     const Wrapper = createWrapper()
     render(
       <Wrapper>
         <App />
       </Wrapper>
     )
-    expect(screen.getByRole('heading', { name: 'Monthly Budget' })).toBeInTheDocument()
+    // DashboardPage shows current month heading (e.g. "April 2026")
+    const nav = screen.getByRole('navigation', { name: 'Bottom navigation' })
+    expect(nav).toBeInTheDocument()
   })
 })

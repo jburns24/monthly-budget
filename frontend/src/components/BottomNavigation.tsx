@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from '@chakra-ui/react'
 import { NavLink } from 'react-router-dom'
 
-function HomeIcon() {
+function DashboardIcon() {
   return (
     <svg
       width="22"
@@ -14,8 +14,10 @@ function HomeIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
     </svg>
   )
 }
@@ -160,7 +162,7 @@ function BottomNavigation() {
       aria-label="Bottom navigation"
     >
       <Flex>
-        <NavItem to="/" icon={<HomeIcon />} label="Home" />
+        <NavItem to="/" icon={<DashboardIcon />} label="Dashboard" />
         <NavItem to="/categories" icon={<CategoriesIcon />} label="Categories" />
         <NavItem to="/family" icon={<FamilyIcon />} label="Family" />
         <NavItem to="/settings" icon={<SettingsIcon />} label="Settings" disabled />

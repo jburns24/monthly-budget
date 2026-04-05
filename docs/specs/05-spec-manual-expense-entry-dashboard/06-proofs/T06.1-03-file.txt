@@ -1,0 +1,27 @@
+Type: file
+Command: ls frontend/src/pages/DashboardPage.tsx frontend/src/api/expenses.ts
+Expected: DashboardPage.tsx created, expenses.ts updated with getBudgetSummary using correct URL
+Timestamp: 2026-04-04T22:54:00Z
+Status: PASS
+
+---
+
+Files created/modified:
+  frontend/src/pages/DashboardPage.tsx       - NEW: DashboardPage component
+  frontend/src/api/expenses.ts               - MODIFIED: getBudgetSummary URL fixed to /api/families/{id}/budget/summary
+  frontend/src/App.tsx                       - MODIFIED: replaced HomePage with DashboardPage at "/" route
+  frontend/src/components/BottomNavigation.tsx - MODIFIED: "Home" tab changed to "Dashboard" with dashboard icon
+  frontend/src/__tests__/BottomNavigation.test.tsx - MODIFIED: updated tests for new Dashboard label
+  frontend/src/__tests__/App.test.tsx        - MODIFIED: updated test for DashboardPage
+
+DashboardPage features:
+  - Uses useFamilyContext() for familyId
+  - useQuery with queryKey ['budget-summary', familyId, currentMonth]
+  - Month selector with prev/next navigation and "Month YYYY" label
+  - Total spending display "Total Spent: $X,XXX"
+  - Category budget cards with icon, name, spent/goal amounts, progress bar
+  - Color coding: accent.500 (green <80%), orange.400 (80-99%), red.500 (>=100%), gray.400 (no goal)
+  - Category card click navigates to /expenses?category={id}&month={yearMonth}
+  - PendingInvites shown when no family
+  - Empty state: no family -> "Create or join a family" CTA
+  - Empty state: family but no expenses -> "Add your first expense" message

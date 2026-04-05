@@ -18,33 +18,25 @@ function renderWithProviders(ui: React.ReactElement, initialPath = '/') {
 }
 
 describe('BottomNavigation', () => {
-  it('renders four navigation items', () => {
+  it('renders navigation items', () => {
     renderWithProviders(<BottomNavigation />)
-    expect(screen.getByLabelText('Home')).toBeInTheDocument()
+    expect(screen.getByLabelText('Dashboard')).toBeInTheDocument()
     expect(screen.getByLabelText('Family')).toBeInTheDocument()
-    expect(screen.getByLabelText('Categories (coming soon)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Categories')).toBeInTheDocument()
     expect(screen.getByLabelText('Settings (coming soon)')).toBeInTheDocument()
   })
 
-  it('marks Home tab as active when on root path', () => {
+  it('marks Dashboard tab as active when on root path', () => {
     renderWithProviders(<BottomNavigation />, '/')
     // NavLink renders active styles; check the link is present
-    const homeLink = screen.getByLabelText('Home')
-    expect(homeLink).toBeInTheDocument()
+    const dashboardLink = screen.getByLabelText('Dashboard')
+    expect(dashboardLink).toBeInTheDocument()
   })
 
   it('marks Family tab as active when on /family path', () => {
     renderWithProviders(<BottomNavigation />, '/family')
     const familyLink = screen.getByLabelText('Family')
     expect(familyLink).toBeInTheDocument()
-  })
-
-  it('renders Categories as disabled with aria-disabled', () => {
-    renderWithProviders(<BottomNavigation />)
-    const categoriesItem = screen.getByLabelText('Categories (coming soon)')
-    // The disabled NavItem renders with aria-disabled on its inner Flex
-    const disabledEl = categoriesItem.querySelector('[aria-disabled="true"]')
-    expect(disabledEl).toBeInTheDocument()
   })
 
   it('renders Settings as disabled with aria-disabled', () => {

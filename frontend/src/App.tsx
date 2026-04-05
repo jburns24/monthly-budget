@@ -1,6 +1,6 @@
 import { Box } from '@chakra-ui/react'
 import { Routes, Route } from 'react-router-dom'
-import HomePage from './pages/HomePage'
+import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 import FamilyPage from './pages/FamilyPage'
@@ -31,7 +31,7 @@ function App() {
           element={
             <ProtectedRoute>
               <ProtectedLayout>
-                <HomePage />
+                <DashboardPage />
               </ProtectedLayout>
             </ProtectedRoute>
           }
