@@ -363,3 +363,80 @@ test('member sees category cards but not goal management buttons', async ({ page
   // "Manage All Goals" button must NOT be visible to the member.
   await expect(page.getByTestId('manage-goals-btn')).not.toBeVisible()
 })
+
+// ---------------------------------------------------------------------------
+// 7. Goal dialogs are fully visible on desktop with many categories
+// ---------------------------------------------------------------------------
+
+test('BulkGoalsEditor save button is within viewport on desktop with many categories', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 768 })
+
+  // Seed many extra categories with expenses so the BulkGoalsEditor is tall.
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  const extraNames = ['Dining', 'Entertainment', 'Health', 'Shopping', 'Travel', 'Utilities', 'Housing', 'Insurance']
+  const allCategoryIds: string[] = [groceryCategoryId, transportCategoryId]
+  for (const name of extraNames) {
+    const cat = await createCategoryViaApi(ctx, familyId, name)
+    allCategoryIds.push(cat.id)
+  }
+  for (const catId of allCategoryIds) {
+    await createExpenseViaApi(ctx, familyId, catId, 1000, 'Test expense', CURRENT_DATE)
+  }
+  await ctx.dispose()
+
+  const dashboard = new DashboardPage(page)
+  await dashboard.goto()
+
+  const manageBtn = page.getByTestId('manage-goals-btn')
+  await expect(manageBtn).toBeVisible({ timeout: 10_000 })
+  await manageBtn.click()
+
+  await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 5_000 })
+
+  // Both action buttons must be within the visible viewport — not pushed off screen.
+  const saveBtn = page.getByTestId('bulk-goals-save-btn')
+  await expect(saveBtn).toBeVisible({ timeout: 5_000 })
+  await expect(saveBtn).toBeInViewport()
+
+  const cancelBtn = page.getByRole('button', { name: 'Cancel' })
+  await expect(cancelBtn).toBeInViewport()
+})
+
+test('SetGoalDialog save button is within viewport on desktop with many categories', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 768 })
+
+  // Seed many categories so the dashboard page is long, then use SetGoalDialog.
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  const extraNames = ['Dining', 'Entertainment', 'Health', 'Shopping', 'Travel', 'Utilities', 'Housing', 'Insurance']
+  for (const name of extraNames) {
+    const cat = await createCategoryViaApi(ctx, familyId, name)
+    await createExpenseViaApi(ctx, familyId, cat.id, 1000, 'Test expense', CURRENT_DATE)
+  }
+  await createExpenseViaApi(ctx, familyId, groceryCategoryId, 3000, 'Weekly shop', CURRENT_DATE)
+  await ctx.dispose()
+
+  const dashboard = new DashboardPage(page)
+  await dashboard.goto()
+
+  await expect(dashboard.categoryCard('Groceries')).toBeVisible({ timeout: 10_000 })
+
+  const setGoalBtn = page.getByTestId(`set-goal-btn-${groceryCategoryId}`)
+  await setGoalBtn.scrollIntoViewIfNeeded()
+  await setGoalBtn.click()
+
+  await expect(page.locator('[role="dialog"]')).toBeVisible({ timeout: 5_000 })
+
+  // Save and Cancel buttons must be fully visible within the viewport.
+  const saveBtn = page.getByTestId('goal-save-btn')
+  await expect(saveBtn).toBeVisible({ timeout: 5_000 })
+  await expect(saveBtn).toBeInViewport()
+
+  const cancelBtn = page.getByRole('button', { name: 'Cancel' })
+  await expect(cancelBtn).toBeInViewport()
+})

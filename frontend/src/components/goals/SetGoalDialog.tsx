@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Input, Stack, Text } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -149,24 +150,31 @@ function SetGoalDialog({
   const dialogTitle = existingGoal ? `Edit Goal — ${categoryName}` : `Set Goal — ${categoryName}`
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()}>
+    <DialogRoot
+      open={open}
+      onOpenChange={(e) => !e.open && handleClose()}
+      placement="center"
+      scrollBehavior="inside"
+    >
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{dialogTitle}</DialogTitle>
-        </DialogHeader>
-        {open && (
-          <GoalForm
-            key={`${categoryId}-${existingGoal?.id ?? 'new'}-${open ? 'open' : 'closed'}`}
-            familyId={familyId}
-            yearMonth={yearMonth}
-            categoryId={categoryId}
-            categoryName={categoryName}
-            existingGoal={existingGoal}
-            onClose={handleClose}
-          />
-        )}
-      </DialogContent>
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+          </DialogHeader>
+          {open && (
+            <GoalForm
+              key={`${categoryId}-${existingGoal?.id ?? 'new'}-${open ? 'open' : 'closed'}`}
+              familyId={familyId}
+              yearMonth={yearMonth}
+              categoryId={categoryId}
+              categoryName={categoryName}
+              existingGoal={existingGoal}
+              onClose={handleClose}
+            />
+          )}
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

@@ -1,6 +1,7 @@
 import { Button, Text } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -59,35 +60,37 @@ function DeleteExpenseDialog({ open, onOpenChange, familyId, expense }: DeleteEx
   }
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()}>
+    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()} placement="center">
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete Expense</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          {expense ? (
-            <Text>
-              Delete <strong>{expense.description || '(no description)'}</strong> (
-              {formatAmount(expense.amount_cents)})? This action cannot be undone.
-            </Text>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            colorPalette="red"
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-            disabled={!expense}
-            data-testid="delete-expense-confirm"
-          >
-            Delete
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Expense</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {expense ? (
+              <Text>
+                Delete <strong>{expense.description || '(no description)'}</strong> (
+                {formatAmount(expense.amount_cents)})? This action cannot be undone.
+              </Text>
+            ) : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              colorPalette="red"
+              onClick={() => mutation.mutate()}
+              loading={mutation.isPending}
+              disabled={!expense}
+              data-testid="delete-expense-confirm"
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -50,28 +51,30 @@ function LeaveButton({ familyId, familyName }: LeaveButtonProps) {
       <Button variant="outline" colorPalette="red" size="sm" onClick={() => setOpen(true)} mt={6}>
         Leave Family
       </Button>
-      <DialogRoot open={open} onOpenChange={(e) => !e.open && setOpen(false)}>
+      <DialogRoot open={open} onOpenChange={(e) => !e.open && setOpen(false)} placement="center">
         <DialogBackdrop />
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Leave Family</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            Are you sure you want to leave {familyName}? You will need a new invite to rejoin.
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={mutation.isPending}>
-              Cancel
-            </Button>
-            <Button
-              colorPalette="red"
-              onClick={() => mutation.mutate()}
-              loading={mutation.isPending}
-            >
-              Leave
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        <DialogPositioner>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Leave Family</DialogTitle>
+            </DialogHeader>
+            <DialogBody>
+              Are you sure you want to leave {familyName}? You will need a new invite to rejoin.
+            </DialogBody>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={mutation.isPending}>
+                Cancel
+              </Button>
+              <Button
+                colorPalette="red"
+                onClick={() => mutation.mutate()}
+                loading={mutation.isPending}
+              >
+                Leave
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </DialogPositioner>
       </DialogRoot>
     </>
   )

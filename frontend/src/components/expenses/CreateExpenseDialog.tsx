@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Input, NativeSelectField, NativeSelectRoot, Stack, Text } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -113,99 +114,101 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
     expenseDate.length > 0
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()}>
+    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()} placement="center">
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add Expense</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <Stack gap={4}>
-            <Stack gap={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Amount{' '}
-                <Text as="span" color="red.500">
-                  *
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Expense</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <Stack gap={4}>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Amount{' '}
+                  <Text as="span" color="red.500">
+                    *
+                  </Text>
                 </Text>
-              </Text>
-              <Input
-                ref={amountRef}
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                inputMode="decimal"
-                autoComplete="off"
-                disabled={mutation.isPending}
-                data-testid="expense-amount-input"
-              />
-            </Stack>
-            <Stack gap={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Description
-              </Text>
-              <Input
-                placeholder="e.g. Weekly groceries"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={500}
-                disabled={mutation.isPending}
-                data-testid="expense-description-input"
-              />
-            </Stack>
-            <Stack gap={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Category{' '}
-                <Text as="span" color="red.500">
-                  *
+                <Input
+                  ref={amountRef}
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  disabled={mutation.isPending}
+                  data-testid="expense-amount-input"
+                />
+              </Stack>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Description
                 </Text>
-              </Text>
-              <NativeSelectRoot disabled={mutation.isPending}>
-                <NativeSelectField
-                  value={effectiveCategoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  data-testid="expense-category-select"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.icon ? `${cat.icon} ` : ''}
-                      {cat.name}
-                    </option>
-                  ))}
-                </NativeSelectField>
-              </NativeSelectRoot>
-            </Stack>
-            <Stack gap={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Date{' '}
-                <Text as="span" color="red.500">
-                  *
+                <Input
+                  placeholder="e.g. Weekly groceries"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  maxLength={500}
+                  disabled={mutation.isPending}
+                  data-testid="expense-description-input"
+                />
+              </Stack>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Category{' '}
+                  <Text as="span" color="red.500">
+                    *
+                  </Text>
                 </Text>
-              </Text>
-              <Input
-                type="date"
-                value={expenseDate}
-                onChange={(e) => setExpenseDate(e.target.value)}
-                disabled={mutation.isPending}
-                data-testid="expense-date-input"
-              />
+                <NativeSelectRoot disabled={mutation.isPending}>
+                  <NativeSelectField
+                    value={effectiveCategoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    data-testid="expense-category-select"
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.icon ? `${cat.icon} ` : ''}
+                        {cat.name}
+                      </option>
+                    ))}
+                  </NativeSelectField>
+                </NativeSelectRoot>
+              </Stack>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Date{' '}
+                  <Text as="span" color="red.500">
+                    *
+                  </Text>
+                </Text>
+                <Input
+                  type="date"
+                  value={expenseDate}
+                  onChange={(e) => setExpenseDate(e.target.value)}
+                  disabled={mutation.isPending}
+                  data-testid="expense-date-input"
+                />
+              </Stack>
             </Stack>
-          </Stack>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            colorPalette="brand"
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-            disabled={!isValid}
-            data-testid="expense-submit-btn"
-          >
-            Add Expense
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              colorPalette="brand"
+              onClick={() => mutation.mutate()}
+              loading={mutation.isPending}
+              disabled={!isValid}
+              data-testid="expense-submit-btn"
+            >
+              Add Expense
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

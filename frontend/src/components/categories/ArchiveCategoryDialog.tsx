@@ -1,6 +1,7 @@
 import { Button, Text } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -67,34 +68,36 @@ function ArchiveCategoryDialog({
   }
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()}>
+    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()} placement="center">
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete Category</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          {category ? (
-            <Text>
-              Delete <strong>{category.name}</strong>? If this category has associated expenses, it
-              will be archived instead of permanently deleted.
-            </Text>
-          ) : null}
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            colorPalette="red"
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-            disabled={!category}
-          >
-            Delete
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Category</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {category ? (
+              <Text>
+                Delete <strong>{category.name}</strong>? If this category has associated expenses,
+                it will be archived instead of permanently deleted.
+              </Text>
+            ) : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              colorPalette="red"
+              onClick={() => mutation.mutate()}
+              loading={mutation.isPending}
+              disabled={!category}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

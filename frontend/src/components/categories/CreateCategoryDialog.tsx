@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Input, Stack, Text } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -62,68 +63,70 @@ function CreateCategoryDialog({ open, onOpenChange, familyId }: CreateCategoryDi
   const isValid = name.trim().length > 0 && name.trim().length <= 100
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()}>
+    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()} placement="center">
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add Category</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <Stack gap={4}>
-            <Stack gap={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Name{' '}
-                <Text as="span" color="red.500">
-                  *
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Category</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <Stack gap={4}>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Name{' '}
+                  <Text as="span" color="red.500">
+                    *
+                  </Text>
                 </Text>
-              </Text>
-              <Input
-                placeholder="e.g. Groceries"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={100}
-                disabled={mutation.isPending}
-              />
+                <Input
+                  placeholder="e.g. Groceries"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={100}
+                  disabled={mutation.isPending}
+                />
+              </Stack>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Icon (emoji)
+                </Text>
+                <Input
+                  placeholder="e.g. 🛒"
+                  value={icon}
+                  onChange={(e) => setIcon(e.target.value)}
+                  disabled={mutation.isPending}
+                />
+              </Stack>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Sort Order
+                </Text>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  disabled={mutation.isPending}
+                />
+              </Stack>
             </Stack>
-            <Stack gap={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Icon (emoji)
-              </Text>
-              <Input
-                placeholder="e.g. 🛒"
-                value={icon}
-                onChange={(e) => setIcon(e.target.value)}
-                disabled={mutation.isPending}
-              />
-            </Stack>
-            <Stack gap={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Sort Order
-              </Text>
-              <Input
-                type="number"
-                placeholder="0"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                disabled={mutation.isPending}
-              />
-            </Stack>
-          </Stack>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            colorPalette="brand"
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-            disabled={!isValid}
-          >
-            Create
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              colorPalette="brand"
+              onClick={() => mutation.mutate()}
+              loading={mutation.isPending}
+              disabled={!isValid}
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

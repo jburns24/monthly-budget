@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Input, Stack, Text, Flex } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -96,54 +97,61 @@ function BulkGoalsEditor({
   }
 
   return (
-    <DialogRoot open={isOpen} onOpenChange={(e) => !e.open && handleClose()}>
+    <DialogRoot
+      open={isOpen}
+      onOpenChange={(e) => !e.open && handleClose()}
+      placement="center"
+      scrollBehavior="inside"
+    >
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit Monthly Goals</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <Stack gap={3}>
-            <Text fontSize="sm" color="gray.500">
-              Set monthly spending limits for each category. Leave blank to remove a goal.
-            </Text>
-            {categories.map((cat) => (
-              <Flex key={cat.id} align="center" gap={3}>
-                <Text flex="1" fontSize="sm" fontWeight="medium">
-                  {cat.icon ? `${cat.icon} ` : ''}
-                  {cat.name}
-                </Text>
-                <Input
-                  data-testid={`goal-input-${cat.id}`}
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={amounts[cat.id] ?? ''}
-                  onChange={(e) => handleAmountChange(cat.id, e.target.value)}
-                  min="0.01"
-                  step="0.01"
-                  disabled={mutation.isPending}
-                  width="140px"
-                  aria-label={`Monthly goal for ${cat.name}`}
-                />
-              </Flex>
-            ))}
-          </Stack>
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            colorPalette="brand"
-            data-testid="bulk-goals-save-btn"
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-          >
-            Save All
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Monthly Goals</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <Stack gap={3}>
+              <Text fontSize="sm" color="gray.500">
+                Set monthly spending limits for each category. Leave blank to remove a goal.
+              </Text>
+              {categories.map((cat) => (
+                <Flex key={cat.id} align="center" gap={3}>
+                  <Text flex="1" fontSize="sm" fontWeight="medium">
+                    {cat.icon ? `${cat.icon} ` : ''}
+                    {cat.name}
+                  </Text>
+                  <Input
+                    data-testid={`goal-input-${cat.id}`}
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={amounts[cat.id] ?? ''}
+                    onChange={(e) => handleAmountChange(cat.id, e.target.value)}
+                    min="0.01"
+                    step="0.01"
+                    disabled={mutation.isPending}
+                    width="140px"
+                    aria-label={`Monthly goal for ${cat.name}`}
+                  />
+                </Flex>
+              ))}
+            </Stack>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              colorPalette="brand"
+              data-testid="bulk-goals-save-btn"
+              onClick={() => mutation.mutate()}
+              loading={mutation.isPending}
+            >
+              Save All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

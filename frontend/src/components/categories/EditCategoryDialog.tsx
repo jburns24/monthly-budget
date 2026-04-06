@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Input, Stack, Text } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -125,21 +126,23 @@ function EditForm({ category, familyId, onOpenChange }: EditFormProps) {
 
 function EditCategoryDialog({ open, onOpenChange, familyId, category }: EditCategoryDialogProps) {
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && onOpenChange(false)}>
+    <DialogRoot open={open} onOpenChange={(e) => !e.open && onOpenChange(false)} placement="center">
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit Category</DialogTitle>
-        </DialogHeader>
-        {category && (
-          <EditForm
-            key={category.id}
-            category={category}
-            familyId={familyId}
-            onOpenChange={onOpenChange}
-          />
-        )}
-      </DialogContent>
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Category</DialogTitle>
+          </DialogHeader>
+          {category && (
+            <EditForm
+              key={category.id}
+              category={category}
+              familyId={familyId}
+              onOpenChange={onOpenChange}
+            />
+          )}
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

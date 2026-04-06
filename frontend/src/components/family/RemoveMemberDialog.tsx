@@ -1,6 +1,7 @@
 import { Button } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -47,24 +48,30 @@ function RemoveMemberDialog({ member, familyId, open, onClose }: RemoveMemberDia
   })
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && onClose()}>
+    <DialogRoot open={open} onOpenChange={(e) => !e.open && onClose()} placement="center">
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Remove Member</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          Remove {member.display_name} from this family? This action cannot be undone.
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button colorPalette="red" onClick={() => mutation.mutate()} loading={mutation.isPending}>
-            Remove
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Member</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            Remove {member.display_name} from this family? This action cannot be undone.
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              colorPalette="red"
+              onClick={() => mutation.mutate()}
+              loading={mutation.isPending}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }

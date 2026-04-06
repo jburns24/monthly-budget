@@ -1,6 +1,7 @@
 import { Button } from '@chakra-ui/react'
 import {
   DialogRoot,
+  DialogPositioner,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -47,28 +48,30 @@ function RoleChangeDialog({ member, familyId, open, onClose }: RoleChangeDialogP
   })
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && onClose()}>
+    <DialogRoot open={open} onOpenChange={(e) => !e.open && onClose()} placement="center">
       <DialogBackdrop />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Change Role</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          Change {member.display_name}&apos;s role to {newRole === 'admin' ? 'Admin' : 'Member'}?
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            colorPalette="brand"
-            onClick={() => mutation.mutate()}
-            loading={mutation.isPending}
-          >
-            Confirm
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <DialogPositioner>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Role</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            Change {member.display_name}&apos;s role to {newRole === 'admin' ? 'Admin' : 'Member'}?
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              colorPalette="brand"
+              onClick={() => mutation.mutate()}
+              loading={mutation.isPending}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogPositioner>
     </DialogRoot>
   )
 }
