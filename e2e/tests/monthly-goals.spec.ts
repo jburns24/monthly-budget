@@ -117,12 +117,12 @@ test('admin sets a goal via SetGoalDialog and progress bar appears', async ({ pa
   // Dialog should close.
   await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5_000 })
 
+  // Wait for the re-fetch to land: category card should display the goal amount.
+  await expect(dashboard.categoryCard('Groceries')).toContainText('$600', { timeout: 10_000 })
+
   // The progress bar should now appear for Groceries (spending $300 of $600 = 50%).
   const progressBar = dashboard.categoryProgressIndicator('Groceries')
-  await expect(progressBar).toBeVisible({ timeout: 10_000 })
-
-  // The category card should display the goal amount.
-  await expect(dashboard.categoryCard('Groceries')).toContainText('$600', { timeout: 5_000 })
+  await expect(progressBar).toBeVisible({ timeout: 5_000 })
 
   // The "Edit Goal" button should now appear in place of "Set Goal".
   const editGoalBtn = page.getByTestId(`edit-goal-btn-${groceryCategoryId}`)

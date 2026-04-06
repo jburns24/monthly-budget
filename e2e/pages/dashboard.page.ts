@@ -96,10 +96,10 @@ export class DashboardPage {
   }
 
   /**
-   * Return the progress indicator (aria-label with "% of budget used") for a
-   * given category card.  Expects the card to be in the DOM.
+   * Return the progress indicator (role="progressbar") for a given category card.
+   * Expects the card to be in the DOM.
    */
   categoryProgressIndicator(categoryName: string): Locator {
-    return this.categoryCard(categoryName).locator('[aria-label$="% of budget used"]')
+    return this.categoryCard(categoryName).locator('[role="progressbar"]')
   }
 }

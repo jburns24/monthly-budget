@@ -126,7 +126,11 @@ const CategoryCard = memo(function CategoryCard({
             bg={statusColor}
             style={{ width: `${barPercent}%` }}
             transition="width 0.3s ease"
+            role="progressbar"
             aria-label={`${Math.round(barPercent)}% of budget used`}
+            aria-valuenow={Math.round(barPercent)}
+            aria-valuemin={0}
+            aria-valuemax={100}
           />
         )}
       </Box>
@@ -410,8 +414,8 @@ function DashboardPage() {
         </>
       )}
 
-      {/* SetGoalDialog */}
-      {familyId && goalDialog.open && (
+      {/* SetGoalDialog — always mounted so closing does not unmount mid-refetch */}
+      {familyId && (
         <SetGoalDialog
           open={goalDialog.open}
           onOpenChange={(open) => !open && handleGoalDialogClose()}
