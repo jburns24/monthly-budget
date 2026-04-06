@@ -51,6 +51,9 @@ test('family dashboard shows creator as admin', async ({ page }) => {
   const familyPage = new FamilyPage(page)
   await familyPage.goto()
 
+  // Wait for the create-family form to be rendered before interacting.
+  await expect(familyPage.createFamilyForm).toBeVisible({ timeout: 10_000 })
+
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/families') && res.request().method() === 'POST'),
     familyPage.createFamily('Admin Check Family'),
