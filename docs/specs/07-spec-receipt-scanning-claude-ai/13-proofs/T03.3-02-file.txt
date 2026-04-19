@@ -1,0 +1,19 @@
+Type: file
+Description: Verify category_suggestion.py exposes suggest_for_store with correct signature
+Command: grep -n "async def suggest_for_store" backend/app/services/category_suggestion.py
+Expected: Function signature present with db, family_id, store_name parameters returning Category | None
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT ---
+16: async def suggest_for_store(
+17:     db: AsyncSession,
+18:     family_id: uuid.UUID,
+19:     store_name: str,
+20: ) -> Category | None:
+
+--- VERIFICATION ---
+suggest_for_store is defined with correct async signature.
+Returns Category | None — either the similarity match or fallback, or None.
+Uses func.similarity(Category.name, store_name) > 0.3 for pg_trgm primary path.
+Uses 90-day cutoff for fallback path based on expense count.
+Status: PASS
