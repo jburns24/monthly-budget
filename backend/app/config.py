@@ -83,6 +83,14 @@ class Settings(BaseSettings):
         default="",
         description="Anthropic API key for receipt scanning",
     )
+    anthropic_mock: bool = Field(
+        default=False,
+        description="When True, skip real Anthropic calls and return deterministic mock responses",
+    )
+    anthropic_mock_scenario: str = Field(
+        default="success",
+        description="Mock scenario to use when anthropic_mock=True (success, medium_confidence, low_confidence, non_receipt, api_error)",
+    )
 
     # Receipt storage
     receipt_storage_path: Path = Field(

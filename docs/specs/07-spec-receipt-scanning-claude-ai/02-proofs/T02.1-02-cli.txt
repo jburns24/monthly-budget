@@ -1,0 +1,4 @@
+anthropic_mock: False
+anthropic_mock_scenario: success
+anthropic_api_key exists: True
+anthropic_api_key type: str
