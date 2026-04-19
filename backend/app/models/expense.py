@@ -78,3 +78,16 @@ class Expense(Base):
         "User",
         back_populates="expenses",
     )
+    receipt: Mapped["Receipt | None"] = relationship(  # noqa: F821
+        "Receipt",
+        primaryjoin="foreign(Expense.receipt_id) == Receipt.id",
+        back_populates="expense",
+        uselist=False,
+    )
+
+    @property
+    def receipt_status(self) -> str | None:
+        """Return status of the linked receipt, or None if no receipt is attached."""
+        if self.receipt is not None:
+            return self.receipt.status
+        return None

@@ -6,7 +6,18 @@ from app.models.family import Family
 from app.models.family_member import FamilyMember
 from app.models.invite import Invite
 from app.models.monthly_goal import MonthlyGoal
+from app.models.receipt import Receipt
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist
 from app.models.user import User
 
-__all__ = ["Category", "Expense", "Family", "FamilyMember", "Invite", "MonthlyGoal", "RefreshTokenBlacklist", "User"]
+__all__ = [
+    "Category",
+    "Expense",
+    "Family",
+    "FamilyMember",
+    "Invite",
+    "MonthlyGoal",
+    "Receipt",
+    "RefreshTokenBlacklist",
+    "User",
+]

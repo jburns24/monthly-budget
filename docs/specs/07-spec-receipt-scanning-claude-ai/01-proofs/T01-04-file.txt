@@ -1,0 +1,10 @@
+Type: file
+Command: ls -la backend/alembic/versions/c4e2f1b3d5a8_add_receipts_and_pg_trgm.py
+Expected: File exists with both upgrade() and downgrade() implemented
+Timestamp: 2026-04-19T23:48:40Z
+Status: PASS
+
+File exists: backend/alembic/versions/c4e2f1b3d5a8_add_receipts_and_pg_trgm.py
+Contains: upgrade() and downgrade() functions
+  - upgrade(): CREATE EXTENSION pg_trgm, create receipts table, indexes, FK, partial index, GIN index
+  - downgrade(): reverses all steps in reverse order

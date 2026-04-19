@@ -43,3 +43,9 @@ class User(Base):
         back_populates="user",
         passive_deletes=True,
     )
+    uploaded_receipts: Mapped[list["Receipt"]] = relationship(  # noqa: F821
+        "Receipt",
+        foreign_keys="Receipt.uploaded_by",
+        back_populates="uploader",
+        passive_deletes=True,
+    )
