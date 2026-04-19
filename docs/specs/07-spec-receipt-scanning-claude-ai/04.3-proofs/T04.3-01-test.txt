@@ -1,0 +1,16 @@
+Type: test
+Command: npx vitest run src/__tests__/useOnlineStatus.test.ts --reporter=verbose
+Expected: 4 tests passing — initial state, offline event, online event, cleanup
+Timestamp: 2026-04-19T16:43:19Z
+
+ ✓ src/__tests__/useOnlineStatus.test.ts > useOnlineStatus > returns true when navigator.onLine is true initially 6ms
+ ✓ src/__tests__/useOnlineStatus.test.ts > useOnlineStatus > updates to false when window dispatches an offline event 1ms
+ ✓ src/__tests__/useOnlineStatus.test.ts > useOnlineStatus > updates to true when window dispatches an online event 1ms
+ ✓ src/__tests__/useOnlineStatus.test.ts > useOnlineStatus > removes event listeners on unmount 2ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  16:43:19
+   Duration  272ms
+
+Status: PASS

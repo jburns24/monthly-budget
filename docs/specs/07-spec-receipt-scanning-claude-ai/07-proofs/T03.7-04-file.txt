@@ -1,0 +1,20 @@
+Type: file
+Description: Verify backend/.env.example and root .env.example contain ANTHROPIC_MOCK, ANTHROPIC_MOCK_SCENARIO, RECEIPT_STORAGE_PATH
+Command: grep "ANTHROPIC_MOCK\|RECEIPT_STORAGE_PATH" backend/.env.example .env.example
+Expected: All 3 vars present in both files
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT (backend/.env.example) ---
+ANTHROPIC_MOCK=false
+ANTHROPIC_MOCK_SCENARIO=success
+RECEIPT_STORAGE_PATH=/data/receipts
+
+--- OUTPUT (.env.example) ---
+ANTHROPIC_MOCK=false
+ANTHROPIC_MOCK_SCENARIO=success
+RECEIPT_STORAGE_PATH=/data/receipts
+
+--- VERIFICATION ---
+All required env vars (ANTHROPIC_MOCK, ANTHROPIC_MOCK_SCENARIO, RECEIPT_STORAGE_PATH)
+present in both backend/.env.example and root .env.example with correct defaults.
+Status: PASS

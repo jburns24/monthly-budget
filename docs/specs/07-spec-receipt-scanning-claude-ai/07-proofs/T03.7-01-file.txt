@@ -1,0 +1,13 @@
+Type: file
+Description: Verify libmagic1 installed in Dockerfile dev and runtime stages
+Command: grep "libmagic1" backend/Dockerfile
+Expected: Two lines containing libmagic1 apt-get install (dev stage + runtime stage)
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT ---
+RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 && rm -rf /var/lib/apt/lists/*
+
+--- VERIFICATION ---
+Found 2 libmagic1 install lines (dev stage + runtime stage).
+Status: PASS

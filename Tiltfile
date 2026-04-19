@@ -107,9 +107,14 @@ api_env = {
     'GOOGLE_CLIENT_ID': os.getenv('GOOGLE_CLIENT_ID', ''),
     'GOOGLE_CLIENT_SECRET': os.getenv('GOOGLE_CLIENT_SECRET', ''),
     'ANTHROPIC_API_KEY': os.getenv('ANTHROPIC_API_KEY', ''),
+    'ANTHROPIC_MOCK': os.getenv('ANTHROPIC_MOCK', 'false'),
+    'ANTHROPIC_MOCK_SCENARIO': os.getenv('ANTHROPIC_MOCK_SCENARIO', 'success'),
+    'RECEIPT_STORAGE_PATH': os.getenv('RECEIPT_STORAGE_PATH', '/data/receipts'),
     'ENVIRONMENT': os.getenv('ENVIRONMENT', 'development'),
     'LOG_LEVEL': os.getenv('LOG_LEVEL', 'INFO'),
 }
+
+local('mkdir -p backend/data/receipts', echo_off=True)
 
 local_resource(
     'api',
@@ -125,6 +130,7 @@ local_resource(
         '-v $(pwd)/backend/app:/app/app',
         '-v $(pwd)/backend/alembic:/app/alembic',
         '-v $(pwd)/backend/alembic.ini:/app/alembic.ini',
+        '-v $(pwd)/backend/data/receipts:/data/receipts',
     ] + ['-e %s="%s"' % (k, v) for k, v in api_env.items()] + [
         'monthly-budget-api',
     ]),
