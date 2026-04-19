@@ -1,0 +1,35 @@
+Type: test
+Description: All category_suggestion service tests pass (pg_trgm match + fallback)
+Command: uv run pytest tests/test_category_suggestion.py -v
+Expected: 9 passed
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT ---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+tests/test_category_suggestion.py::test_trgm_returns_similar_category PASSED [ 11%]
+tests/test_category_suggestion.py::test_trgm_skips_archived_category PASSED [ 22%]
+tests/test_category_suggestion.py::test_trgm_below_threshold_returns_none_or_fallback PASSED [ 33%]
+tests/test_category_suggestion.py::test_fallback_returns_most_used_category PASSED [ 44%]
+tests/test_category_suggestion.py::test_fallback_ignores_expenses_older_than_90_days PASSED [ 55%]
+tests/test_category_suggestion.py::test_fallback_excludes_archived_categories PASSED [ 66%]
+tests/test_category_suggestion.py::test_returns_none_when_no_categories PASSED [ 77%]
+tests/test_category_suggestion.py::test_returns_none_when_no_match_and_no_recent_expenses PASSED [ 88%]
+tests/test_category_suggestion.py::test_different_family_categories_not_returned PASSED [100%]
+
+============================== 9 passed in 0.32s ===============================
+
+--- VERIFICATION ---
+All 9 tests passed:
+  - pg_trgm similarity match returns best-matching active category
+  - Archived categories excluded from similarity search
+  - Below-threshold store name falls through to None (no recent expenses)
+  - Fallback returns most-used active category in last 90 days
+  - Fallback ignores expenses older than 90 days
+  - Fallback excludes archived categories
+  - Returns None with no categories
+  - Returns None with no recent expenses and no trgm match
+  - Cross-family isolation: other family's categories not returned
+Status: PASS
