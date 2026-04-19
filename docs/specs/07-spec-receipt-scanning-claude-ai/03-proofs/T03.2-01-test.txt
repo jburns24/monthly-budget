@@ -1,0 +1,23 @@
+Type: test
+Command: uv run pytest tests/test_rate_limiter.py -v
+Expected: 9 tests pass covering allow/block/fail-open/key-format/expire behaviors
+Timestamp: 2026-04-19T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+collected 9 items
+
+tests/test_rate_limiter.py::test_allows_first_upload PASSED              [ 11%]
+tests/test_rate_limiter.py::test_allows_upload_at_limit_minus_one PASSED [ 22%]
+tests/test_rate_limiter.py::test_allows_upload_at_exact_limit PASSED     [ 33%]
+tests/test_rate_limiter.py::test_blocks_upload_over_limit PASSED         [ 44%]
+tests/test_rate_limiter.py::test_fails_open_on_redis_error PASSED        [ 55%]
+tests/test_rate_limiter.py::test_fails_open_on_pipeline_execute_error PASSED [ 66%]
+tests/test_rate_limiter.py::test_uses_correct_redis_key_format PASSED    [ 77%]
+tests/test_rate_limiter.py::test_pipeline_sets_expire_on_key PASSED      [ 88%]
+tests/test_rate_limiter.py::test_default_limit_is_50 PASSED              [100%]
+
+============================== 9 passed in 0.04s ===============================
+
+Status: PASS

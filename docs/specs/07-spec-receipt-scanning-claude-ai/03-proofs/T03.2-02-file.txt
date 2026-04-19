@@ -1,0 +1,14 @@
+Type: file
+Check: backend/app/services/rate_limiter.py exists with correct implementation
+Expected: File exists with check_and_increment_receipt_upload function using Redis pipeline (INCR+EXPIRE+TTL), keyed receipts:uploads:{family_id}:{YYYY-MM-DD}, fails open on Redis errors
+Timestamp: 2026-04-19T00:00:00Z
+
+File: backend/app/services/rate_limiter.py
+Contents verified:
+- async def check_and_increment_receipt_upload(family_id: uuid.UUID, limit: int = 50) -> tuple[bool, int]
+- Redis key format: receipts:uploads:{family_id}:{YYYY-MM-DD}
+- Pipeline: INCR + EXPIRE(86400) + TTL
+- Fail-open: returns (True, 0) on any Redis exception with warning log
+- Default limit=50
+
+Status: PASS
