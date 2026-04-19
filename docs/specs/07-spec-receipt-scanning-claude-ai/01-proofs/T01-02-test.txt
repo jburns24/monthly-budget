@@ -1,0 +1,14 @@
+Type: test
+Command: uv run pytest tests/test_migrations.py::test_c4e2f1b3d5a8_upgrade_downgrade -v
+Expected: Migration c4e2f1b3d5a8 upgrades and downgrades cleanly (round-trip)
+Timestamp: 2026-04-19T23:48:10Z
+Status: PASS
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collected 1 item
+
+tests/test_migrations.py::test_c4e2f1b3d5a8_upgrade_downgrade PASSED     [100%]
+
+============================== 1 passed in 1.06s ==============================

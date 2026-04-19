@@ -58,3 +58,9 @@ class Family(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    receipts: Mapped[list["Receipt"]] = relationship(  # noqa: F821
+        "Receipt",
+        back_populates="family",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

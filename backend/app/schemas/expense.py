@@ -5,6 +5,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.receipt import ReceiptStatus
+
 
 class ExpenseCreate(BaseModel):
     """Request body for POST /api/expenses."""
@@ -58,6 +60,8 @@ class ExpenseResponse(BaseModel):
     expense_date: date
     created_at: datetime
     updated_at: datetime
+    receipt_id: uuid.UUID | None = None
+    receipt_status: ReceiptStatus | None = None
 
 
 class ExpenseListResponse(BaseModel):

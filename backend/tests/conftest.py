@@ -18,6 +18,7 @@ from app.models.family import Family
 from app.models.family_member import FamilyMember
 from app.models.invite import Invite
 from app.models.monthly_goal import MonthlyGoal
+from app.models.receipt import Receipt
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
 from app.models.user import User
 
@@ -409,6 +410,63 @@ async def create_test_monthly_goal(
     await db.flush()
     await db.refresh(goal)
     return goal
+
+
+# ---------------------------------------------------------------------------
+# Receipt factory (plain async function, not a fixture — call it from any fixture
+# or test that already has a db_session)
+# ---------------------------------------------------------------------------
+
+
+async def create_test_receipt(
+    db: AsyncSession,
+    family: Family,
+    uploader: User,
+    **overrides: Any,
+) -> Receipt:
+    """Insert a Receipt into the test database and return the ORM object.
+
+    Parameters
+    ----------
+    db:
+        Active async session (typically from the :func:`db_session` fixture).
+    family:
+        The Family the receipt belongs to.
+    uploader:
+        The User who uploaded the receipt.
+    **overrides:
+        Field values that replace the auto-generated defaults.  Pass any
+        combination of Receipt column names.
+
+    Returns
+    -------
+    Receipt
+        The persisted :class:`~app.models.receipt.Receipt` instance.
+
+    Example::
+
+        receipt = await create_test_receipt(db_session, family, user, status="completed")
+    """
+    now = datetime.now(tz=timezone.utc)
+    defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "family_id": family.id,
+        "uploaded_by": uploader.id,
+        "image_path": f"/data/receipts/{family.id}/test-receipt.jpg",
+        "raw_response": None,
+        "parsed_date": None,
+        "parsed_total_cents": None,
+        "parsed_merchant": None,
+        "status": "processing",
+        "error_message": None,
+        "created_at": now,
+    }
+    defaults.update(overrides)
+    receipt = Receipt(**defaults)
+    db.add(receipt)
+    await db.flush()
+    await db.refresh(receipt)
+    return receipt
 
 
 # ---------------------------------------------------------------------------

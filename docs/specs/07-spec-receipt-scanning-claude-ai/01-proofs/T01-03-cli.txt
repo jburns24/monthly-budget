@@ -1,0 +1,31 @@
+Type: cli
+Command: uv run alembic upgrade head && psql -c "\d+ receipts"
+Expected: receipts table with all expected columns, indexes, constraints, and FK from expenses
+Timestamp: 2026-04-19T23:48:30Z
+Status: PASS
+
+                                                                                Table "public.receipts"
+       Column       |           Type           | Collation | Nullable |                          Default                          | Storage  | Compression | Stats target | Description
+--------------------+--------------------------+-----------+----------+-----------------------------------------------------------+----------+-------------+--------------+-------------
+ id                 | uuid                     |           | not null |                                                           | plain    |             |              |
+ family_id          | uuid                     |           | not null |                                                           | plain    |             |              |
+ uploaded_by        | uuid                     |           | not null |                                                           | plain    |             |              |
+ image_path         | text                     |           |          |                                                           | extended |             |              |
+ raw_response       | jsonb                    |           |          |                                                           | extended |             |              |
+ parsed_date        | date                     |           |          |                                                           | plain    |             |              |
+ parsed_total_cents | integer                  |           |          |                                                           | plain    |             |              |
+ parsed_merchant    | character varying(500)   |           |          |                                                           | extended |             |              |
+ status             | character varying(20)    |           | not null |                                                           | extended |             |              |
+ error_message      | text                     |           |          |                                                           | extended |             |              |
+ created_at         | timestamp with time zone |           | not null | now()                                                     | plain    |             |              |
+Indexes:
+    "receipts_pkey" PRIMARY KEY, btree (id)
+    "idx_receipts_family" btree (family_id)
+    "idx_receipts_status" btree (status)
+Check constraints:
+    "ck_receipts_status" CHECK (status::text = ANY (ARRAY['processing'::character varying, 'completed'::character varying, 'failed'::character varying]::text[]))
+Foreign-key constraints:
+    "receipts_family_id_fkey" FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE
+    "receipts_uploaded_by_fkey" FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "expenses" CONSTRAINT "fk_expenses_receipt" FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE SET NULL
