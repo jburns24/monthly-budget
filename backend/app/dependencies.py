@@ -3,7 +3,8 @@
 import uuid
 
 import jwt
-from fastapi import Cookie, Depends, HTTPException, status
+from anthropic import AsyncAnthropic
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,11 @@ from app.services.jwt_service import decode_token
 logger = get_logger(__name__)
 
 _GENERIC_AUTH_ERROR = "Authentication required"
+
+
+def get_anthropic_client(request: Request) -> AsyncAnthropic:
+    """FastAPI dependency: return the AsyncAnthropic singleton from app state."""
+    return request.app.state.anthropic
 
 
 def _auth_error(detail: str) -> HTTPException:

@@ -1,0 +1,8 @@
+  max_retries=2: PASS
+  api_key=[REDACTED - code pattern check]: PASS
+  read=45.0: PASS
+  connect=10.0: PASS
+  app.state.anthropic set: PASS
+  app.state.anthropic.close(): PASS
+get_anthropic_client exists: True
+returns request.app.state.anthropic: True

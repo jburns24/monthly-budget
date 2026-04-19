@@ -3,6 +3,8 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import httpx
+from anthropic import AsyncAnthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -29,10 +31,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         environment=settings.environment,
     )
 
+    app.state.anthropic = AsyncAnthropic(
+        api_key=settings.anthropic_api_key,
+        max_retries=2,
+        timeout=httpx.Timeout(connect=10.0, read=45.0, write=10.0, pool=5.0),
+    )
+
     yield
 
     # --- Shutdown ---
     logger.info("application_shutdown", app_name=settings.app_name)
+    await app.state.anthropic.close()
     await engine.dispose()
 
 
