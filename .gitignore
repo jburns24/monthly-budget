@@ -47,6 +47,7 @@ coverage.xml
 
 # Uploaded receipts (local dev)
 uploads/
+backend/data/
 
 # PostgreSQL data
 pg_data/

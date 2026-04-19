@@ -6,6 +6,7 @@ FROM python:3.12-slim AS dev
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
+RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --all-extras --no-install-project
 EXPOSE 8000
@@ -31,6 +32,9 @@ RUN uv sync --locked --no-install-project --no-dev
 # Runtime stage
 # ============================================================
 FROM python:3.12-slim AS runtime
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user and group
 RUN groupadd --gid 1001 appgroup \

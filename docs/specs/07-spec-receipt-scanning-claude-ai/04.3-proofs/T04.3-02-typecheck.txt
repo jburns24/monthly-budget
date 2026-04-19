@@ -1,0 +1,9 @@
+Type: cli
+Command: npx tsc --noEmit
+Expected: no type errors (exit 0)
+Timestamp: 2026-04-19T16:43:30Z
+
+(no output — clean compile)
+Exit code: 0
+
+Status: PASS

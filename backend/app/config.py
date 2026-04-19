@@ -84,6 +84,12 @@ class Settings(BaseSettings):
         description="Anthropic API key for receipt scanning",
     )
 
+    # Receipt storage
+    receipt_storage_path: Path = Field(
+        default=Path("/data/receipts"),
+        description="Filesystem path where uploaded receipt images are stored",
+    )
+
     @model_validator(mode="after")
     def validate_auth_secrets(self) -> "Settings":
         """Fail fast on missing/weak auth secrets outside development and test."""

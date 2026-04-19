@@ -1,0 +1,21 @@
+Type: file
+Description: Verify Tiltfile has receipt directory creation, volume mount, and env vars
+Command: grep -n "receipts\|ANTHROPIC_MOCK\|RECEIPT_STORAGE" Tiltfile
+Expected: mkdir -p backend/data/receipts, -v mount, and 3 env vars in api_env
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT ---
+108:    'ANTHROPIC_MOCK': os.getenv('ANTHROPIC_MOCK', 'false'),
+109:    'ANTHROPIC_MOCK_SCENARIO': os.getenv('ANTHROPIC_MOCK_SCENARIO', 'success'),
+110:    'RECEIPT_STORAGE_PATH': os.getenv('RECEIPT_STORAGE_PATH', '/data/receipts'),
+115:local('mkdir -p backend/data/receipts', echo_off=True)
+131:        '-v $(pwd)/backend/data/receipts:/data/receipts',
+
+--- VERIFICATION ---
+All 5 required Tiltfile entries present:
+  - ANTHROPIC_MOCK in api_env with default 'false'
+  - ANTHROPIC_MOCK_SCENARIO in api_env with default 'success'
+  - RECEIPT_STORAGE_PATH in api_env with default '/data/receipts'
+  - mkdir -p backend/data/receipts local command before api resource
+  - -v $(pwd)/backend/data/receipts:/data/receipts volume mount in serve_cmd
+Status: PASS

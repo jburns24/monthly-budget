@@ -1,0 +1,14 @@
+Type: cli
+Description: Verify config.py Settings has receipt_storage_path: Path with default /data/receipts
+Command: uv run python -c "from app.config import settings; print(type(settings.receipt_storage_path).__name__, settings.receipt_storage_path)"
+Expected: PosixPath /data/receipts
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT ---
+receipt_storage_path type: PosixPath
+receipt_storage_path value: /data/receipts
+PASS
+
+--- VERIFICATION ---
+settings.receipt_storage_path is a Path (PosixPath) with default value /data/receipts.
+Status: PASS
