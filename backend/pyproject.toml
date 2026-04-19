@@ -27,6 +27,8 @@ dependencies = [
     "pillow-heif>=0.16",
     "python-magic>=0.4.27",
     "aiofiles>=23.2",
+    "anthropic>=0.40",
+    "tenacity>=8.2",
     "types-aiofiles>=25.1.0.20260409",
 ]
 

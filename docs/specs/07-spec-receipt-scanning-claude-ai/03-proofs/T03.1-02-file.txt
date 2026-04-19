@@ -1,0 +1,21 @@
+Type: file
+Check: backend/app/services/receipt_storage.py exists with correct implementation
+Expected: File exists with validate_mime, sanitize_image, async save/load/delete, pillow_heif registered
+Timestamp: 2026-04-19T00:00:00Z
+
+File: backend/app/services/receipt_storage.py
+Contents verified:
+- pillow_heif.register_heif_opener() called at module level (startup registration)
+- validate_mime(raw: bytes) -> str — magic-byte detection with WebP RIFF fallback
+- sanitize_image(raw: bytes) -> tuple[bytes, tuple[int, int]] — JPEG q=85, strip EXIF, 3000x3000 max, MAX_IMAGE_PIXELS=256M
+- async save(family_id, data, suffix) -> Path — aiofiles write under {storage_path}/{family_id}/{uuid}{suffix}
+- async load(path) -> bytes — aiofiles read
+- async delete(path) -> None — unlink, no-op on FileNotFoundError
+
+Dependencies added to pyproject.toml:
+- Pillow>=10
+- pillow-heif>=0.16
+- python-magic>=0.4.27
+- aiofiles>=23.2
+
+Status: PASS

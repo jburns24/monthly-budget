@@ -1,0 +1,32 @@
+Type: test
+Command: uv run pytest tests/test_receipt_storage.py -v
+Expected: 18 tests pass covering MIME validation, JPEG re-encoding, EXIF stripping, resize, decompression-bomb, HEIC->JPEG, save/load/delete
+Timestamp: 2026-04-19T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+collected 18 items
+
+tests/test_receipt_storage.py::test_validate_mime_accepts_jpeg PASSED    [  5%]
+tests/test_receipt_storage.py::test_validate_mime_accepts_png PASSED     [ 11%]
+tests/test_receipt_storage.py::test_validate_mime_accepts_webp PASSED    [ 16%]
+tests/test_receipt_storage.py::test_validate_mime_rejects_pdf PASSED     [ 22%]
+tests/test_receipt_storage.py::test_validate_mime_rejects_text PASSED    [ 27%]
+tests/test_receipt_storage.py::test_validate_mime_rejects_empty_bytes PASSED [ 33%]
+tests/test_receipt_storage.py::test_sanitize_jpeg_returns_jpeg_bytes PASSED [ 38%]
+tests/test_receipt_storage.py::test_sanitize_png_converts_to_jpeg PASSED [ 44%]
+tests/test_receipt_storage.py::test_sanitize_strips_exif_data PASSED     [ 50%]
+tests/test_receipt_storage.py::test_sanitize_resizes_oversized_image PASSED [ 55%]
+tests/test_receipt_storage.py::test_sanitize_preserves_small_image_dimensions PASSED [ 61%]
+tests/test_receipt_storage.py::test_sanitize_decompression_bomb_is_rejected PASSED [ 66%]
+tests/test_receipt_storage.py::test_sanitize_heic_converts_to_jpeg PASSED [ 72%]
+tests/test_receipt_storage.py::test_save_writes_file_to_disk PASSED      [ 77%]
+tests/test_receipt_storage.py::test_save_creates_family_subdirectory PASSED [ 83%]
+tests/test_receipt_storage.py::test_load_reads_file_from_disk PASSED     [ 88%]
+tests/test_receipt_storage.py::test_delete_removes_file_from_disk PASSED [ 94%]
+tests/test_receipt_storage.py::test_delete_is_noop_for_missing_file PASSED [100%]
+
+======================== 18 passed, 1 warning in 0.23s =========================
+
+Status: PASS
