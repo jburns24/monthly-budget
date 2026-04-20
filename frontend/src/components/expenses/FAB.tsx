@@ -1,6 +1,14 @@
 import { useState } from 'react'
-import { Box } from '@chakra-ui/react'
+import {
+  Box,
+  TooltipContent,
+  TooltipPositioner,
+  TooltipRoot,
+  TooltipTrigger,
+} from '@chakra-ui/react'
+import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import CreateExpenseDialog from './CreateExpenseDialog'
+import ReceiptCaptureDialog from './ReceiptCaptureDialog'
 
 interface FABProps {
   familyId: string
@@ -25,11 +33,85 @@ function PlusIcon() {
   )
 }
 
+function CameraIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  )
+}
+
 function FAB({ familyId }: FABProps) {
-  const [open, setOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
+  const isOnline = useOnlineStatus()
+
+  const sharedFABStyles = {
+    borderRadius: 'full' as const,
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: 'lg',
+    cursor: 'pointer',
+    transition: 'background-color 0.15s, box-shadow 0.15s, transform 0.1s',
+  } as const
 
   return (
     <>
+      {/* Scan Receipt FAB — positioned above the main FAB */}
+      <TooltipRoot openDelay={200} disabled={isOnline} positioning={{ placement: 'left' }}>
+        <TooltipTrigger asChild>
+          <Box
+            as="span"
+            position="fixed"
+            bottom="148px"
+            right="16px"
+            zIndex="overlay"
+            display="inline-block"
+          >
+            <Box
+              as="button"
+              w="48px"
+              h="48px"
+              minW="40px"
+              minH="40px"
+              {...sharedFABStyles}
+              bg={isOnline ? 'brand.400' : 'gray.400'}
+              _hover={isOnline ? { bg: 'brand.500', boxShadow: 'xl' } : undefined}
+              _active={isOnline ? { bg: 'brand.600', transform: 'scale(0.95)' } : undefined}
+              _focusVisible={{
+                outline: '2px solid',
+                outlineColor: 'brand.500',
+                outlineOffset: '2px',
+              }}
+              disabled={!isOnline}
+              style={{ pointerEvents: isOnline ? undefined : 'none' }}
+              onClick={() => setScanOpen(true)}
+              aria-label="Scan receipt"
+              data-testid="fab-scan-receipt"
+            >
+              <CameraIcon />
+            </Box>
+          </Box>
+        </TooltipTrigger>
+        <TooltipPositioner>
+          <TooltipContent>Receipt scanning requires a network connection.</TooltipContent>
+        </TooltipPositioner>
+      </TooltipRoot>
+
+      {/* Add Expense FAB */}
       <Box
         as="button"
         position="fixed"
@@ -40,15 +122,8 @@ function FAB({ familyId }: FABProps) {
         h="56px"
         minW="48px"
         minH="48px"
-        borderRadius="full"
+        {...sharedFABStyles}
         bg="brand.500"
-        color="white"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        boxShadow="lg"
-        cursor="pointer"
-        transition="background-color 0.15s, box-shadow 0.15s, transform 0.1s"
         _hover={{ bg: 'brand.600', boxShadow: 'xl' }}
         _active={{ bg: 'brand.700', transform: 'scale(0.95)' }}
         _focusVisible={{
@@ -56,14 +131,15 @@ function FAB({ familyId }: FABProps) {
           outlineColor: 'brand.500',
           outlineOffset: '2px',
         }}
-        onClick={() => setOpen(true)}
+        onClick={() => setCreateOpen(true)}
         aria-label="Add expense"
         data-testid="fab-add-expense"
       >
         <PlusIcon />
       </Box>
 
-      <CreateExpenseDialog open={open} onOpenChange={setOpen} familyId={familyId} />
+      <CreateExpenseDialog open={createOpen} onOpenChange={setCreateOpen} familyId={familyId} />
+      <ReceiptCaptureDialog open={scanOpen} onOpenChange={setScanOpen} familyId={familyId} />
     </>
   )
 }

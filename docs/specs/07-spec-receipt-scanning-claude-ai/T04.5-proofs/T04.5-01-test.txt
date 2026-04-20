@@ -1,0 +1,21 @@
+Type: test
+Command: npm run test:run
+Expected: All tests pass including FAB offline-aware tests
+Timestamp: 2026-04-19T18:02:19Z
+Status: PASS
+
+Test Files  23 passed (23)
+      Tests  194 passed (194)
+
+New tests in FAB.test.tsx:
+
+FAB — Scan Receipt button
+  ✓ renders the scan receipt button
+  ✓ scan receipt button is enabled when online
+  ✓ scan receipt button is disabled when offline
+  ✓ clicking scan receipt when online opens ReceiptCaptureDialog
+  ✓ scan receipt button has aria-label
+
+FAB — Add Expense button
+  ✓ renders the add expense FAB
+  ✓ clicking add expense FAB opens CreateExpenseDialog
