@@ -1,0 +1,21 @@
+Type: test
+Command: uv run pytest tests/test_receipts_api.py::test_retry_completed_receipt_returns_409 tests/test_receipts_api.py::test_retry_failed_receipt_returns_200 tests/test_receipts_api.py::test_retry_processing_receipt_returns_409 tests/test_receipts_api.py::test_retry_uses_atomic_failed_to_processing_update tests/test_receipts_api.py::test_retry_concurrent_only_one_succeeds -v
+Expected: 5/5 tests pass (covering 409 on completed/processing, 200 on failed happy path, atomic UPDATE ordering, and concurrent-retry race 409)
+Timestamp: 2026-04-19T00:00:00Z
+Status: PASS
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+rootdir: backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO
+collected 5 items
+
+tests/test_receipts_api.py::test_retry_completed_receipt_returns_409            PASSED [ 20%]
+tests/test_receipts_api.py::test_retry_failed_receipt_returns_200               PASSED [ 40%]
+tests/test_receipts_api.py::test_retry_processing_receipt_returns_409           PASSED [ 60%]
+tests/test_receipts_api.py::test_retry_uses_atomic_failed_to_processing_update  PASSED [ 80%]
+tests/test_receipts_api.py::test_retry_concurrent_only_one_succeeds             PASSED [100%]
+
+============================== 5 passed in 0.96s ===============================
