@@ -1,3 +1,5 @@
+import type { ReceiptStatus } from '@/types/receipts'
+
 export interface CategoryBrief {
   id: string
   name: string
@@ -19,6 +21,8 @@ export interface Expense {
   expense_date: string
   created_at: string
   updated_at: string
+  receipt_id: string | null
+  receipt_status: ReceiptStatus | null
 }
 
 export interface ExpenseCreate {
