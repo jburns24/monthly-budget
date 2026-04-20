@@ -1,0 +1,38 @@
+Type: cli
+Command: uv run ruff check . && python -c "from app.services.receipt_service import process_upload, _parse_expense_date, _amount_cents; print('imports OK')"
+Expected: ruff clean + imports succeed
+Timestamp: 2026-04-19T00:19:00Z
+Status: PASS
+
+--- ruff check ---
+All checks passed!
+
+--- import check ---
+imports OK
+
+--- Architecture summary ---
+
+process_upload(db, anthropic_client_inst, family_id, uploader_id, raw_bytes)
+  → tuple[Receipt, Expense | None, bool]  (receipt, expense_or_None, needs_edit)
+
+Pre-phase (pure compute):
+  validate_mime(raw_bytes)       → ValueError → HTTPException(422)
+  sanitize_image(raw_bytes)      → Exception  → HTTPException(422)
+
+Phase 1 (atomic savepoint):
+  receipt_storage.save(...)      → OSError    → HTTPException(500), no delete
+  db.begin_nested() INSERT Receipt(status="processing")
+
+Phase 2 (non-atomic):
+  claude_client.extract_receipt(...) → Exception → HTTPException(503), mark failed, delete image
+  if not extracted.is_receipt        → HTTPException(422), mark failed, delete image
+
+Phase 3 (atomic savepoint):
+  db.begin_nested()
+    receipt.status = "completed"
+    if category: Expense(amount_cents=total or 1, ...)
+  needs_edit = confidence=="low" or total_cents is None
+
+_mark_failed: sets receipt.status="failed", receipt.error_message, deletes image
+_parse_expense_date: YYYY-MM-DD → date; None/invalid → date.today()
+_amount_cents: dollars → cents int; None/≤0 → None; min 1
