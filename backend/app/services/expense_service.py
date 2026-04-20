@@ -15,6 +15,7 @@ from app.models.expense import Expense
 from app.models.family import Family
 from app.models.monthly_goal import MonthlyGoal
 from app.schemas.expense import BudgetCategorySummary, BudgetSummaryResponse
+from app.services import receipt_storage
 from app.services.grace_period import is_within_grace_period
 
 logger = get_logger(__name__)
@@ -242,14 +243,26 @@ async def delete_expense(
     family_id: uuid.UUID,
     expense_id: uuid.UUID,
 ) -> None:
-    """Hard-delete an expense.
+    """Hard-delete an expense, cascade-deleting any linked Receipt row and on-disk image.
 
     Raises HTTPException(404) if not found or not in the family.
     """
-    result = await db.execute(select(Expense).where(Expense.id == expense_id, Expense.family_id == family_id))
+    from pathlib import Path
+
+    result = await db.execute(
+        select(Expense)
+        .options(selectinload(Expense.receipt))
+        .where(Expense.id == expense_id, Expense.family_id == family_id)
+    )
     expense = result.scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
+
+    if expense.receipt_id is not None and expense.receipt is not None:
+        linked_receipt = expense.receipt
+        if linked_receipt.image_path:
+            await receipt_storage.delete(Path(linked_receipt.image_path))
+        await db.delete(linked_receipt)
 
     await db.delete(expense)
     await db.flush()

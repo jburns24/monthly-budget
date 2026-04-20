@@ -1,0 +1,26 @@
+Type: file
+Check: backend/app/services/expense_service.py updated with receipt cascade-delete
+Expected: delete_expense loads expense with selectinload(Expense.receipt), deletes image file + receipt row before expense
+Timestamp: 2026-04-19T00:00:00Z
+
+File: backend/app/services/expense_service.py
+Changes verified:
+- Added: from app.services import receipt_storage
+- delete_expense now uses selectinload(Expense.receipt) to eager-load the linked receipt
+- If expense.receipt_id is not None and expense.receipt is not None:
+    - Calls receipt_storage.delete(Path(linked_receipt.image_path)) if image_path is set
+    - Calls db.delete(linked_receipt) to remove the Receipt row
+- Then deletes expense and flushes as before
+
+File: backend/tests/test_expenses_api.py
+Changes verified:
+- Added import: from app.models.receipt import Receipt (top-level, registers with Base.metadata)
+- Added import: create_test_receipt to conftest imports
+- Added test: test_delete_expense_cascades_to_receipt
+  - Creates receipt with image_path="/data/receipts/test.jpg"
+  - Creates expense with receipt_id=receipt.id
+  - Mocks app.services.expense_service.receipt_storage.delete as AsyncMock
+  - Calls DELETE /api/families/{id}/expenses/{expense_id}
+  - Asserts 200, receipt row gone, storage_delete called with Path("/data/receipts/test.jpg")
+
+Status: PASS
