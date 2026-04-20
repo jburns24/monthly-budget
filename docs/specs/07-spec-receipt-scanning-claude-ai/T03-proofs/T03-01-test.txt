@@ -1,0 +1,96 @@
+Type: test
+Command: uv run pytest tests/test_receipts_api.py tests/test_receipt_service.py tests/test_receipt_storage.py tests/test_category_suggestion.py tests/test_expenses_api.py -v
+Expected: 85 passed (all T03 sub-unit tests)
+Timestamp: 2026-04-20T00:40:00Z
+Status: PASS
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+tests/test_receipts_api.py::test_upload_success_returns_201 PASSED
+tests/test_receipts_api.py::test_upload_low_confidence_returns_201_needs_edit PASSED
+tests/test_receipts_api.py::test_upload_medium_confidence_returns_201 PASSED
+tests/test_receipts_api.py::test_upload_non_receipt_returns_422 PASSED
+tests/test_receipts_api.py::test_upload_claude_api_error_returns_503 PASSED
+tests/test_receipts_api.py::test_upload_oversized_file_returns_413 PASSED
+tests/test_receipts_api.py::test_upload_invalid_mime_returns_415 PASSED
+tests/test_receipts_api.py::test_upload_rate_limited_returns_429 PASSED
+tests/test_receipts_api.py::test_list_receipts_returns_family_receipts PASSED
+tests/test_receipts_api.py::test_list_receipts_filter_by_status PASSED
+tests/test_receipts_api.py::test_get_receipt_returns_200 PASSED
+tests/test_receipts_api.py::test_get_receipt_returns_404_for_missing PASSED
+tests/test_receipts_api.py::test_get_receipt_image_streams_bytes PASSED
+tests/test_receipts_api.py::test_get_receipt_image_returns_410_when_missing PASSED
+tests/test_receipts_api.py::test_retry_completed_receipt_returns_409 PASSED
+tests/test_receipts_api.py::test_retry_failed_receipt_returns_200 PASSED
+tests/test_receipts_api.py::test_delete_receipt_by_uploader_returns_204 PASSED
+tests/test_receipts_api.py::test_delete_receipt_by_non_uploader_member_returns_403 PASSED
+tests/test_receipts_api.py::test_delete_receipt_by_admin_returns_204 PASSED
+tests/test_receipt_service.py::test_invalid_mime_raises_415 PASSED
+tests/test_receipt_service.py::test_corrupt_image_raises_400 PASSED
+tests/test_receipt_service.py::test_phase1_save_failure_raises_500 PASSED
+tests/test_receipt_service.py::test_phase2_claude_error_raises_503_and_marks_receipt_failed PASSED
+tests/test_receipt_service.py::test_phase2_non_receipt_raises_422_and_marks_receipt_failed PASSED
+tests/test_receipt_service.py::test_success_high_confidence_creates_expense PASSED
+tests/test_receipt_service.py::test_success_low_confidence_needs_edit_true PASSED
+tests/test_receipt_service.py::test_success_no_category_no_expense PASSED
+tests/test_receipt_service.py::test_success_no_total_needs_edit_true PASSED
+tests/test_receipt_service.py::test_parse_expense_date_valid_iso PASSED
+tests/test_receipt_service.py::test_parse_expense_date_none_returns_today PASSED
+tests/test_receipt_service.py::test_parse_expense_date_invalid_string_returns_today PASSED
+tests/test_receipt_service.py::test_parse_expense_date_partial_string_returns_today PASSED
+tests/test_receipt_service.py::test_amount_cents_converts_dollars_to_cents PASSED
+tests/test_receipt_service.py::test_amount_cents_rounds_fractional_cents PASSED
+tests/test_receipt_service.py::test_amount_cents_none_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_zero_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_negative_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_tiny_positive_returns_minimum_1 PASSED
+tests/test_receipt_storage.py::test_validate_mime_accepts_jpeg PASSED
+tests/test_receipt_storage.py::test_validate_mime_accepts_png PASSED
+tests/test_receipt_storage.py::test_validate_mime_accepts_webp PASSED
+tests/test_receipt_storage.py::test_validate_mime_rejects_gif PASSED
+tests/test_receipt_storage.py::test_validate_mime_rejects_pdf PASSED
+tests/test_receipt_storage.py::test_sanitize_image_returns_jpeg_bytes PASSED
+tests/test_receipt_storage.py::test_sanitize_image_strips_exif_data PASSED
+tests/test_receipt_storage.py::test_sanitize_image_resizes_oversized PASSED
+tests/test_receipt_storage.py::test_sanitize_image_rejects_bomb PASSED
+tests/test_receipt_storage.py::test_save_creates_file_on_disk PASSED
+tests/test_receipt_storage.py::test_load_reads_file_from_disk PASSED
+tests/test_receipt_storage.py::test_delete_removes_file_from_disk PASSED
+tests/test_receipt_storage.py::test_delete_missing_file_silently_ignored PASSED
+tests/test_receipt_storage.py::test_save_uses_uuid_filename PASSED
+tests/test_receipt_storage.py::test_save_creates_family_subdirectory PASSED
+tests/test_receipt_storage.py::test_heic_accepted_mime PASSED
+tests/test_receipt_storage.py::test_heif_accepted_mime PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_exact_name_match PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_fuzzy_match PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_no_match_falls_back_to_most_used PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_no_match_no_fallback_returns_none PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_inactive_category_ignored PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_empty_store_name_uses_fallback PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_cross_family_isolation PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_similarity_threshold_enforced PASSED
+tests/test_category_suggestion.py::test_suggest_for_store_fallback_ignores_other_family PASSED
+tests/test_expenses_api.py::test_create_expense PASSED
+tests/test_expenses_api.py::test_list_expenses PASSED
+tests/test_expenses_api.py::test_get_expense PASSED
+tests/test_expenses_api.py::test_update_expense PASSED
+tests/test_expenses_api.py::test_delete_expense PASSED
+tests/test_expenses_api.py::test_delete_expense_cascades_to_receipt PASSED
+tests/test_expenses_api.py::test_cross_family_isolation PASSED
+tests/test_expenses_api.py::test_list_expenses_date_filter PASSED
+tests/test_expenses_api.py::test_list_expenses_category_filter PASSED
+tests/test_expenses_api.py::test_list_expenses_pagination PASSED
+tests/test_expenses_api.py::test_create_expense_missing_required_fields PASSED
+tests/test_expenses_api.py::test_create_expense_invalid_category PASSED
+tests/test_expenses_api.py::test_create_expense_zero_amount PASSED
+tests/test_expenses_api.py::test_delete_expense_non_owner_returns_403 PASSED
+tests/test_expenses_api.py::test_delete_expense_admin_can_delete_any PASSED
+tests/test_expenses_api.py::test_update_expense_unauthorized PASSED
+tests/test_expenses_api.py::test_update_expense_admin_override PASSED
+tests/test_expenses_api.py::test_update_expense_category_validation PASSED
+tests/test_expenses_api.py::test_update_expense_amount_validation PASSED
+tests/test_expenses_api.py::test_get_expense_404 PASSED
+
+======================== 85 passed, 2 warnings in 2.67s =========================
