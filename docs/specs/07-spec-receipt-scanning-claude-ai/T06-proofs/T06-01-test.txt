@@ -1,0 +1,32 @@
+Type: test
+Description: Backend unit tests for metrics (6 tests) and RequestIDMiddleware + SensitiveFilter (5 tests)
+Command: cd backend && uv run pytest tests/test_metrics.py tests/test_request_id_middleware.py -v
+Expected: 11 tests pass
+Timestamp: 2026-04-20T01:13:00Z
+
+--- OUTPUT ---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+collected 11 items
+
+tests/test_metrics.py::test_receipts_processed_total_increments PASSED   [  9%]
+tests/test_metrics.py::test_receipts_processed_total_failed_increments PASSED [ 18%]
+tests/test_metrics.py::test_receipts_upload_errors_total_increments PASSED [ 27%]
+tests/test_metrics.py::test_claude_api_latency_seconds_observe PASSED    [ 36%]
+tests/test_metrics.py::test_receipt_image_bytes_observe PASSED           [ 45%]
+tests/test_metrics.py::test_metrics_registered_in_default_registry PASSED [ 54%]
+tests/test_request_id_middleware.py::test_request_id_echoed_on_response PASSED [ 63%]
+tests/test_request_id_middleware.py::test_request_id_generated_when_absent PASSED [ 72%]
+tests/test_request_id_middleware.py::test_request_id_echoed_and_logged PASSED [ 81%]
+tests/test_request_id_middleware.py::test_different_requests_get_different_ids PASSED [ 90%]
+tests/test_request_id_middleware.py::test_sensitive_filter_redacts_keys PASSED [100%]
+
+============================== 11 passed in 0.64s ==============================
+
+--- VERIFICATION ---
+All 11 tests pass:
+  - 6 metrics tests: Counter increment, Histogram observe, registry discovery
+  - 5 middleware tests: X-Request-ID echo, UUID generation, uniqueness, SensitiveFilter redaction
+Status: PASS

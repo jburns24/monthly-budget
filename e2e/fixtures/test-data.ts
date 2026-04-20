@@ -143,6 +143,18 @@ export async function createMonthlyGoalViaApi(
 }
 
 /**
+ * Set the server-side Claude mock scenario.
+ * Requires ANTHROPIC_MOCK=true in the backend environment.
+ * Valid scenarios: "success", "non_receipt", "low_confidence", "medium_confidence", "api_error".
+ */
+export async function setMockScenario(request: APIRequestContext, scenario: string): Promise<void> {
+  const res = await request.post(`${API_BASE}/api/dev/mock-claude?scenario=${scenario}`)
+  if (!res.ok()) {
+    throw new Error(`setMockScenario failed: ${res.status()} ${await res.text()}`)
+  }
+}
+
+/**
  * Send an invite from the authenticated context *ctx* for *familyId* to
  * *inviteeEmail*.  Returns the invite object.
  */

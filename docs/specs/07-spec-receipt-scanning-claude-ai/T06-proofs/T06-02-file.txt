@@ -1,0 +1,45 @@
+Type: file
+Description: Verify all T06 implementation files exist and are wired correctly
+Command: grep -n key patterns across implementation files
+Expected: metrics.py has 4 instruments, middleware registered, SensitiveFilter first, sample-receipt.jpg exists
+Timestamp: 2026-04-20T01:13:00Z
+
+--- OUTPUT (metrics.py) ---
+5:receipts_processed_total = Counter("receipts_processed_total", ...)
+11:receipts_upload_errors_total = Counter("receipts_upload_errors_total", ...)
+17:claude_api_latency_seconds = Histogram("claude_api_latency_seconds", ..., buckets=[0.5, 1, 2, 5, 10, 30])
+23:receipt_image_bytes = Histogram("receipt_image_bytes", ..., buckets=[102400, 262144, 524288, 1048576, 2097152, 5242880])
+
+--- OUTPUT (middleware/request_id.py) ---
+RequestIDMiddleware reads X-Request-ID or generates UUID4
+Binds via structlog.contextvars.bind_contextvars(request_id=...)
+Echoes on response header
+Clears via unbind_contextvars on completion
+
+--- OUTPUT (main.py) ---
+15: from app.middleware.request_id import RequestIDMiddleware
+67: app.add_middleware(RequestIDMiddleware)  -- registered after CORS, before routers
+
+--- OUTPUT (logging.py) ---
+11: _SENSITIVE_KEYS = frozenset({"anthropic_api_key", "jwt_secret", ...})
+14: def _sensitive_filter(...)
+26: _sensitive_filter,  -- first processor in shared_processors
+
+--- OUTPUT (sample-receipt.jpg) ---
+-rw-r--r-- 1 jburns staff 26804 Apr 19 18:09 e2e/fixtures/sample-receipt.jpg
+Generator script: e2e/fixtures/create-sample-receipt.py (committed)
+
+--- OUTPUT (test-data.ts setMockScenario) ---
+150: export async function setMockScenario(request, scenario): Promise<void>
+153:   POST /api/dev/mock-claude?scenario=...
+
+--- OUTPUT (receipts.spec.ts) ---
+5 scenarios: success, non_receipt, low_confidence, api_error, multi-user
+184 lines
+
+--- OUTPUT (playwright.config.ts) ---
+video: 'retain-on-failure'
+
+--- VERIFICATION ---
+All T06 implementation artifacts present and wired correctly.
+Status: PASS
