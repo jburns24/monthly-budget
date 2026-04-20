@@ -1,0 +1,8 @@
+Type: test
+Command: npm run test:run (from frontend/)
+Expected: All tests pass — 194 tests across 23 files
+Timestamp: 2026-04-19T18:05:00Z
+Status: PASS
+
+Test Files  23 passed (23)
+      Tests  194 passed (194)
