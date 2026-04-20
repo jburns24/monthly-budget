@@ -28,12 +28,14 @@ from app.models.expense import Expense  # noqa: F401 — registers with Base.met
 from app.models.family import Family  # noqa: F401 — registers with Base.metadata
 from app.models.family_member import FamilyMember  # noqa: F401 — registers with Base.metadata
 from app.models.monthly_goal import MonthlyGoal  # noqa: F401 — registers with Base.metadata
+from app.models.receipt import Receipt  # noqa: F401 — registers with Base.metadata
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
 from tests.conftest import (
     _TEST_JWT_SECRET,
     create_test_category,
     create_test_expense,
     create_test_family,
+    create_test_receipt,
     create_test_user,
 )
 
@@ -618,6 +620,45 @@ async def test_delete_expense_non_member_returns_404(db_session: AsyncSession, a
         app.dependency_overrides.pop(get_db, None)
 
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_expense_cascades_to_receipt(db_session: AsyncSession, authenticated_client) -> None:
+    """DELETE /api/families/{id}/expenses/{expense_id} removes the linked Receipt row and on-disk image."""
+    from pathlib import Path
+    from unittest.mock import AsyncMock, patch
+
+    from sqlalchemy import select
+
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family, name="Groceries")
+    receipt = await create_test_receipt(db_session, family, user, image_path="/data/receipts/test.jpg")
+    expense = await create_test_expense(
+        db_session, family, user, category, amount_cents=500, expense_date=date(2026, 4, 1), year_month="2026-04"
+    )
+    expense.receipt_id = receipt.id
+    await db_session.flush()
+
+    storage_delete = AsyncMock()
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        with patch("app.services.expense_service.receipt_storage.delete", storage_delete):
+            async with authenticated_client(user) as client:
+                resp = await client.delete(f"/api/families/{family.id}/expenses/{expense.id}")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+
+    # Receipt row is gone
+    result = await db_session.execute(select(Receipt).where(Receipt.id == receipt.id))
+    assert result.scalar_one_or_none() is None
+
+    # on-disk delete was called with the correct path
+    storage_delete.assert_called_once_with(Path("/data/receipts/test.jpg"))
 
 
 # ---------------------------------------------------------------------------
