@@ -44,12 +44,20 @@ def _amount_cents(total_amount: float | None) -> int | None:
 
 
 async def _mark_failed(db: AsyncSession, receipt: Receipt, image_path: Path | None, reason: str) -> None:
-    """Update receipt to failed status and optionally delete the image file."""
+    """Update receipt to failed status and optionally delete the image file.
+
+    Commits the session so the audit row persists even though the caller is about
+    to raise an HTTPException (which would otherwise trigger ``get_db``'s rollback
+    and wipe both the Phase-1 insert and this status update). The spec requires
+    that the Receipt row is durable with ``status='failed'`` so the retry flow
+    and audit trail can function.
+    """
     try:
         async with db.begin_nested():
             receipt.status = "failed"
             receipt.error_message = reason[:500]
             await db.flush()
+        await db.commit()
     except Exception:
         logger.warning("receipt_mark_failed_db_error", receipt_id=str(receipt.id))
 
