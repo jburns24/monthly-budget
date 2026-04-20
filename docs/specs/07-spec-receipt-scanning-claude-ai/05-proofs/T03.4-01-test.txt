@@ -1,0 +1,31 @@
+Type: test
+Command: uv run pytest tests/test_receipt_service.py -v
+Expected: 19 tests pass covering all three phases + helper units
+Timestamp: 2026-04-19T00:19:00Z
+Status: PASS
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+tests/test_receipt_service.py::test_invalid_mime_raises_422 PASSED
+tests/test_receipt_service.py::test_corrupt_image_raises_422 PASSED
+tests/test_receipt_service.py::test_phase1_save_failure_raises_500 PASSED
+tests/test_receipt_service.py::test_phase2_claude_error_raises_503_and_marks_receipt_failed PASSED
+tests/test_receipt_service.py::test_phase2_non_receipt_raises_422_and_marks_receipt_failed PASSED
+tests/test_receipt_service.py::test_success_high_confidence_creates_expense PASSED
+tests/test_receipt_service.py::test_success_low_confidence_needs_edit_true PASSED
+tests/test_receipt_service.py::test_success_no_category_no_expense PASSED
+tests/test_receipt_service.py::test_success_no_total_needs_edit_true PASSED
+tests/test_receipt_service.py::test_parse_expense_date_valid_iso PASSED
+tests/test_receipt_service.py::test_parse_expense_date_none_returns_today PASSED
+tests/test_receipt_service.py::test_parse_expense_date_invalid_string_returns_today PASSED
+tests/test_receipt_service.py::test_parse_expense_date_partial_string_returns_today PASSED
+tests/test_receipt_service.py::test_amount_cents_converts_dollars_to_cents PASSED
+tests/test_receipt_service.py::test_amount_cents_rounds_fractional_cents PASSED
+tests/test_receipt_service.py::test_amount_cents_none_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_zero_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_negative_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_tiny_positive_returns_minimum_1 PASSED
+
+============================== 19 passed in 0.69s ==============================
