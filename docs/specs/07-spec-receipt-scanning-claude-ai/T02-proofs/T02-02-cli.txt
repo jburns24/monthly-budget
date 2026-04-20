@@ -1,0 +1,21 @@
+=== T02 Integration Summary ===
+
+T02.1 — Lifespan singleton:
+  anthropic_mock default: False
+  anthropic_mock_scenario default: success
+  get_anthropic_client callable: True
+
+T02.2 — extract_receipt:
+  model: claude-haiku-4-5-20251001
+  callable: True
+
+T02.3 — Mock scenarios available:
+  low_confidence: is_receipt=True, confidence=low
+  medium_confidence: is_receipt=True, confidence=medium
+  non_receipt: is_receipt=False, confidence=high
+  success: is_receipt=True, confidence=high
+  api_error: raises APIStatusError(503)
+
+T02.4 — Dev toggle route:
+  POST /api/dev/mock-claude exists: True
+  environment-gated: True
