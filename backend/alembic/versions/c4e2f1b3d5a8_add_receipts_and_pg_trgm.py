@@ -48,7 +48,10 @@ def upgrade() -> None:
     op.create_index("idx_receipts_family", "receipts", ["family_id"], unique=False)
     op.create_index("idx_receipts_status", "receipts", ["status"], unique=False)
 
-    # 4. Add FK constraint on expenses.receipt_id referencing receipts.id
+    # 4a. Null out any orphaned receipt_id values (can't satisfy FK otherwise)
+    op.execute("UPDATE expenses SET receipt_id = NULL WHERE receipt_id IS NOT NULL")
+
+    # 4b. Add FK constraint on expenses.receipt_id referencing receipts.id
     op.create_foreign_key(
         "fk_expenses_receipt",
         "expenses",

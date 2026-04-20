@@ -5,7 +5,8 @@ Phase 1 (savepoint): validate MIME, sanitize image, save to disk, insert
 Phase 2 (non-atomic): call extract_receipt via AsyncAnthropic.
 Phase 3 (savepoint): update Receipt + create Expense with suggested category.
 
-On any Phase 2/3 failure: mark Receipt 'failed', delete image, propagate error.
+On Phase 2 Claude errors: mark Receipt 'failed', preserve image for retry.
+On non-receipt / Phase 3 errors: mark Receipt 'failed', delete image.
 """
 
 import uuid
@@ -43,7 +44,7 @@ def _amount_cents(total_amount: float | None) -> int | None:
 
 
 async def _mark_failed(db: AsyncSession, receipt: Receipt, image_path: Path | None, reason: str) -> None:
-    """Update receipt to failed status and delete the image file."""
+    """Update receipt to failed status and optionally delete the image file."""
     try:
         async with db.begin_nested():
             receipt.status = "failed"
@@ -56,6 +57,74 @@ async def _mark_failed(db: AsyncSession, receipt: Receipt, image_path: Path | No
         await receipt_storage.delete(image_path)
 
 
+async def _run_phase3(
+    db: AsyncSession,
+    receipt: Receipt,
+    extracted: ExtractedReceipt,
+    family_id: uuid.UUID,
+    uploader_id: uuid.UUID,
+    image_path: Path | None,
+) -> tuple[Expense | None, bool]:
+    """Phase 3: update Receipt fields + create Expense. Returns (expense, needs_edit)."""
+    expense_date = _parse_expense_date(extracted.date)
+    total_cents = _amount_cents(extracted.total_amount)
+    needs_edit = extracted.confidence == "low" or total_cents is None
+    year_month = expense_date.strftime("%Y-%m")
+    description = extracted.store_name or "Unknown merchant"
+
+    suggested_category = None
+    if extracted.store_name:
+        suggested_category = await category_suggestion.suggest_for_store(db, family_id, extracted.store_name)
+    if suggested_category is None:
+        suggested_category = await category_suggestion.suggest_for_store(db, family_id, "")
+
+    expense: Expense | None = None
+
+    try:
+        async with db.begin_nested():
+            receipt.status = "completed"
+            receipt.parsed_date = expense_date if extracted.date else None
+            receipt.parsed_total_cents = total_cents
+            receipt.parsed_merchant = extracted.store_name
+            receipt.raw_response = extracted.model_dump()
+            receipt.error_message = None
+
+            if suggested_category is not None:
+                now = datetime.now(tz=timezone.utc)
+                expense = Expense(
+                    family_id=family_id,
+                    user_id=uploader_id,
+                    category_id=suggested_category.id,
+                    amount_cents=total_cents if total_cents is not None else 1,
+                    description=description,
+                    expense_date=expense_date,
+                    year_month=year_month,
+                    receipt_id=receipt.id,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(expense)
+
+            await db.flush()
+
+    except Exception as exc:
+        await _mark_failed(db, receipt, image_path, f"DB error in phase 3: {exc}")
+        logger.error("receipt_phase3_failed", receipt_id=str(receipt.id), error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Receipt processing failed. Try again or enter manually.",
+        ) from exc
+
+    logger.info(
+        "receipt_phase3_complete",
+        receipt_id=str(receipt.id),
+        expense_id=str(expense.id) if expense else None,
+        needs_edit=needs_edit,
+    )
+
+    return expense, needs_edit
+
+
 async def process_upload(
     db: AsyncSession,
     anthropic_client_inst: AsyncAnthropic,
@@ -65,19 +134,6 @@ async def process_upload(
 ) -> tuple[Receipt, Expense | None, bool]:
     """Process a receipt image upload through the three-phase pipeline.
 
-    Parameters
-    ----------
-    db:
-        Active async session. Caller is responsible for committing.
-    anthropic_client_inst:
-        AsyncAnthropic singleton from app.state.
-    family_id:
-        UUID of the owning family.
-    uploader_id:
-        UUID of the user uploading the receipt.
-    raw_bytes:
-        Raw image bytes from the multipart upload.
-
     Returns
     -------
     tuple[Receipt, Expense | None, bool]
@@ -86,8 +142,12 @@ async def process_upload(
 
     Raises
     ------
+    HTTPException(415)
+        Unsupported MIME type.
+    HTTPException(400)
+        Corrupt or unparseable image.
     HTTPException(422)
-        MIME validation failure or image is not a receipt.
+        Image is not a receipt.
     HTTPException(503)
         Claude API error or unexpected processing failure.
     """
@@ -95,12 +155,12 @@ async def process_upload(
     try:
         receipt_storage.validate_mime(raw_bytes)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
 
     try:
         sanitized_bytes, _ = receipt_storage.sanitize_image(raw_bytes)
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid image: {exc}") from exc
+        raise HTTPException(status_code=400, detail=f"Invalid image: {exc}") from exc
 
     # --- Phase 1: save image + insert Receipt(status=processing) ---
     image_path: Path | None = None
@@ -142,7 +202,8 @@ async def process_upload(
             media_type="image/jpeg",
         )
     except Exception as exc:
-        await _mark_failed(db, receipt, image_path, f"Claude API error: {exc}")
+        # Keep image on disk so the retry endpoint can re-run extraction.
+        await _mark_failed(db, receipt, None, f"Claude API error: {exc}")
         logger.error("receipt_phase2_failed", receipt_id=str(receipt.id), error=str(exc))
         raise HTTPException(
             status_code=503,
@@ -166,61 +227,59 @@ async def process_upload(
         has_date=extracted.date is not None,
     )
 
-    # --- Phase 3: update Receipt + create Expense ---
-    expense_date = _parse_expense_date(extracted.date)
-    total_cents = _amount_cents(extracted.total_amount)
-    needs_edit = extracted.confidence == "low" or total_cents is None
-    year_month = expense_date.strftime("%Y-%m")
-    description = extracted.store_name or "Unknown merchant"
+    expense, needs_edit = await _run_phase3(db, receipt, extracted, family_id, uploader_id, image_path)
+    return receipt, expense, needs_edit
 
-    # Suggest category from store name; fall back to any active category
-    suggested_category = None
-    if extracted.store_name:
-        suggested_category = await category_suggestion.suggest_for_store(db, family_id, extracted.store_name)
-    if suggested_category is None:
-        suggested_category = await category_suggestion.suggest_for_store(db, family_id, "")
 
-    expense: Expense | None = None
+async def reprocess_receipt(
+    db: AsyncSession,
+    anthropic_client_inst: AsyncAnthropic,
+    receipt: Receipt,
+) -> tuple[Receipt, Expense | None, bool]:
+    """Re-run Phase 2 + Phase 3 for an existing failed receipt.
 
+    Used by the retry endpoint. Loads the image from ``receipt.image_path``.
+
+    Raises
+    ------
+    HTTPException(422)
+        Image file missing or no longer on disk.
+    HTTPException(422)
+        Claude determines image is not a receipt.
+    HTTPException(503)
+        Claude API error or Phase 3 DB failure.
+    """
+    if not receipt.image_path:
+        raise HTTPException(status_code=422, detail="Image no longer available. Please re-upload.")
+
+    image_path = Path(receipt.image_path)
     try:
-        async with db.begin_nested():
-            receipt.status = "completed"
-            receipt.parsed_date = expense_date if extracted.date else None
-            receipt.parsed_total_cents = total_cents
-            receipt.parsed_merchant = extracted.store_name
-            receipt.raw_response = extracted.model_dump()
+        image_bytes = await receipt_storage.load(image_path)
+    except (FileNotFoundError, OSError):
+        raise HTTPException(status_code=422, detail="Image file missing. Please re-upload.")
 
-            if suggested_category is not None:
-                now = datetime.now(tz=timezone.utc)
-                expense = Expense(
-                    family_id=family_id,
-                    user_id=uploader_id,
-                    category_id=suggested_category.id,
-                    amount_cents=total_cents if total_cents is not None else 1,
-                    description=description,
-                    expense_date=expense_date,
-                    year_month=year_month,
-                    receipt_id=receipt.id,
-                    created_at=now,
-                    updated_at=now,
-                )
-                db.add(expense)
-
-            await db.flush()
-
+    # Phase 2: call Claude
+    try:
+        extracted = await claude_client.extract_receipt(
+            anthropic_client_inst,
+            image_bytes,
+            media_type="image/jpeg",
+        )
     except Exception as exc:
-        await _mark_failed(db, receipt, image_path, f"DB error in phase 3: {exc}")
-        logger.error("receipt_phase3_failed", receipt_id=str(receipt.id), error=str(exc))
+        await _mark_failed(db, receipt, None, f"Claude API error: {exc}")
+        logger.error("receipt_retry_phase2_failed", receipt_id=str(receipt.id), error=str(exc))
         raise HTTPException(
             status_code=503,
             detail="Receipt processing failed. Try again or enter manually.",
         ) from exc
 
-    logger.info(
-        "receipt_phase3_complete",
-        receipt_id=str(receipt.id),
-        expense_id=str(expense.id) if expense else None,
-        needs_edit=needs_edit,
-    )
+    if not extracted.is_receipt:
+        await _mark_failed(db, receipt, image_path, "Not a receipt")
+        logger.info("receipt_retry_not_a_receipt", receipt_id=str(receipt.id))
+        raise HTTPException(
+            status_code=422,
+            detail="This doesn't appear to be a receipt. Please try again or enter manually.",
+        )
 
+    expense, needs_edit = await _run_phase3(db, receipt, extracted, receipt.family_id, receipt.uploaded_by, image_path)
     return receipt, expense, needs_edit

@@ -1,0 +1,8 @@
+Type: cli
+Command: uv run ruff check . && uv run ruff format --check .
+Expected: All checks passed, no files reformatted
+Timestamp: 2026-04-20T00:35:00Z
+Status: PASS
+
+All checks passed!
+All files already formatted.

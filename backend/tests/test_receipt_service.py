@@ -83,7 +83,7 @@ def _extracted(**overrides) -> ExtractedReceipt:
 
 
 @pytest.mark.asyncio
-async def test_invalid_mime_raises_422(db_session: AsyncSession) -> None:
+async def test_invalid_mime_raises_415(db_session: AsyncSession) -> None:
     user = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, user)
 
@@ -94,12 +94,12 @@ async def test_invalid_mime_raises_422(db_session: AsyncSession) -> None:
         with pytest.raises(HTTPException) as exc_info:
             await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
 
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 415
     assert "Unsupported MIME type" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-async def test_corrupt_image_raises_422(db_session: AsyncSession) -> None:
+async def test_corrupt_image_raises_400(db_session: AsyncSession) -> None:
     user = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, user)
 
@@ -113,7 +113,7 @@ async def test_corrupt_image_raises_422(db_session: AsyncSession) -> None:
         with pytest.raises(HTTPException) as exc_info:
             await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
 
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
     assert "Invalid image" in exc_info.value.detail
 
 
@@ -177,7 +177,8 @@ async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_sessio
             await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 503
-    delete_mock.assert_called_once_with(image_path)
+    # Image is preserved (not deleted) on Claude errors so retry can re-run extraction.
+    delete_mock.assert_not_called()
 
     result = await db_session.execute(select(Receipt).where(Receipt.family_id == family.id))
     receipt = result.scalar_one_or_none()
