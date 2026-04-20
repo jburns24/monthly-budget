@@ -30,6 +30,7 @@ dependencies = [
     "anthropic>=0.40",
     "tenacity>=8.2",
     "types-aiofiles>=25.1.0.20260409",
+    "python-multipart>=0.0.26",
 ]
 
 [project.optional-dependencies]
