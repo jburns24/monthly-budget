@@ -12,6 +12,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import settings
 from app.database import engine
 from app.logging import configure_logging, get_logger
+from app.middleware.request_id import RequestIDMiddleware
 from app.routers import auth, categories, expenses, family, health, monthly_goals, receipts, users
 
 # Configure structured logging as early as possible so all startup
@@ -62,6 +63,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(RequestIDMiddleware)
 
 # Register Prometheus metrics instrumentation.
 # The /metrics endpoint is exposed automatically by the instrumentator.

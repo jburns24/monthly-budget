@@ -2,16 +2,28 @@
 
 import logging
 import sys
+from typing import Any
 
 import structlog
 
 from app.config import settings
+
+_SENSITIVE_KEYS = frozenset({"anthropic_api_key", "jwt_secret", "google_client_secret", "password", "authorization"})
+
+
+def _sensitive_filter(logger: Any, method: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+    """Redact sensitive keys from structlog event dicts before they are rendered."""
+    for key in _SENSITIVE_KEYS:
+        if key in event_dict:
+            event_dict[key] = "[REDACTED]"
+    return event_dict
 
 
 def configure_logging() -> None:
     """Configure structlog with appropriate renderer based on environment."""
 
     shared_processors: list[structlog.types.Processor] = [
+        _sensitive_filter,
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
