@@ -243,6 +243,55 @@ async def test_extract_receipt_does_not_retry_on_400() -> None:
 
 
 @pytest.mark.asyncio
+async def test_extract_receipt_builds_correct_request() -> None:
+    """extract_receipt builds the exact PRD §13 request shape.
+
+    User message content must be a list of exactly [image_block, text_block]:
+      - image_block: {"type": "image", "source": {"type": "base64", "media_type": ..., "data": <b64>}}
+      - text_block:  {"type": "text", "text": "Extract structured data from this receipt image."}
+    """
+    import base64
+
+    from app.services.claude_client import _MAX_TOKENS, _SYSTEM_PROMPT, _USER_TEXT_PROMPT
+
+    image_bytes = b"prd-section-13-bytes"
+    expected_b64 = base64.standard_b64encode(image_bytes).decode()
+
+    tool_input = {"is_receipt": True, "confidence": "high"}
+    response = _make_tool_use_response(tool_input)
+    client = _make_client(response)
+
+    await extract_receipt(client, image_bytes, media_type="image/jpeg")
+
+    call_kwargs = client.messages.create.call_args.kwargs
+
+    assert call_kwargs["model"] == _MODEL
+    assert call_kwargs["max_tokens"] == _MAX_TOKENS
+    assert call_kwargs["system"] == _SYSTEM_PROMPT
+    assert call_kwargs["tool_choice"] == {"type": "tool", "name": "extract_receipt"}
+
+    messages = call_kwargs["messages"]
+    assert len(messages) == 1
+    assert messages[0]["role"] == "user"
+
+    content = messages[0]["content"]
+    assert isinstance(content, list)
+    assert len(content) == 2, f"Expected [image_block, text_block]; got {content!r}"
+
+    image_block, text_block = content
+    assert image_block == {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": expected_b64,
+        },
+    }
+    assert text_block == {"type": "text", "text": _USER_TEXT_PROMPT}
+    assert text_block["text"] == "Extract structured data from this receipt image."
+
+
+@pytest.mark.asyncio
 async def test_extract_receipt_default_media_type_is_jpeg() -> None:
     """extract_receipt defaults to image/jpeg media_type."""
     tool_input = {"is_receipt": True, "confidence": "high"}

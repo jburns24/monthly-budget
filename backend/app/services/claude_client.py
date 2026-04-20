@@ -26,6 +26,7 @@ _MAX_TOKENS = 1024
 _SYSTEM_PROMPT = (
     "You are a receipt data extractor. Extract the total amount, date, and store name from the receipt image."
 )
+_USER_TEXT_PROMPT = "Extract structured data from this receipt image."
 _TOOL_DEFINITION = {
     "name": "extract_receipt",
     "description": "Extract structured data from a receipt image",
@@ -138,7 +139,8 @@ async def _call_claude(
                             "media_type": media_type,
                             "data": b64_data,
                         },
-                    }
+                    },
+                    {"type": "text", "text": _USER_TEXT_PROMPT},
                 ],
             }
         ],
