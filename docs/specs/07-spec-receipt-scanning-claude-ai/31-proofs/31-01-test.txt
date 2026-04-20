@@ -1,0 +1,41 @@
+Type: test
+Command: npm run test:run -- ReceiptCaptureDialog --reporter=verbose
+Expected: All ReceiptCaptureDialog tests pass, including new "responsive placement" test.
+Timestamp: 2026-04-19T07:19:20Z
+Status: PASS
+
+--- Output ---
+> frontend@0.0.0 test:run
+> vitest run ReceiptCaptureDialog --reporter=verbose
+
+
+ RUN  v4.1.2 /Users/jburns/git/monthly-budget/.worktrees/feature-07-receipt-scanning-claude-ai/frontend
+
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > idle phase > renders dialog when open 41ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > idle phase > does not render dialog when closed 4ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > idle phase > shows dropzone with instructions 22ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > idle phase > file input has capture="environment" 11ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > idle phase > shows Cancel button 12ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > preview phase > shows preview image after file selected 29ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > preview phase > shows file name 27ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > preview phase > shows Back and Upload buttons 25ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > preview phase > Back button returns to idle phase 32ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > uploading phase > shows spinner after Upload clicked 33ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > uploading phase > returns to preview and shows error toast on upload failure 33ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > uploading phase > maps 422 error to "not a receipt" description 29ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > reviewing phase > shows merchant and amount from upload response 31ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > reviewing phase > formats null amount and merchant as dash 33ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > reviewing phase > shows needs-review badge when needs_edit is true 31ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > reviewing phase > does not show needs-review badge when needs_edit is false 29ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > reviewing phase > populates category select from categories API 32ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > reviewing phase > shows Confirm and Cancel buttons 33ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > reviewing phase > invalidates expenses, budget-summary, and receipts queries on upload success 29ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > responsive placement > passes responsive placement (bottom on mobile, center on md+) to DialogRoot 9ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > done phase > shows success message after Confirm clicked 34ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > done phase > shows Close button in done phase 34ms
+ ✓ src/__tests__/ReceiptCaptureDialog.test.tsx > done phase > Close button calls onOpenChange(false) 44ms
+
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+   Start at  07:19:20
+   Duration  2.01s (transform 456ms, setup 47ms, import 1.07s, tests 636ms, environment 159ms)
