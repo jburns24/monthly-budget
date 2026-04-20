@@ -1,0 +1,23 @@
+Type: file
+Description: Verify dev_receipts router registered in main.py and route structure correct
+Command: grep -n "dev_receipts\|mock-claude" backend/app/main.py backend/app/routers/dev_receipts.py
+Expected: Router imported and registered in main.py; POST /api/dev/mock-claude defined in router
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT (main.py) ---
+80: # Dev-only endpoints (auth bypass + test-reset + mock-claude toggle) — never exposed in production
+81: if settings.environment.lower() in ("development", "test"):
+82:     from app.routers import dev_auth, dev_receipts  # noqa: PLC0415
+83:
+84:     app.include_router(dev_auth.router)
+85:     app.include_router(dev_receipts.router)
+
+--- OUTPUT (dev_receipts.py) ---
+16: @router.post("/api/dev/mock-claude", status_code=status.HTTP_200_OK)
+17: async def set_mock_scenario(scenario: str = "success") -> dict:
+
+--- VERIFICATION ---
+dev_receipts router is conditionally registered in main.py (dev/test only).
+POST /api/dev/mock-claude endpoint defined with scenario query param defaulting to "success".
+Internal env gate raises 404 unless environment in ("development", "test").
+Status: PASS

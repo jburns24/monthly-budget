@@ -76,8 +76,9 @@ app.include_router(categories.router)
 app.include_router(expenses.router)
 app.include_router(monthly_goals.router)
 
-# Dev-only endpoints (auth bypass + test-reset) — never exposed in production
+# Dev-only endpoints (auth bypass + test-reset + mock-claude toggle) — never exposed in production
 if settings.environment.lower() in ("development", "test"):
-    from app.routers import dev_auth  # noqa: PLC0415
+    from app.routers import dev_auth, dev_receipts  # noqa: PLC0415
 
     app.include_router(dev_auth.router)
+    app.include_router(dev_receipts.router)
