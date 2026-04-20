@@ -1,0 +1,49 @@
+Type: test
+Command: cd backend && uv run pytest tests/test_receipt_service.py tests/test_receipts_api.py -v
+Expected: pass
+Timestamp: 2026-04-19T12:00:00Z
+Status: PASS
+
+--- Output (tail) ---
+tests/test_receipt_service.py::test_invalid_mime_raises_415 PASSED
+tests/test_receipt_service.py::test_corrupt_image_raises_400 PASSED
+tests/test_receipt_service.py::test_phase1_save_failure_raises_500 PASSED
+tests/test_receipt_service.py::test_phase2_claude_error_raises_503_and_marks_receipt_failed PASSED
+tests/test_receipt_service.py::test_phase2_non_receipt_raises_422_and_marks_receipt_failed PASSED
+tests/test_receipt_service.py::test_success_high_confidence_creates_expense PASSED
+tests/test_receipt_service.py::test_success_low_confidence_needs_edit_true PASSED
+tests/test_receipt_service.py::test_low_confidence_with_valid_total_still_persists_amount_zero PASSED
+tests/test_receipt_service.py::test_success_no_category_no_expense PASSED
+tests/test_receipt_service.py::test_success_no_total_needs_edit_true PASSED
+tests/test_receipt_service.py::test_parse_expense_date_valid_iso PASSED
+tests/test_receipt_service.py::test_parse_expense_date_none_returns_today PASSED
+tests/test_receipt_service.py::test_parse_expense_date_invalid_string_returns_today PASSED
+tests/test_receipt_service.py::test_parse_expense_date_partial_string_returns_today PASSED
+tests/test_receipt_service.py::test_amount_cents_converts_dollars_to_cents PASSED
+tests/test_receipt_service.py::test_amount_cents_rounds_fractional_cents PASSED
+tests/test_receipt_service.py::test_amount_cents_none_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_zero_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_negative_returns_none PASSED
+tests/test_receipt_service.py::test_amount_cents_tiny_positive_returns_minimum_1 PASSED
+tests/test_receipts_api.py::test_upload_success_returns_201 PASSED
+tests/test_receipts_api.py::test_upload_low_confidence_returns_201_needs_edit PASSED
+tests/test_receipts_api.py::test_upload_medium_confidence_returns_201 PASSED
+tests/test_receipts_api.py::test_upload_non_receipt_returns_422 PASSED
+tests/test_receipts_api.py::test_upload_claude_api_error_returns_503 PASSED
+tests/test_receipts_api.py::test_failed_receipt_image_cleaned_up PASSED
+tests/test_receipts_api.py::test_upload_oversized_file_returns_413 PASSED
+tests/test_receipts_api.py::test_upload_invalid_mime_returns_415 PASSED
+tests/test_receipts_api.py::test_upload_rate_limited_returns_429 PASSED
+tests/test_receipts_api.py::test_list_receipts_returns_family_receipts PASSED
+tests/test_receipts_api.py::test_list_receipts_filter_by_status PASSED
+tests/test_receipts_api.py::test_get_receipt_returns_200 PASSED
+tests/test_receipts_api.py::test_get_receipt_returns_404_for_missing PASSED
+tests/test_receipts_api.py::test_get_receipt_image_streams_bytes PASSED
+tests/test_receipts_api.py::test_get_receipt_image_returns_410_when_missing PASSED
+tests/test_receipts_api.py::test_retry_completed_receipt_returns_409 PASSED
+tests/test_receipts_api.py::test_retry_failed_receipt_returns_200 PASSED
+tests/test_receipts_api.py::test_delete_receipt_by_uploader_returns_204 PASSED
+tests/test_receipts_api.py::test_delete_receipt_by_non_uploader_member_returns_403 PASSED
+tests/test_receipts_api.py::test_delete_receipt_by_admin_returns_204 PASSED
+
+======================== 40 passed, 1 warning in 1.58s =========================

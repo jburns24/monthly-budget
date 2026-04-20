@@ -1,0 +1,24 @@
+Type: test
+Command: cd backend && uv run pytest tests/test_receipt_service.py::test_low_confidence_with_valid_total_still_persists_amount_zero tests/test_receipt_service.py::test_success_low_confidence_needs_edit_true tests/test_expenses_models.py::test_expense_amount_cents_check_constraint_allows_zero -v
+Expected: All three targeted tests pass; they cover the §Unit 3 spec requirement that
+          low-confidence receipt extractions persist with amount_cents=0.
+Timestamp: 2026-04-19T12:00:00Z
+Status: PASS
+
+--- Output ---
+tests/test_receipt_service.py::test_low_confidence_with_valid_total_still_persists_amount_zero PASSED
+tests/test_receipt_service.py::test_success_low_confidence_needs_edit_true PASSED
+tests/test_expenses_models.py::test_expense_amount_cents_check_constraint_allows_zero PASSED
+
+============================== 3 passed in 0.40s ==============================
+
+Mapping:
+- test_success_low_confidence_needs_edit_true
+    Asserts amount_cents == 0 when Claude confidence=low + total is None.
+- test_low_confidence_with_valid_total_still_persists_amount_zero (NEW regression test)
+    Asserts amount_cents == 0 even when Claude returned a valid total_amount but
+    confidence=low; previously the code wrote total_cents, suppressing the
+    frontend "Needs review" chip.
+- test_expense_amount_cents_check_constraint_allows_zero (UPDATED)
+    Renamed from rejects_zero. Now asserts a raw Expense(amount_cents=0) insert
+    succeeds because migration e8b1c9f7a321 relaxed the CHECK to amount_cents >= 0.

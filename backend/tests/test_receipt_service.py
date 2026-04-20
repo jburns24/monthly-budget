@@ -6,7 +6,7 @@ Covers:
 - Phase 2: Claude API error → 503, receipt marked failed, image deleted
 - Phase 2: non-receipt → 422, receipt marked failed, image deleted
 - Phase 3: happy path (high confidence + category) → receipt+expense, needs_edit=False
-- Phase 3: low confidence → needs_edit=True, expense with placeholder amount
+- Phase 3: low confidence → needs_edit=True, expense persists with amount_cents=0
 - Phase 3: no category → expense=None, receipt still completed
 - Phase 3: no total amount → needs_edit=True
 - Helper unit tests: _parse_expense_date, _amount_cents
@@ -302,7 +302,50 @@ async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession) 
     assert receipt.status == "completed"
     assert needs_edit is True
     assert expense is not None
-    assert expense.amount_cents == 1  # DB requires > 0; placeholder for low confidence
+    # Spec §Unit 3: low-confidence → amount_cents=0 (Needs-review chip key).
+    assert expense.amount_cents == 0
+
+
+@pytest.mark.asyncio
+async def test_low_confidence_with_valid_total_still_persists_amount_zero(
+    db_session: AsyncSession,
+) -> None:
+    """Even when Claude returned a total, low-confidence forces amount_cents=0.
+
+    Regression: previous code wrote ``total_cents`` (e.g. 4250) when confidence
+    was ``low`` but a total was parsed, suppressing the "Needs review" chip.
+    Spec §Unit 3 requires the placeholder 0 so the user reviews before saving.
+    """
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family)
+    image_path = _fake_path(family.id)
+
+    with (
+        patch("app.services.receipt_service.receipt_storage.validate_mime"),
+        patch(
+            "app.services.receipt_service.receipt_storage.sanitize_image",
+            return_value=(b"sanitized", (100, 100)),
+        ),
+        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
+        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
+        patch(
+            "app.services.receipt_service.claude_client.extract_receipt",
+            AsyncMock(return_value=_extracted(confidence="low", total_amount=42.50)),
+        ),
+        patch(
+            "app.services.receipt_service.category_suggestion.suggest_for_store",
+            AsyncMock(return_value=category),
+        ),
+    ):
+        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+
+    assert receipt.status == "completed"
+    # Parsed total is still captured on the receipt row for later review UI.
+    assert receipt.parsed_total_cents == 4250
+    assert needs_edit is True
+    assert expense is not None
+    assert expense.amount_cents == 0
 
 
 # ---------------------------------------------------------------------------
@@ -373,7 +416,8 @@ async def test_success_no_total_needs_edit_true(db_session: AsyncSession) -> Non
 
     assert needs_edit is True
     assert expense is not None
-    assert expense.amount_cents == 1  # placeholder since total_cents is None
+    # needs_edit=True when total_cents is None → amount_cents=0 placeholder.
+    assert expense.amount_cents == 0
 
 
 # ---------------------------------------------------------------------------
