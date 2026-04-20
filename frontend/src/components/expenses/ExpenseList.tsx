@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Text } from '@chakra-ui/react'
+import { Badge, Box, Button, Flex, Text } from '@chakra-ui/react'
 import type { Expense } from '../../types/expenses'
 
 interface ExpenseListProps {
@@ -42,27 +42,54 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
           transition="border-color 0.15s, background-color 0.15s"
           data-testid={`expense-card-${expense.id}`}
         >
-          {/* Category icon */}
-          <Flex
-            align="center"
-            justify="center"
-            w="40px"
-            h="40px"
-            borderRadius="md"
-            bg="brand.50"
-            flexShrink={0}
-            fontSize="xl"
-            aria-hidden="true"
-            data-testid={`expense-category-icon-${expense.id}`}
-          >
-            {expense.category.icon ?? '📁'}
-          </Flex>
+          {/* Category icon with optional receipt badge overlay */}
+          <Box position="relative" flexShrink={0}>
+            <Flex
+              align="center"
+              justify="center"
+              w="40px"
+              h="40px"
+              borderRadius="md"
+              bg="brand.50"
+              fontSize="xl"
+              aria-hidden="true"
+              data-testid={`expense-category-icon-${expense.id}`}
+            >
+              {expense.category.icon ?? '📁'}
+            </Flex>
+            {expense.receipt_status === 'completed' && (
+              <Box
+                position="absolute"
+                bottom="-4px"
+                right="-4px"
+                fontSize="10px"
+                lineHeight={1}
+                title="Added via receipt"
+                data-testid={`expense-receipt-badge-${expense.id}`}
+                aria-label="Added via receipt"
+              >
+                📄
+              </Box>
+            )}
+          </Box>
 
           {/* Description and meta */}
           <Box flex={1} minW={0}>
-            <Text fontWeight="medium" truncate data-testid={`expense-description-${expense.id}`}>
-              {expense.description || '(no description)'}
-            </Text>
+            <Flex align="center" gap={2} flexWrap="wrap">
+              <Text fontWeight="medium" truncate data-testid={`expense-description-${expense.id}`}>
+                {expense.description || '(no description)'}
+              </Text>
+              {expense.receipt_status === 'completed' && expense.amount_cents === 0 && (
+                <Badge
+                  colorPalette="yellow"
+                  variant="subtle"
+                  size="sm"
+                  data-testid={`expense-needs-review-${expense.id}`}
+                >
+                  Needs review
+                </Badge>
+              )}
+            </Flex>
             <Flex gap={2} align="center" flexWrap="wrap">
               <Text
                 fontSize="xs"
