@@ -3,14 +3,19 @@
 Wraps the AsyncAnthropic SDK with tenacity retry logic layered on top of the
 SDK's built-in retries (max_retries=2). Tenacity handles transient server errors
 (5xx, 429) with exponential back-off; the SDK handles connection-level retries.
+
+When settings.anthropic_mock is True, extract_receipt returns a deterministic
+ExtractedReceipt based on settings.anthropic_mock_scenario without calling the API.
 """
 
 import base64
 from typing import Literal
 
+import httpx
 from anthropic import APIConnectionError, APIStatusError, AsyncAnthropic
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
+from app.config import settings
 from app.logging import get_logger
 from app.schemas.receipt import ExtractedReceipt
 
@@ -39,6 +44,55 @@ _TOOL_DEFINITION = {
 
 MediaType = Literal["image/jpeg", "image/png", "image/webp", "image/gif"]
 
+_MOCK_SCENARIOS: dict[str, ExtractedReceipt] = {
+    "success": ExtractedReceipt(
+        is_receipt=True,
+        confidence="high",
+        total_amount=42.50,
+        date="2026-03-21",
+        store_name="Test Market",
+    ),
+    "medium_confidence": ExtractedReceipt(
+        is_receipt=True,
+        confidence="medium",
+        total_amount=42.50,
+        date=None,
+        store_name="Test Market",
+    ),
+    "low_confidence": ExtractedReceipt(
+        is_receipt=True,
+        confidence="low",
+        total_amount=None,
+        date=None,
+        store_name=None,
+    ),
+    "non_receipt": ExtractedReceipt(
+        is_receipt=False,
+        confidence="high",
+    ),
+}
+
+_MOCK_API_ERROR_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+
+def _get_mock_response(scenario: str) -> ExtractedReceipt:
+    """Return a deterministic ExtractedReceipt for the given mock scenario.
+
+    Raises APIStatusError for the 'api_error' scenario.
+    Falls back to 'success' for unknown scenario names.
+    """
+    if scenario == "api_error":
+        raise APIStatusError(
+            "Mock Anthropic API error (scenario: api_error)",
+            response=httpx.Response(503, request=_MOCK_API_ERROR_REQUEST),
+            body=None,
+        )
+    result = _MOCK_SCENARIOS.get(scenario)
+    if result is None:
+        logger.warning("claude_mock_unknown_scenario", scenario=scenario, fallback="success")
+        result = _MOCK_SCENARIOS["success"]
+    return result
+
 
 def _is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, APIConnectionError):
@@ -57,34 +111,12 @@ _retry = retry(
 
 
 @_retry
-async def extract_receipt(
+async def _call_claude(
     client: AsyncAnthropic,
     image_bytes: bytes,
-    media_type: MediaType = "image/jpeg",
+    media_type: MediaType,
 ) -> ExtractedReceipt:
-    """Call Claude to extract structured data from a receipt image.
-
-    Parameters
-    ----------
-    client:
-        The AsyncAnthropic singleton from app.state.
-    image_bytes:
-        Raw image bytes (already sanitized/re-encoded by receipt_storage).
-    media_type:
-        MIME type of the image (default: image/jpeg after sanitization).
-
-    Returns
-    -------
-    ExtractedReceipt
-        Parsed tool-use response from Claude.
-
-    Raises
-    ------
-    APIStatusError
-        On unretryable 4xx errors (e.g. 400 invalid request, 401 auth failure).
-    ValueError
-        If Claude returns no tool_use block in the response (unexpected schema).
-    """
+    """Send an image to Claude and parse the tool-use response. Wrapped by tenacity."""
     b64_data = base64.standard_b64encode(image_bytes).decode()
 
     logger.info("claude_extract_receipt_start", image_size=len(image_bytes), media_type=media_type)
@@ -133,3 +165,42 @@ async def extract_receipt(
     )
 
     return extracted
+
+
+async def extract_receipt(
+    client: AsyncAnthropic,
+    image_bytes: bytes,
+    media_type: MediaType = "image/jpeg",
+) -> ExtractedReceipt:
+    """Call Claude to extract structured data from a receipt image.
+
+    When settings.anthropic_mock is True, returns a deterministic response
+    for the scenario in settings.anthropic_mock_scenario without calling the API.
+
+    Parameters
+    ----------
+    client:
+        The AsyncAnthropic singleton from app.state.
+    image_bytes:
+        Raw image bytes (already sanitized/re-encoded by receipt_storage).
+    media_type:
+        MIME type of the image (default: image/jpeg after sanitization).
+
+    Returns
+    -------
+    ExtractedReceipt
+        Parsed tool-use response from Claude.
+
+    Raises
+    ------
+    APIStatusError
+        On unretryable 4xx errors or when mock scenario is 'api_error'.
+    ValueError
+        If Claude returns no tool_use block in the response (unexpected schema).
+    """
+    if settings.anthropic_mock:
+        scenario = settings.anthropic_mock_scenario
+        logger.info("claude_extract_receipt_mock", scenario=scenario)
+        return _get_mock_response(scenario)
+
+    return await _call_claude(client, image_bytes, media_type)
