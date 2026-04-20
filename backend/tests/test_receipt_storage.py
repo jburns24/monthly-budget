@@ -151,6 +151,34 @@ def test_sanitize_decompression_bomb_is_rejected() -> None:
             sanitize_image(raw)
 
 
+def test_sanitize_rejects_extreme_width_before_load() -> None:
+    """Images with width > 4000 are rejected before Pillow decodes pixels.
+
+    Guards against crafted inputs that stay under MAX_IMAGE_PIXELS by using
+    extreme aspect ratios (e.g. 4096×62499). The check must fire before
+    ``Image.load()`` so decoded pixels never reach memory.
+    """
+    raw = _make_jpeg(width=4001, height=100)
+    with pytest.raises(ValueError, match="Image dimensions exceed limit"):
+        sanitize_image(raw)
+
+
+def test_sanitize_rejects_extreme_height_before_load() -> None:
+    """Images with height > 4000 are rejected before Pillow decodes pixels."""
+    raw = _make_jpeg(width=100, height=4001)
+    with pytest.raises(ValueError, match="Image dimensions exceed limit"):
+        sanitize_image(raw)
+
+
+def test_sanitize_allows_dimension_at_limit() -> None:
+    """Images with width/height exactly 4000 are allowed (threshold is >4000)."""
+    raw = _make_jpeg(width=4000, height=4000)
+    result, (w, h) = sanitize_image(raw)
+    # Downscaled to _MAX_DIMENSION (3000)
+    assert w <= 3000 and h <= 3000
+    assert len(result) > 0
+
+
 # ---------------------------------------------------------------------------
 # HEIC → JPEG conversion
 # ---------------------------------------------------------------------------

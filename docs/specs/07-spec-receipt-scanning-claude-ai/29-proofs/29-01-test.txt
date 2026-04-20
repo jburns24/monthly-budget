@@ -1,0 +1,43 @@
+Type: test
+Command: cd backend && uv run pytest tests/test_receipt_storage.py -v
+Expected: pass (all tests including new dimension pre-check regression tests)
+Timestamp: 2026-04-20T14:05:27Z
+-----
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0 -- /Users/jburns/git/monthly-budget/.worktrees/feature-07-receipt-scanning-claude-ai/backend/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jburns/git/monthly-budget/.worktrees/feature-07-receipt-scanning-claude-ai/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 21 items
+
+tests/test_receipt_storage.py::test_validate_mime_accepts_jpeg PASSED    [  4%]
+tests/test_receipt_storage.py::test_validate_mime_accepts_png PASSED     [  9%]
+tests/test_receipt_storage.py::test_validate_mime_accepts_webp PASSED    [ 14%]
+tests/test_receipt_storage.py::test_validate_mime_rejects_pdf PASSED     [ 19%]
+tests/test_receipt_storage.py::test_validate_mime_rejects_text PASSED    [ 23%]
+tests/test_receipt_storage.py::test_validate_mime_rejects_empty_bytes PASSED [ 28%]
+tests/test_receipt_storage.py::test_sanitize_jpeg_returns_jpeg_bytes PASSED [ 33%]
+tests/test_receipt_storage.py::test_sanitize_png_converts_to_jpeg PASSED [ 38%]
+tests/test_receipt_storage.py::test_sanitize_strips_exif_data PASSED     [ 42%]
+tests/test_receipt_storage.py::test_sanitize_resizes_oversized_image PASSED [ 47%]
+tests/test_receipt_storage.py::test_sanitize_preserves_small_image_dimensions PASSED [ 52%]
+tests/test_receipt_storage.py::test_sanitize_decompression_bomb_is_rejected PASSED [ 57%]
+tests/test_receipt_storage.py::test_sanitize_rejects_extreme_width_before_load PASSED [ 61%]
+tests/test_receipt_storage.py::test_sanitize_rejects_extreme_height_before_load PASSED [ 66%]
+tests/test_receipt_storage.py::test_sanitize_allows_dimension_at_limit PASSED [ 71%]
+tests/test_receipt_storage.py::test_sanitize_heic_converts_to_jpeg PASSED [ 76%]
+tests/test_receipt_storage.py::test_save_writes_file_to_disk PASSED      [ 80%]
+tests/test_receipt_storage.py::test_save_creates_family_subdirectory PASSED [ 85%]
+tests/test_receipt_storage.py::test_load_reads_file_from_disk PASSED     [ 90%]
+tests/test_receipt_storage.py::test_delete_removes_file_from_disk PASSED [ 95%]
+tests/test_receipt_storage.py::test_delete_is_noop_for_missing_file PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/test_receipt_storage.py::test_sanitize_strips_exif_data
+  /Users/jburns/git/monthly-budget/.worktrees/feature-07-receipt-scanning-claude-ai/backend/.venv/lib/python3.12/site-packages/PIL/TiffImagePlugin.py:949: UserWarning: Corrupt EXIF data.  Expecting to read 4 bytes but only got 0.
+    warnings.warn(str(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 21 passed, 1 warning in 0.41s =========================

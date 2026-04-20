@@ -31,6 +31,7 @@ ACCEPTED_MIMES: frozenset[str] = frozenset(
 )
 
 _MAX_DIMENSION = 3000
+_MAX_INPUT_DIMENSION = 4000
 Image.MAX_IMAGE_PIXELS = 256_000_000
 
 
@@ -53,6 +54,10 @@ def sanitize_image(raw: bytes) -> tuple[bytes, tuple[int, int]]:
     """Re-encode image to JPEG q=85, strip EXIF, resize to max 3000×3000.
 
     Raises PIL.Image.DecompressionBombError if the image exceeds MAX_IMAGE_PIXELS.
+    Raises ValueError if either input dimension exceeds ``_MAX_INPUT_DIMENSION``
+    (4000px) — this guard fires *before* ``Image.load()`` so a crafted image
+    with extreme aspect ratio (e.g. 4096×62499) cannot decode full pixels
+    into memory even while remaining under the pixel-count cap.
 
     Returns
     -------
@@ -60,6 +65,8 @@ def sanitize_image(raw: bytes) -> tuple[bytes, tuple[int, int]]:
         ``(jpeg_bytes, (width, height))`` of the sanitized image.
     """
     base = Image.open(io.BytesIO(raw))
+    if base.width > _MAX_INPUT_DIMENSION or base.height > _MAX_INPUT_DIMENSION:
+        raise ValueError(f"Image dimensions exceed limit: {base.size}")
     base.load()
     img: Image.Image = base.convert("RGB") if base.mode != "RGB" else base
 
