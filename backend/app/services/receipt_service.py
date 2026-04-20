@@ -15,6 +15,7 @@ from pathlib import Path
 
 from anthropic import AsyncAnthropic
 from fastapi import HTTPException
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging import get_logger
@@ -245,6 +246,65 @@ async def process_upload(
     return receipt, expense, needs_edit
 
 
+async def claim_receipt_for_retry(db: AsyncSession, receipt: Receipt) -> Receipt:
+    """Atomically transition ``receipt.status`` from 'failed' to 'processing'.
+
+    Implements the optimistic-locking contract described in the spec's Open
+    Question #2: two concurrent retries on the same failed receipt must not
+    both proceed (which would double-charge Claude). We use a single
+    ``UPDATE receipts SET status='processing' WHERE id=? AND status='failed'``
+    which the database serializes at row-lock granularity; exactly one caller
+    sees a non-zero rowcount, and the other sees zero and gets 409.
+
+    The claim is committed immediately so the in-flight ``processing`` state
+    is visible to other sessions (and to a 409-ing concurrent request).
+
+    Raises
+    ------
+    HTTPException(409)
+        Receipt is not in ``status='failed'`` (already completed, already
+        being retried, or still processing from the initial upload).
+    """
+    # Capture the id now — after a savepoint rollback the ORM instance's
+    # attributes are expired and a lazy reload would re-issue IO on the
+    # (already-rolled-back) session, raising MissingGreenlet.
+    receipt_id = receipt.id
+
+    # Use a savepoint for the claim UPDATE so the no-op path (rowcount=0, 409)
+    # can be rolled back without touching the caller's outer transaction.
+    async with db.begin_nested() as savepoint:
+        stmt = (
+            update(Receipt)
+            .where(Receipt.id == receipt_id, Receipt.status == "failed")
+            .values(status="processing", error_message=None)
+        )
+        result = await db.execute(stmt)
+        rowcount = result.rowcount
+        if rowcount == 0:
+            await savepoint.rollback()
+
+    if rowcount == 0:
+        # Look up the current status for an accurate 409 detail. Query outside
+        # the savepoint so we see the true persisted row (the passed-in
+        # ``receipt.status`` is potentially stale if another session already
+        # transitioned it to 'processing').
+        status_stmt = select(Receipt.status).where(Receipt.id == receipt_id)
+        current_status = await db.scalar(status_stmt)
+        raise HTTPException(
+            status_code=409,
+            detail=f"Receipt cannot be retried from status '{current_status}'.",
+        )
+
+    # Commit the savepoint + outer transaction so the in-flight 'processing'
+    # state is visible to a concurrent retry (which will then see rowcount=0
+    # and 409). This is the spec's optimistic-lock guarantee.
+    await db.commit()
+    # Sync ORM instance with the freshly-committed row state.
+    receipt.status = "processing"
+    receipt.error_message = None
+    return receipt
+
+
 async def reprocess_receipt(
     db: AsyncSession,
     anthropic_client_inst: AsyncAnthropic,
@@ -253,6 +313,9 @@ async def reprocess_receipt(
     """Re-run Phase 2 + Phase 3 for an existing failed receipt.
 
     Used by the retry endpoint. Loads the image from ``receipt.image_path``.
+    Callers must first use :func:`claim_receipt_for_retry` to atomically move
+    the row from ``status='failed'`` to ``status='processing'`` and avoid the
+    concurrent-retry race.
 
     Raises
     ------

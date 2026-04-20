@@ -199,14 +199,18 @@ async def retry_receipt(
     anthropic: Annotated[AsyncAnthropic, Depends(get_anthropic_client)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ReceiptUploadResponse:
-    """Re-run Claude extraction for a failed receipt. Returns 409 if already completed."""
+    """Re-run Claude extraction for a failed receipt.
+
+    Returns 409 if the receipt is not in ``status='failed'``. Uses optimistic
+    locking (``UPDATE ... WHERE status='failed' RETURNING``) so that two
+    concurrent retries on the same receipt cannot both proceed — exactly one
+    caller wins the row-level UPDATE, the other gets 409. See spec Open
+    Question #2.
+    """
     receipt = await _get_receipt_or_404(db, family_id, receipt_id)
 
-    if receipt.status == "completed":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Receipt is already completed and cannot be retried.",
-        )
+    # Atomic failed->processing transition (raises 409 on non-failed rows).
+    receipt = await receipt_service.claim_receipt_for_retry(db, receipt)
 
     receipt, expense, needs_edit = await receipt_service.reprocess_receipt(db, anthropic, receipt)
     await db.commit()

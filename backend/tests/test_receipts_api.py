@@ -737,6 +737,161 @@ async def test_retry_failed_receipt_returns_200(db_session: AsyncSession, authen
     assert body["expense_id"] is not None
 
 
+@pytest.mark.asyncio
+async def test_retry_processing_receipt_returns_409(db_session: AsyncSession, authenticated_client) -> None:
+    """Retrying a receipt already in 'processing' status (e.g. another retry
+    in-flight) must return 409 — only 'failed' rows may be retried. Regression
+    test for FIX-REVIEW-30 / spec Open Question #2 (optimistic-lock).
+    """
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    receipt = await create_test_receipt(db_session, family, user, status="processing")
+
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        async with authenticated_client(user) as client:
+            resp = await client.post(f"/api/families/{family.id}/receipts/{receipt.id}/retry")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 409
+    assert "processing" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_retry_uses_atomic_failed_to_processing_update(
+    db_session: AsyncSession, authenticated_client, tmp_path: Path
+) -> None:
+    """The retry endpoint must claim the row via an atomic
+    ``UPDATE ... WHERE status='failed'`` (optimistic lock). Verify the
+    row has already transitioned to 'processing' by the time
+    ``reprocess_receipt`` is invoked — proving the claim ran first.
+    """
+    from app.main import app
+    from app.services import receipt_service as _rs
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family)
+    image_file = tmp_path / "receipt.jpg"
+    image_file.write_bytes(VALID_JPEG)
+    # Commit setup so the claim UPDATE (issued on a different session) can see the row.
+    receipt = await create_test_receipt(db_session, family, user, image_path=str(image_file), status="failed")
+    await db_session.commit()
+
+    captured_status_when_reprocess_called: dict[str, str] = {}
+
+    orig_reprocess = _rs.reprocess_receipt
+
+    async def spy_reprocess(db, anth, r):
+        captured_status_when_reprocess_called["status"] = r.status
+        return await orig_reprocess(db, anth, r)
+
+    # Use a production-like get_db so the claim's commit is real.
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+
+    def production_like_get_db(eng):
+        async def _override() -> AsyncGenerator[AsyncSession, None]:
+            session = AsyncSession(eng, expire_on_commit=False)
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+        return _override
+
+    app.dependency_overrides[get_db] = production_like_get_db(engine)
+    try:
+        with (
+            patch("app.services.receipt_service.reprocess_receipt", side_effect=spy_reprocess),
+            patch(
+                "app.services.receipt_service.claude_client.extract_receipt",
+                AsyncMock(return_value=_extracted()),
+            ),
+            patch(
+                "app.services.receipt_service.category_suggestion.suggest_for_store",
+                AsyncMock(return_value=category),
+            ),
+        ):
+            async with authenticated_client(user) as client:
+                resp = await client.post(f"/api/families/{family.id}/receipts/{receipt.id}/retry")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        # Cleanup committed row so later tests don't see it.
+        cleanup_session = AsyncSession(engine, expire_on_commit=False)
+        try:
+            await cleanup_session.execute(Receipt.__table__.delete().where(Receipt.id == receipt.id))
+            await cleanup_session.commit()
+        finally:
+            await cleanup_session.close()
+        await engine.dispose()
+
+    assert resp.status_code == 200
+    # The service layer must have observed status='processing' at reprocess time,
+    # proving the atomic claim ran before reprocess.
+    assert captured_status_when_reprocess_called.get("status") == "processing", (
+        "reprocess_receipt must be called AFTER the failed->processing claim commits"
+    )
+
+
+@pytest.mark.asyncio
+async def test_retry_concurrent_only_one_succeeds(
+    db_session: AsyncSession, authenticated_client, tmp_path: Path
+) -> None:
+    """Two concurrent retries on the same failed receipt: exactly one sees
+    the atomic UPDATE land (status=failed row), the other must get 409.
+    Simulates the race by calling ``claim_receipt_for_retry`` twice against
+    the same row on separate sessions.
+    """
+    from app.services import receipt_service as _rs
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    image_file = tmp_path / "receipt.jpg"
+    image_file.write_bytes(VALID_JPEG)
+    receipt = await create_test_receipt(db_session, family, user, image_path=str(image_file), status="failed")
+    await db_session.commit()
+
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        session_a = AsyncSession(engine, expire_on_commit=False)
+        session_b = AsyncSession(engine, expire_on_commit=False)
+        try:
+            # Each session re-loads the receipt so they hold separate ORM instances.
+            r_a = (await session_a.execute(select(Receipt).where(Receipt.id == receipt.id))).scalar_one()
+            r_b = (await session_b.execute(select(Receipt).where(Receipt.id == receipt.id))).scalar_one()
+
+            # First claim wins.
+            await _rs.claim_receipt_for_retry(session_a, r_a)
+            assert r_a.status == "processing"
+
+            # Second claim observes status='processing' and must 409.
+            from fastapi import HTTPException as _HTTPExc
+
+            with pytest.raises(_HTTPExc) as excinfo:
+                await _rs.claim_receipt_for_retry(session_b, r_b)
+            assert excinfo.value.status_code == 409
+            assert "processing" in excinfo.value.detail
+        finally:
+            await session_a.close()
+            await session_b.close()
+            # Cleanup committed row so later tests don't see it.
+            cleanup_session = AsyncSession(engine, expire_on_commit=False)
+            try:
+                await cleanup_session.execute(Receipt.__table__.delete().where(Receipt.id == receipt.id))
+                await cleanup_session.commit()
+            finally:
+                await cleanup_session.close()
+    finally:
+        await engine.dispose()
+
+
 # ---------------------------------------------------------------------------
 # DELETE /api/families/{family_id}/receipts/{receipt_id}
 # ---------------------------------------------------------------------------
