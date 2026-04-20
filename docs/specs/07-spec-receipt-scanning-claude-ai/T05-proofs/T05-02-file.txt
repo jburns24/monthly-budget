@@ -1,0 +1,24 @@
+Type: file
+Check: frontend/src/components/expenses/ExpenseList.tsx updated with receipt badge and Needs review chip
+Expected: 📄 badge overlay on category icon for completed receipts; Needs review chip for amount_cents=0 + completed
+Timestamp: 2026-04-19T00:00:00Z
+
+File: frontend/src/components/expenses/ExpenseList.tsx
+Changes verified:
+- Added Badge to imports from @chakra-ui/react
+- Category icon wrapped in Box position="relative" to support overlay positioning
+- Added conditional overlay: expense.receipt_status === 'completed' renders Box with:
+    position="absolute", bottom="-4px", right="-4px", title="Added via receipt",
+    data-testid="expense-receipt-badge-{expense.id}", aria-label="Added via receipt", text 📄
+- Description area wrapped in Flex to allow inline chip display
+- Added conditional Badge: expense.receipt_status === 'completed' && expense.amount_cents === 0 renders:
+    Badge colorPalette="yellow" variant="subtle" size="sm"
+    data-testid="expense-needs-review-{expense.id}", text "Needs review"
+
+File: frontend/src/__tests__/ExpenseList.test.tsx
+Changes verified:
+- Updated sampleExpenses fixtures to include receipt_id: null, receipt_status: null (type correctness)
+- Added describe block "receipt badge" with 5 tests
+- Added describe block "needs review chip" with 3 tests
+
+Status: PASS

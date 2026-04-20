@@ -25,6 +25,8 @@ const sampleExpenses: Expense[] = [
     expense_date: '2026-04-01',
     created_at: '2026-04-01T10:00:00Z',
     updated_at: '2026-04-01T10:00:00Z',
+    receipt_id: null,
+    receipt_status: null,
   },
   {
     id: 'exp-2',
@@ -36,6 +38,8 @@ const sampleExpenses: Expense[] = [
     expense_date: '2026-04-03',
     created_at: '2026-04-03T08:00:00Z',
     updated_at: '2026-04-03T08:00:00Z',
+    receipt_id: null,
+    receipt_status: null,
   },
 ]
 
@@ -159,5 +163,103 @@ describe('ExpenseList', () => {
     expect(screen.getByTestId('expense-description-exp-no-desc')).toHaveTextContent(
       '(no description)'
     )
+  })
+
+  describe('receipt badge', () => {
+    it('shows receipt badge on expense with completed receipt_status', () => {
+      const expenses: Expense[] = [
+        { ...sampleExpenses[0], id: 'exp-r', receipt_id: 'rec-1', receipt_status: 'completed' },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.getByTestId('expense-receipt-badge-exp-r')).toBeInTheDocument()
+    })
+
+    it('badge has title "Added via receipt"', () => {
+      const expenses: Expense[] = [
+        { ...sampleExpenses[0], id: 'exp-r', receipt_id: 'rec-1', receipt_status: 'completed' },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.getByTestId('expense-receipt-badge-exp-r')).toHaveAttribute(
+        'title',
+        'Added via receipt'
+      )
+    })
+
+    it('does not show receipt badge when receipt_status is null', () => {
+      const expenses: Expense[] = [
+        { ...sampleExpenses[0], id: 'exp-no-r', receipt_id: null, receipt_status: null },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.queryByTestId('expense-receipt-badge-exp-no-r')).not.toBeInTheDocument()
+    })
+
+    it('does not show receipt badge when receipt_status is processing', () => {
+      const expenses: Expense[] = [
+        {
+          ...sampleExpenses[0],
+          id: 'exp-proc',
+          receipt_id: 'rec-2',
+          receipt_status: 'processing',
+        },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.queryByTestId('expense-receipt-badge-exp-proc')).not.toBeInTheDocument()
+    })
+
+    it('category icon remains visible alongside the receipt badge', () => {
+      const expenses: Expense[] = [
+        { ...sampleExpenses[0], id: 'exp-both', receipt_id: 'rec-3', receipt_status: 'completed' },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.getByTestId('expense-category-icon-exp-both')).toBeInTheDocument()
+      expect(screen.getByTestId('expense-receipt-badge-exp-both')).toBeInTheDocument()
+    })
+  })
+
+  describe('needs review chip', () => {
+    it('shows "Needs review" chip when amount_cents is 0 and receipt_status is completed', () => {
+      const expenses: Expense[] = [
+        {
+          ...sampleExpenses[0],
+          id: 'exp-zero',
+          amount_cents: 0,
+          receipt_id: 'rec-4',
+          receipt_status: 'completed',
+        },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.getByTestId('expense-needs-review-exp-zero')).toBeInTheDocument()
+      expect(screen.getByTestId('expense-needs-review-exp-zero')).toHaveTextContent('Needs review')
+    })
+
+    it('does not show "Needs review" chip when amount_cents is non-zero', () => {
+      const expenses: Expense[] = [
+        { ...sampleExpenses[0], id: 'exp-ok', receipt_id: 'rec-5', receipt_status: 'completed' },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.queryByTestId('expense-needs-review-exp-ok')).not.toBeInTheDocument()
+    })
+
+    it('does not show "Needs review" chip when receipt_status is not completed', () => {
+      const expenses: Expense[] = [
+        {
+          ...sampleExpenses[0],
+          id: 'exp-proc2',
+          amount_cents: 0,
+          receipt_id: 'rec-6',
+          receipt_status: 'processing',
+        },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.queryByTestId('expense-needs-review-exp-proc2')).not.toBeInTheDocument()
+    })
   })
 })

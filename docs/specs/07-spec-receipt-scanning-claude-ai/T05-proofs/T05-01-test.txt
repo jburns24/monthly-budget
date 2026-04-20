@@ -1,0 +1,18 @@
+Type: test
+Command: npm run test:run -- --reporter=verbose (ExpenseList receipt badge and needs review chip tests)
+Expected: 8 new tests pass covering receipt badge overlay and Needs review chip
+Timestamp: 2026-04-19T00:00:00Z
+
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > receipt badge > shows receipt badge on expense with completed receipt_status 15ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > receipt badge > badge has title "Added via receipt" 10ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > receipt badge > does not show receipt badge when receipt_status is null 4ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > receipt badge > does not show receipt badge when receipt_status is processing 8ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > receipt badge > category icon remains visible alongside the receipt badge 3ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > needs review chip > shows "Needs review" chip when amount_cents is 0 and receipt_status is completed 4ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > needs review chip > does not show "Needs review" chip when amount_cents is non-zero 3ms
+ ✓ src/__tests__/ExpenseList.test.tsx > ExpenseList > needs review chip > does not show "Needs review" chip when receipt_status is not completed 3ms
+
+ Test Files  23 passed (23)
+      Tests  202 passed (202)
+
+Status: PASS
