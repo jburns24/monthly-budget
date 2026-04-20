@@ -1,0 +1,42 @@
+Type: test
+Command: npm run test:run
+Expected: All tests pass including ReceiptCaptureDialog tests (one describe per Phase)
+Timestamp: 2026-04-19T17:56:10Z
+Status: PASS
+
+Test Files  22 passed (22)
+      Tests  187 passed (187)
+
+New tests added in ReceiptCaptureDialog.test.tsx:
+
+idle phase
+  ✓ renders dialog when open
+  ✓ does not render dialog when closed
+  ✓ shows dropzone with instructions
+  ✓ file input has capture="environment"
+  ✓ shows Cancel button
+
+preview phase
+  ✓ shows preview image after file selected
+  ✓ shows file name
+  ✓ shows Back and Upload buttons
+  ✓ Back button returns to idle phase
+
+uploading phase
+  ✓ shows spinner after Upload clicked
+  ✓ returns to preview and shows error toast on upload failure
+  ✓ maps 422 error to "not a receipt" description
+
+reviewing phase
+  ✓ shows merchant and amount from upload response
+  ✓ formats null amount and merchant as dash
+  ✓ shows needs-review badge when needs_edit is true
+  ✓ does not show needs-review badge when needs_edit is false
+  ✓ populates category select from categories API
+  ✓ shows Confirm and Cancel buttons
+  ✓ invalidates expenses, budget-summary, and receipts queries on upload success
+
+done phase
+  ✓ shows success message after Confirm clicked
+  ✓ shows Close button in done phase
+  ✓ Close button calls onOpenChange(false)
