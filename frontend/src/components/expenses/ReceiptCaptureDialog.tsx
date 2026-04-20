@@ -166,7 +166,11 @@ export default function ReceiptCaptureDialog({
   const effectiveCategoryId = state.categoryId || categories[0]?.id || ''
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()} placement="center">
+    <DialogRoot
+      open={open}
+      onOpenChange={(e) => !e.open && handleClose()}
+      placement={{ base: 'bottom', md: 'center' }}
+    >
       <DialogBackdrop />
       <DialogPositioner>
         <DialogContent data-testid="receipt-capture-dialog">

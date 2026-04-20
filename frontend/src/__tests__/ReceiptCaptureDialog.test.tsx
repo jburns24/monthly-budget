@@ -292,6 +292,29 @@ describe('reviewing phase', () => {
   })
 })
 
+describe('responsive placement', () => {
+  it('passes responsive placement (bottom on mobile, center on md+) to DialogRoot', async () => {
+    vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+    const chakra = await import('@chakra-ui/react')
+    const DialogRootSpy = vi.spyOn(chakra, 'DialogRoot')
+    renderDialog()
+    await waitFor(() => expect(screen.getByTestId('receipt-capture-dialog')).toBeInTheDocument())
+    // Locate the call whose placement prop is the responsive object.
+    const responsiveCall = DialogRootSpy.mock.calls
+      .map(([props]) => props as { placement?: unknown } | null)
+      .find(
+        (p) =>
+          p != null &&
+          typeof p.placement === 'object' &&
+          p.placement !== null &&
+          'base' in (p.placement as object)
+      )
+    expect(responsiveCall).toBeDefined()
+    expect(responsiveCall!.placement).toEqual({ base: 'bottom', md: 'center' })
+    DialogRootSpy.mockRestore()
+  })
+})
+
 describe('done phase', () => {
   it('shows success message after Confirm clicked', async () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)

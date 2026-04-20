@@ -1,0 +1,16 @@
+Type: file
+Command: grep -n "placement" frontend/src/components/expenses/ReceiptCaptureDialog.tsx
+Expected: DialogRoot placement prop is responsive — { base: 'bottom', md: 'center' } — per spec §Design Considerations and review ISSUE-6.
+Timestamp: 2026-04-19T07:19:30Z
+Status: PASS
+
+--- Output ---
+172:      placement={{ base: 'bottom', md: 'center' }}
+
+--- Surrounding context (lines 168-174) ---
+  return (
+    <DialogRoot
+      open={open}
+      onOpenChange={(e) => !e.open && handleClose()}
+      placement={{ base: 'bottom', md: 'center' }}
+    >
