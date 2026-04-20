@@ -1,0 +1,8 @@
+=== claude_client.py structure ===
+Model: claude-haiku-4-5-20251001
+Tool name: extract_receipt
+Tool required fields: ['is_receipt', 'confidence']
+Retry retryable: 429=True
+Retry retryable: 500=True
+Retry retryable: 400=False
+Retry retryable: APIConnectionError=True
