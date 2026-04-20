@@ -1,0 +1,32 @@
+Type: test
+Description: All dev_receipts router tests pass — mock-claude toggle + production 404
+Command: uv run pytest tests/test_dev_receipts_router.py -v
+Expected: 7 passed
+Timestamp: 2026-04-19T00:00:00Z
+
+--- OUTPUT ---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.0.2, pluggy-1.6.0
+asyncio: mode=Mode.AUTO
+
+tests/test_dev_receipts_router.py::test_set_scenario_returns_scenario_json PASSED [ 14%]
+tests/test_dev_receipts_router.py::test_set_scenario_updates_settings PASSED [ 28%]
+tests/test_dev_receipts_router.py::test_default_scenario_is_success PASSED [ 42%]
+tests/test_dev_receipts_router.py::test_all_named_scenarios_accepted PASSED [ 57%]
+tests/test_dev_receipts_router.py::test_mock_route_returns_404_in_production PASSED [ 71%]
+tests/test_dev_receipts_router.py::test_mock_route_returns_404_in_staging PASSED [ 85%]
+tests/test_dev_receipts_router.py::test_mock_route_accessible_in_test_env PASSED [100%]
+
+============================== 7 passed in 0.44s ===============================
+
+--- VERIFICATION ---
+All 7 tests passed:
+  - POST /api/dev/mock-claude?scenario=non_receipt returns {"scenario": "non_receipt"}
+  - Route updates settings.anthropic_mock_scenario in-process
+  - Default scenario (no param) is "success"
+  - All 5 documented scenarios accepted (success, medium_confidence, low_confidence, non_receipt, api_error)
+  - Returns 404 when environment="production" (env gate)
+  - Returns 404 when environment="staging" (env gate)
+  - Returns 200 when environment="test"
+  Spec proof test_mock_route_returns_404_in_production: PASS
+Status: PASS
