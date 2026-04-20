@@ -1,0 +1,21 @@
+Type: cli
+Command: cd backend && uv run alembic upgrade head
+Expected: head is e8b1c9f7a321 and ck_expenses_amount_positive reads amount_cents >= 0
+Timestamp: 2026-04-19T12:00:00Z
+Status: PASS
+
+--- alembic upgrade head ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade c4e2f1b3d5a8 -> e8b1c9f7a321, relax expenses amount CHECK to allow zero for low-confidence receipts
+
+--- alembic current ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+e8b1c9f7a321 (head)
+
+--- psql: SELECT pg_get_constraintdef for ck_expenses_amount_positive ---
+           conname           |    pg_get_constraintdef
+-----------------------------+-----------------------------
+ ck_expenses_amount_positive | CHECK ((amount_cents >= 0))
+(1 row)

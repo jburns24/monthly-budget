@@ -99,11 +99,17 @@ async def _run_phase3(
 
             if suggested_category is not None:
                 now = datetime.now(tz=timezone.utc)
+                # Spec §Unit 3: low-confidence or missing-total extractions persist
+                # with amount_cents=0 so the frontend "Needs review" chip fires
+                # (keyed on receipt_status == 'completed' && amount_cents == 0).
+                # When needs_edit is False, total_cents is guaranteed not None
+                # (needs_edit = low-confidence OR total_cents is None).
+                expense_amount_cents: int = total_cents if (total_cents is not None and not needs_edit) else 0
                 expense = Expense(
                     family_id=family_id,
                     user_id=uploader_id,
                     category_id=suggested_category.id,
-                    amount_cents=total_cents if total_cents is not None else 1,
+                    amount_cents=expense_amount_cents,
                     description=description,
                     expense_date=expense_date,
                     year_month=year_month,

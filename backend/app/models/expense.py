@@ -16,7 +16,10 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     __table_args__ = (
-        CheckConstraint("amount_cents > 0", name="ck_expenses_amount_positive"),
+        # Allow 0 for low-confidence receipt scans (spec §Unit 3) — the frontend
+        # "Needs review" chip keys on amount_cents == 0. Manual expense entry
+        # still enforces > 0 at the schema layer.
+        CheckConstraint("amount_cents >= 0", name="ck_expenses_amount_positive"),
         Index("idx_expenses_family", "family_id"),
         Index("idx_expenses_family_year_month", "family_id", "year_month"),
         Index("idx_expenses_category", "category_id"),

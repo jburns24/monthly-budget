@@ -124,29 +124,35 @@ async def test_expense_year_month_is_populated(db_session: AsyncSession) -> None
 
 
 @pytest.mark.asyncio
-async def test_expense_amount_cents_check_constraint_rejects_zero(db_session: AsyncSession) -> None:
-    """amount_cents CHECK constraint rejects zero values."""
+async def test_expense_amount_cents_check_constraint_allows_zero(db_session: AsyncSession) -> None:
+    """amount_cents CHECK constraint permits zero for low-confidence receipt scans.
+
+    Spec §Unit 3: a Claude ``low``-confidence extraction persists an Expense with
+    ``amount_cents=0`` so the frontend "Needs review" chip fires. Manual expense
+    entry still enforces ``amount_cents > 0`` at the Pydantic schema layer.
+    """
     owner = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, owner)
     category = await create_test_category(db_session, family)
     now = datetime.now(tz=timezone.utc)
 
-    with pytest.raises(IntegrityError):
-        async with db_session.begin_nested():
-            db_session.add(
-                Expense(
-                    family_id=family.id,
-                    category_id=category.id,
-                    user_id=owner.id,
-                    amount_cents=0,
-                    description="Zero amount",
-                    expense_date=date(2026, 4, 1),
-                    year_month="2026-04",
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            await db_session.flush()
+    async with db_session.begin_nested():
+        expense = Expense(
+            family_id=family.id,
+            category_id=category.id,
+            user_id=owner.id,
+            amount_cents=0,
+            description="Low-confidence receipt placeholder",
+            expense_date=date(2026, 4, 1),
+            year_month="2026-04",
+            created_at=now,
+            updated_at=now,
+        )
+        db_session.add(expense)
+        await db_session.flush()
+
+    await db_session.refresh(expense)
+    assert expense.amount_cents == 0
 
 
 @pytest.mark.asyncio

@@ -82,10 +82,21 @@ async def test_c4e2f1b3d5a8_upgrade_downgrade() -> None:
         row = result.fetchone()
         assert row is not None, "pg_trgm extension should be installed"
 
+    # Purge any zero-amount expense rows left behind by receipt-scanning tests
+    # before downgrading: migration e8b1c9f7a321's downgrade reinstates the
+    # strict ``amount_cents > 0`` CHECK constraint, which would fail if any
+    # low-confidence placeholder rows are present.
+    engine_cleanup = create_async_engine(settings.database_url, poolclass=NullPool)
+    async with engine_cleanup.begin() as conn:
+        await conn.execute(text("DELETE FROM expenses WHERE amount_cents = 0"))
+    await engine_cleanup.dispose()
+
     await engine.dispose()
 
-    # Downgrade one step back (removes c4e2f1b3d5a8)
-    _run_alembic("downgrade", "-1")
+    # Downgrade to the revision directly before c4e2f1b3d5a8 so the assertions
+    # below (receipts table, fk_expenses_receipt, trgm index) are reverted
+    # regardless of how many revisions have been stacked on top.
+    _run_alembic("downgrade", "c3f1d8a92e45")  # pragma: allowlist secret
 
     # Verify receipts table is gone and FK is removed
     engine2 = create_async_engine(settings.database_url, poolclass=NullPool)
