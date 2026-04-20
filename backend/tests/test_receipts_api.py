@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from PIL import Image
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -350,6 +351,103 @@ async def test_upload_claude_api_error_returns_503(
         app.dependency_overrides.pop(get_db, None)
 
     assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_failed_receipt_image_cleaned_up(db_session: AsyncSession, authenticated_client, tmp_path: Path) -> None:
+    """Regression (task 26): on a Claude API 503, the Receipt audit row must persist
+    with ``status='failed'`` even though the router's ``get_db`` dependency calls
+    ``session.rollback()`` when the HTTPException propagates.
+
+    Uses an ``override_get_db`` that faithfully mirrors the production
+    ``app.database.get_db`` try/yield/commit/rollback contract so the rollback is
+    exercised. The fix in ``_mark_failed`` explicitly commits the failed audit
+    row before the HTTPException is raised, so a post-commit rollback becomes
+    a no-op and the row survives.
+
+    Also verifies the image is preserved on Claude errors (not deleted) so the
+    retry endpoint can re-run extraction against the on-disk file.
+    """
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    # Persist setup rows so the separate API session can see them.
+    await db_session.commit()
+
+    image_path = tmp_path / "receipt.jpg"
+    image_path.write_bytes(b"sanitized image bytes")
+    delete_mock = AsyncMock()
+
+    # Build an override_get_db that faithfully matches production semantics:
+    # yield a session, commit on success, rollback on exception, always close.
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    real_session_factory = AsyncSession
+
+    def production_like_get_db(eng):
+        async def _override() -> AsyncGenerator[AsyncSession, None]:
+            session = real_session_factory(eng, expire_on_commit=False)
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+        return _override
+
+    app.dependency_overrides[get_db] = production_like_get_db(engine)
+    try:
+        with (
+            patch("app.services.receipt_service.receipt_storage.validate_mime", return_value="image/jpeg"),
+            patch(
+                "app.services.receipt_service.receipt_storage.sanitize_image",
+                return_value=(b"sanitized", (100, 100)),
+            ),
+            patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
+            patch("app.services.receipt_service.receipt_storage.delete", delete_mock),
+            patch(
+                "app.services.receipt_service.claude_client.extract_receipt",
+                AsyncMock(side_effect=Exception("Claude API unavailable")),
+            ),
+            patch(
+                "app.routers.receipts.rate_limiter.check_and_increment_receipt_upload",
+                AsyncMock(return_value=(True, 1)),
+            ),
+        ):
+            async with authenticated_client(user) as client:
+                resp = await client.post(
+                    f"/api/families/{family.id}/receipts",
+                    files={"file": ("receipt.jpg", VALID_JPEG, "image/jpeg")},
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 503
+
+    # Claude errors keep the image on disk so retry can re-run extraction.
+    delete_mock.assert_not_called()
+
+    # The audit row must persist even though get_db rolled back on the exception.
+    # Open a fresh session to bypass any identity-map caching on db_session.
+    verify_session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        result = await verify_session.execute(select(Receipt).where(Receipt.family_id == family.id))
+        receipt = result.scalar_one_or_none()
+        assert receipt is not None, "Receipt audit row must persist after 503 (task 26 regression)"
+        assert receipt.status == "failed"
+        assert receipt.error_message is not None
+        assert "Claude API error" in receipt.error_message
+
+        # Clean up the persisted receipt so the per-test rollback strategy isn't
+        # left with an orphaned row visible to subsequent tests.
+        await verify_session.delete(receipt)
+        await verify_session.commit()
+    finally:
+        await verify_session.close()
+        await engine.dispose()
 
 
 # ---------------------------------------------------------------------------

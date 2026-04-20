@@ -1,0 +1,51 @@
+Type: test (regression demonstration)
+Command: git stash -- app/services/receipt_service.py && pytest tests/test_receipts_api.py::test_failed_receipt_image_cleaned_up
+Expected: FAIL without fix, PASS with fix
+Timestamp: 2026-04-19T00:00:00Z
+Status: PASS (regression test correctly detects the bug when fix is reverted)
+
+=== Without fix (app/services/receipt_service.py stashed) ===
+Receipt row NOT persisted — rollback in get_db() wiped both the Phase-1 INSERT
+and the _mark_failed savepoint UPDATE. Test fails at the assertion:
+
+    assert receipt is not None, "Receipt audit row must persist after 503 (task 26 regression)"
+    AssertionError: Receipt audit row must persist after 503 (task 26 regression)
+    assert None is not None
+
+    tests/test_receipts_api.py:441: AssertionError
+
+Captured service logs (shows the code reached _mark_failed but the commit never
+happened in the old version):
+    receipt_phase1_complete
+    receipt_phase2_failed error='Claude API unavailable'
+    HTTP/1.1 503 Service Unavailable
+
+=========================== short test summary info ============================
+FAILED tests/test_receipts_api.py::test_failed_receipt_image_cleaned_up - AssertionError
+============================== 1 failed in 0.64s ===============================
+
+=== With fix (current code) ===
+_mark_failed now `await db.commit()`s the failed audit row before the caller
+raises HTTPException. get_db()'s subsequent rollback becomes a no-op, the row
+persists, and the regression test passes.
+
+tests/test_receipts_api.py::test_failed_receipt_image_cleaned_up PASSED  [100%]
+============================== 1 passed in 0.63s ===============================
+
+=== Summary of fix ===
+File modified: backend/app/services/receipt_service.py
+Function: _mark_failed
+Change: Added `await db.commit()` after the nested savepoint exits so the
+failed audit row is durable before the HTTPException propagates up through
+get_db (which would otherwise roll back the entire outer transaction and
+wipe both the Phase-1 Receipt(status='processing') INSERT and the
+status='failed' UPDATE). Also preserves the on-disk image for Claude-error
+branches (callers pass image_path=None) so the retry endpoint can re-run
+extraction.
+
+File modified: backend/tests/test_receipts_api.py
+Added: test_failed_receipt_image_cleaned_up regression test that
+faithfully mirrors production get_db() semantics (commit on success,
+rollback on exception) and asserts the Receipt row with status='failed'
+persists after a 503, and that the image is NOT deleted for Claude errors
+(per the retry contract).
