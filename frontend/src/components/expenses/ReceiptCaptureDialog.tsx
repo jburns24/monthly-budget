@@ -1,4 +1,4 @@
-import { useCallback, useReducer } from 'react'
+import { useCallback, useReducer, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
 import {
@@ -130,11 +130,25 @@ export default function ReceiptCaptureDialog({
     },
   })
 
+  const [dropError, setDropError] = useState<string | null>(null)
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
     if (!file) return
+    setDropError(null)
     const previewUrl = URL.createObjectURL(file)
     dispatch({ type: 'FILE_SELECTED', file, previewUrl })
+  }, [])
+
+  const onDropRejected = useCallback((fileRejections: { errors: { code: string }[] }[]) => {
+    const codes = fileRejections.flatMap((r) => r.errors.map((e) => e.code))
+    if (codes.includes('file-too-large')) {
+      setDropError('Image too large (max 5MB).')
+    } else if (codes.includes('file-invalid-type')) {
+      setDropError('Unsupported format — use JPEG, PNG, WebP, or HEIC.')
+    } else {
+      setDropError('File could not be used.')
+    }
   }, [])
 
   const { getRootProps, getInputProps } = useDropzone({
@@ -148,6 +162,7 @@ export default function ReceiptCaptureDialog({
     maxSize: MAX_SIZE,
     maxFiles: 1,
     onDropAccepted: onDrop,
+    onDropRejected,
     disabled: state.phase !== 'idle',
   })
 
@@ -199,6 +214,17 @@ export default function ReceiptCaptureDialog({
                 <Text fontSize="xs" color="gray.400" mt={2}>
                   JPEG, PNG, WebP, or HEIC — max 5MB
                 </Text>
+                {dropError && (
+                  <Text
+                    data-testid="receipt-drop-error"
+                    role="alert"
+                    mt={3}
+                    color="red.600"
+                    fontSize="sm"
+                  >
+                    {dropError}
+                  </Text>
+                )}
               </Box>
             )}
 

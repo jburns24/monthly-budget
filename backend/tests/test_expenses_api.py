@@ -459,8 +459,8 @@ async def test_update_expense_updates_fields(db_session: AsyncSession, authentic
         category,
         amount_cents=500,
         description="Bus ticket",
-        expense_date=date(2026, 4, 5),
-        year_month="2026-04",
+        expense_date=date.today().replace(day=1),
+        year_month=f"{date.today().year}-{date.today().month:02d}",
     )
 
     app.dependency_overrides[get_db] = override_get_db(db_session)
@@ -495,7 +495,13 @@ async def test_update_expense_returns_409_on_stale_updated_at(db_session: AsyncS
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Entertainment")
     expense = await create_test_expense(
-        db_session, family, user, category, amount_cents=2000, expense_date=date(2026, 4, 10), year_month="2026-04"
+        db_session,
+        family,
+        user,
+        category,
+        amount_cents=2000,
+        expense_date=date.today().replace(day=1),
+        year_month=f"{date.today().year}-{date.today().month:02d}",
     )
 
     # Use a stale timestamp (different from the actual updated_at)
@@ -560,7 +566,13 @@ async def test_delete_expense_removes_record(db_session: AsyncSession, authentic
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Other")
     expense = await create_test_expense(
-        db_session, family, user, category, amount_cents=999, expense_date=date(2026, 4, 20), year_month="2026-04"
+        db_session,
+        family,
+        user,
+        category,
+        amount_cents=999,
+        expense_date=date.today().replace(day=1),
+        year_month=f"{date.today().year}-{date.today().month:02d}",
     )
     expense_id = expense.id
 
@@ -637,7 +649,13 @@ async def test_delete_expense_cascades_to_receipt(db_session: AsyncSession, auth
     category = await create_test_category(db_session, family, name="Groceries")
     receipt = await create_test_receipt(db_session, family, user, image_path="/data/receipts/test.jpg")
     expense = await create_test_expense(
-        db_session, family, user, category, amount_cents=500, expense_date=date(2026, 4, 1), year_month="2026-04"
+        db_session,
+        family,
+        user,
+        category,
+        amount_cents=500,
+        expense_date=date.today().replace(day=1),
+        year_month=f"{date.today().year}-{date.today().month:02d}",
     )
     expense.receipt_id = receipt.id
     await db_session.flush()

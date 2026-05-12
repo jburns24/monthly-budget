@@ -84,7 +84,7 @@ async def create_expense(
     # Reload with eager-loaded relationships via selectinload
     result = await db.execute(
         select(Expense)
-        .options(selectinload(Expense.category), selectinload(Expense.user))
+        .options(selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
         .where(Expense.id == expense.id)
     )
     expense = result.scalar_one()
@@ -130,7 +130,11 @@ async def list_expenses(
     offset = (page - 1) * per_page
     data_result = await db.execute(
         select(Expense)
-        .options(selectinload(Expense.category), selectinload(Expense.user))
+        .options(
+            selectinload(Expense.category),
+            selectinload(Expense.user),
+            selectinload(Expense.receipt),
+        )
         .where(*base_filters)
         .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
         .offset(offset)
@@ -161,7 +165,7 @@ async def get_expense(
     """
     result = await db.execute(
         select(Expense)
-        .options(selectinload(Expense.category), selectinload(Expense.user))
+        .options(selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
         .where(Expense.id == expense_id, Expense.family_id == family_id)
     )
     expense = result.scalar_one_or_none()
@@ -224,7 +228,7 @@ async def update_expense(
     # Reload with eager-loaded relationships via selectinload
     reload_result = await db.execute(
         select(Expense)
-        .options(selectinload(Expense.category), selectinload(Expense.user))
+        .options(selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
         .where(Expense.id == expense_id)
     )
     expense = reload_result.scalar_one()
