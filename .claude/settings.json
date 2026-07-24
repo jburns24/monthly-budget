@@ -1,12 +1,16 @@
 {
-  "enabledPlugins": {
-    "claude-workflow@claude-workflow": true
-  },
   "env": {
     "CLAUDE_CODE_TASK_LIST_ID": "monthly-budget-auth"
   },
   "allowedMcpServers": [
-    { "serverName": "context7" },
-    { "serverName": "chrome-devtools" }
-  ]
+    {
+      "serverName": "context7"
+    },
+    {
+      "serverName": "chrome-devtools"
+    }
+  ],
+  "enabledPlugins": {
+    "claude-workflow@claude-workflow": true
+  }
 }

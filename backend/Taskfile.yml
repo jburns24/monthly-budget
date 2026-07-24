@@ -30,6 +30,7 @@ tasks:
   db:migrate:
     desc: Run database migrations
     cmds:
+      - ../scripts/dev/ensure_dev_db.sh
       - uv run alembic upgrade head
 
   db:revision:

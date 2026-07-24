@@ -50,6 +50,12 @@ tasks:
       - tilt down
       - pkill -f "tilt up" 2>/dev/null || true
 
+  db:reset:
+    desc: Wipe dev Postgres volume and re-run migrations (requires Tilt)
+    cmds:
+      - ./scripts/dev/ensure_dev_db.sh --force-reset
+      - tilt trigger db:migrate --port 10350
+
   clean:
     desc: Clean generated files and caches
     deps: [be:clean, fe:clean]

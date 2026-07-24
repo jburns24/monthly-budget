@@ -83,9 +83,11 @@ local_resource(
 
 local_resource(
     'db:migrate',
-    cmd='cd backend && uv run alembic upgrade head',
+    cmd='./scripts/dev/ensure_dev_db.sh && cd backend && uv run alembic upgrade head',
     env={
         'DATABASE_URL': database_url,
+        'POSTGRES_USER': pg_user,
+        'POSTGRES_DB': pg_db,
     },
     resource_deps=['db'],
     trigger_mode=TRIGGER_MODE_MANUAL,

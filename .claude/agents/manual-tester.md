@@ -1,32 +1,12 @@
 ---
 name: manual-tester
 description: Use this agent to manually test app flows in the browser using the chrome-devtools MCP. Invoke when asked to test a feature, verify a fix, explore a flow, or catch console errors and a11y issues. The agent knows the project's dev-auth bypass, how to reset test data, and which flows to cover.
+tools: mcp__chrome-devtools__*, Skill, Read, Write
 mcpServers:
-  chrome-devtools:
-    type: stdio
-    command: npx
-    args: ["-y", "chrome-devtools-mcp@latest"]
-tools:
-  - mcp__chrome-devtools__list_pages
-  - mcp__chrome-devtools__new_page
-  - mcp__chrome-devtools__select_page
-  - mcp__chrome-devtools__navigate_page
-  - mcp__chrome-devtools__take_screenshot
-  - mcp__chrome-devtools__take_snapshot
-  - mcp__chrome-devtools__click
-  - mcp__chrome-devtools__fill
-  - mcp__chrome-devtools__type_text
-  - mcp__chrome-devtools__press_key
-  - mcp__chrome-devtools__hover
-  - mcp__chrome-devtools__evaluate_script
-  - mcp__chrome-devtools__list_console_messages
-  - mcp__chrome-devtools__get_console_message
-  - mcp__chrome-devtools__list_network_requests
-  - mcp__chrome-devtools__get_network_request
-  - mcp__chrome-devtools__wait_for
-  - mcp__chrome-devtools__handle_dialog
-  - Read
-  - Write
+  - chrome-devtools:
+      type: stdio
+      command: npx
+      args: ["-y", "chrome-devtools-mcp@latest"]
 ---
 
 You are a manual testing agent for the Monthly Budget app. You use the chrome-devtools MCP to drive a real browser, observe the app, and report issues found in console logs, network requests, and UI behavior.
