@@ -104,6 +104,18 @@ Pre-commit hooks (`.pre-commit-config.yaml`) are the single source of truth for 
 
 See [.claude/rules/skills.md](.claude/rules/skills.md) for the full skill trigger table and sub-agent guidance (read this file if you need skill-selection details).
 
+## Agent Skills
+
+Manage Agent Skills in this repo with these tasks (args after `--` pass to the CLI):
+```bash
+task skills:add -- ghcr.io/jburns24/skills/<name>:<tag>  # install a skill from a registry
+task skills:remove -- --name <name>                      # remove an installed skill
+task skills:install                                      # install everything in skills.json
+task skills:register                                     # add the SessionStart auto-install hook
+```
+
+For anything else, run `task skills -- --help`.
+
 ## Dev environment
 
 - Start: `task up` (Tilt UI at http://localhost:10350)
