@@ -84,3 +84,31 @@ tasks:
     cmds:
       - npm install
       - npx playwright install --with-deps chromium
+
+  # --- Agent skills (skills-oci via Docker shim) ------------------------------
+  # scripts/skills-oci.sh runs ghcr.io/jburns24/skills-oci in Docker against the
+  # repo root. Pass extra args after `--`. See AGENTS.md § Agent Skills.
+  skills:
+    desc: 'Raw skills-oci passthrough: task skills -- <subcommand> [args] (e.g. verify, clean, push)'
+    cmds:
+      - ./scripts/skills-oci.sh {{.CLI_ARGS}}
+
+  skills:add:
+    desc: 'Install a skill from an OCI registry: task skills:add -- ghcr.io/org/skills/name:tag'
+    cmds:
+      - ./scripts/skills-oci.sh add {{.CLI_ARGS}}
+
+  skills:remove:
+    desc: 'Remove an installed skill: task skills:remove -- --name <skill>'
+    cmds:
+      - ./scripts/skills-oci.sh remove {{.CLI_ARGS}}
+
+  skills:install:
+    desc: Install all skills declared in skills.json (non-interactive)
+    cmds:
+      - ./scripts/skills-oci.sh install --plain {{.CLI_ARGS}}
+
+  skills:register:
+    desc: Register the coding-agent SessionStart hook for auto-install
+    cmds:
+      - ./scripts/skills-oci.sh register {{.CLI_ARGS}}
