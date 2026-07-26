@@ -9,7 +9,9 @@
 #
 # Overrides (env vars):
 #   SKILLS_OCI_IMAGE   Image ref to run (default: ghcr.io/jburns24/skills-oci:latest-main)
-#   GITHUB_TOKEN       Forwarded to the container for registry auth (optional)
+#   GITHUB_TOKEN       Forwarded to the container for registry auth. If unset,
+#                      auto-derived from `gh auth token` (requires `gh auth login`
+#                      once). Set it yourself to override, e.g. in CI.
 #
 set -euo pipefail
 
@@ -25,14 +27,15 @@ if [ -t 0 ] && [ -t 1 ]; then
   TTY_FLAGS=(-it)
 fi
 
-# Forward Docker credentials read-only for private pulls / push. Public images
-# pull anonymously, so this is best-effort. On macOS/Docker Desktop, creds are
-# often in the keychain via a credential helper that isn't in the container —
-# in that case prefer GITHUB_TOKEN, or run `push` from CI.
-AUTH_FLAGS=()
-if [ -f "${HOME}/.docker/config.json" ]; then
-  AUTH_FLAGS+=(-v "${HOME}/.docker:/dockercfg:ro" -e "DOCKER_CONFIG=/dockercfg")
+# Registry auth: forward GITHUB_TOKEN for private pulls/push (public images
+# still pull anonymously). We deliberately don't mount ~/.docker/config.json —
+# on macOS/Docker Desktop it points credsStore at a host-only credential helper
+# binary that doesn't exist inside the container, which breaks every pull
+# (including public ones) with an "executable file not found" error.
+if [ -z "${GITHUB_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+  GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
 fi
+AUTH_FLAGS=()
 if [ -n "${GITHUB_TOKEN:-}" ]; then
   AUTH_FLAGS+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
 fi
