@@ -87,13 +87,13 @@ async def upload_receipt(
         "receipt_upload_complete",
         receipt_id=str(receipt.id),
         family_id=str(family_id),
-        has_expense=expense is not None,
+        expense_id=str(expense.id),
         needs_edit=needs_edit,
     )
 
     return ReceiptUploadResponse(
         receipt=ReceiptResponse.model_validate(receipt),
-        expense_id=expense.id if expense else None,
+        expense_id=expense.id,
         needs_edit=needs_edit,
     )
 
@@ -224,7 +224,7 @@ async def retry_receipt(
 
     return ReceiptUploadResponse(
         receipt=ReceiptResponse.model_validate(receipt),
-        expense_id=expense.id if expense else None,
+        expense_id=expense.id,
         needs_edit=needs_edit,
     )
 

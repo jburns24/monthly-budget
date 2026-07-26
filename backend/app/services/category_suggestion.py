@@ -74,3 +74,23 @@ async def suggest_for_store(
             store_name=store_name,
         )
     return category
+
+
+async def first_active_category(db: AsyncSession, family_id: uuid.UUID) -> Category | None:
+    """Return the family's first active category, ordered by ``(sort_order, name)``.
+
+    Last-resort fallback for callers that must have *some* category to attach a
+    row to. :func:`suggest_for_store` deliberately returns ``None`` when neither
+    the name-similarity nor the 90-day usage path matches — that is the right
+    answer for "which category best fits this store?", but a receipt upload
+    still has to produce an Expense, so it degrades to this instead of silently
+    creating nothing. Returns ``None`` only when the family has no active
+    categories at all.
+    """
+    result = await db.execute(
+        select(Category)
+        .where(Category.family_id == family_id, Category.is_active.is_(True))
+        .order_by(Category.sort_order, Category.name)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
