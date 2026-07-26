@@ -80,6 +80,7 @@ function reducer(state: State, action: Action): State {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
+  '409': 'Create a category before scanning receipts.',
   '422': "That doesn't look like a receipt. Try another image.",
   '429': 'Daily upload limit reached.',
   '503': 'Receipt service unavailable. Try again or enter manually.',

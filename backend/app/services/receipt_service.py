@@ -7,6 +7,8 @@ Phase 3 (savepoint): update Receipt + create Expense with suggested category.
 
 On Phase 2 Claude errors: mark Receipt 'failed', preserve image for retry.
 On non-receipt / Phase 3 errors: mark Receipt 'failed', delete image.
+On a family with no active categories: mark Receipt 'failed', preserve image,
+  raise 409 — a parsed receipt must never complete without an Expense.
 """
 
 import uuid
@@ -73,7 +75,7 @@ async def _run_phase3(
     family_id: uuid.UUID,
     uploader_id: uuid.UUID,
     image_path: Path | None,
-) -> tuple[Expense | None, bool]:
+) -> tuple[Expense, bool]:
     """Phase 3: update Receipt fields + create Expense. Returns (expense, needs_edit)."""
     expense_date = _parse_expense_date(extracted.date)
     total_cents = _amount_cents(extracted.total_amount)
@@ -81,13 +83,26 @@ async def _run_phase3(
     year_month = expense_date.strftime("%Y-%m")
     description = extracted.store_name or "Unknown merchant"
 
-    suggested_category = None
-    if extracted.store_name:
-        suggested_category = await category_suggestion.suggest_for_store(db, family_id, extracted.store_name)
+    # A successfully parsed receipt must always yield an Expense (spec §Unit 3).
+    # suggest_for_store returns None whenever neither name similarity nor recent
+    # usage matches — common for a low-confidence extraction with no store name —
+    # so degrade to any active category rather than completing with no expense.
+    suggested_category = await category_suggestion.suggest_for_store(db, family_id, extracted.store_name or "")
     if suggested_category is None:
-        suggested_category = await category_suggestion.suggest_for_store(db, family_id, "")
+        suggested_category = await category_suggestion.first_active_category(db, family_id)
+    if suggested_category is None:
+        # expenses.category_id is NOT NULL, so there is nothing to attach the
+        # expense to. Fail loudly instead of reporting success with an empty
+        # expense list. The image is preserved (image_path not passed) so the
+        # retry endpoint works once the family creates a category.
+        await _mark_failed(db, receipt, None, "No active categories available to categorize the expense")
+        logger.warning("receipt_phase3_no_active_categories", receipt_id=str(receipt.id), family_id=str(family_id))
+        raise HTTPException(
+            status_code=409,
+            detail="No active categories. Create a category, then retry this receipt.",
+        )
 
-    expense: Expense | None = None
+    expense: Expense
 
     try:
         async with db.begin_nested():
@@ -98,27 +113,26 @@ async def _run_phase3(
             receipt.raw_response = extracted.model_dump()
             receipt.error_message = None
 
-            if suggested_category is not None:
-                now = datetime.now(tz=timezone.utc)
-                # Spec §Unit 3: low-confidence or missing-total extractions persist
-                # with amount_cents=0 so the frontend "Needs review" chip fires
-                # (keyed on receipt_status == 'completed' && amount_cents == 0).
-                # When needs_edit is False, total_cents is guaranteed not None
-                # (needs_edit = low-confidence OR total_cents is None).
-                expense_amount_cents: int = total_cents if (total_cents is not None and not needs_edit) else 0
-                expense = Expense(
-                    family_id=family_id,
-                    user_id=uploader_id,
-                    category_id=suggested_category.id,
-                    amount_cents=expense_amount_cents,
-                    description=description,
-                    expense_date=expense_date,
-                    year_month=year_month,
-                    receipt_id=receipt.id,
-                    created_at=now,
-                    updated_at=now,
-                )
-                db.add(expense)
+            now = datetime.now(tz=timezone.utc)
+            # Spec §Unit 3: low-confidence or missing-total extractions persist
+            # with amount_cents=0 so the frontend "Needs review" chip fires
+            # (keyed on receipt_status == 'completed' && amount_cents == 0).
+            # When needs_edit is False, total_cents is guaranteed not None
+            # (needs_edit = low-confidence OR total_cents is None).
+            expense_amount_cents: int = total_cents if (total_cents is not None and not needs_edit) else 0
+            expense = Expense(
+                family_id=family_id,
+                user_id=uploader_id,
+                category_id=suggested_category.id,
+                amount_cents=expense_amount_cents,
+                description=description,
+                expense_date=expense_date,
+                year_month=year_month,
+                receipt_id=receipt.id,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(expense)
 
             await db.flush()
 
@@ -133,7 +147,7 @@ async def _run_phase3(
     logger.info(
         "receipt_phase3_complete",
         receipt_id=str(receipt.id),
-        expense_id=str(expense.id) if expense else None,
+        expense_id=str(expense.id),
         needs_edit=needs_edit,
     )
 
@@ -146,14 +160,15 @@ async def process_upload(
     family_id: uuid.UUID,
     uploader_id: uuid.UUID,
     raw_bytes: bytes,
-) -> tuple[Receipt, Expense | None, bool]:
+) -> tuple[Receipt, Expense, bool]:
     """Process a receipt image upload through the three-phase pipeline.
 
     Returns
     -------
-    tuple[Receipt, Expense | None, bool]
-        ``(receipt, expense_or_None, needs_edit)`` where ``needs_edit`` is True
-        when Claude had low confidence or could not extract the total.
+    tuple[Receipt, Expense, bool]
+        ``(receipt, expense, needs_edit)`` where ``needs_edit`` is True when
+        Claude had low confidence or could not extract the total. A successful
+        return always carries an Expense.
 
     Raises
     ------
@@ -163,6 +178,8 @@ async def process_upload(
         Corrupt or unparseable image.
     HTTPException(422)
         Image is not a receipt.
+    HTTPException(409)
+        Family has no active categories to attach the expense to.
     HTTPException(503)
         Claude API error or unexpected processing failure.
     """
@@ -309,7 +326,7 @@ async def reprocess_receipt(
     db: AsyncSession,
     anthropic_client_inst: AsyncAnthropic,
     receipt: Receipt,
-) -> tuple[Receipt, Expense | None, bool]:
+) -> tuple[Receipt, Expense, bool]:
     """Re-run Phase 2 + Phase 3 for an existing failed receipt.
 
     Used by the retry endpoint. Loads the image from ``receipt.image_path``.
@@ -323,6 +340,8 @@ async def reprocess_receipt(
         Image file missing or no longer on disk.
     HTTPException(422)
         Claude determines image is not a receipt.
+    HTTPException(409)
+        Family has no active categories to attach the expense to.
     HTTPException(503)
         Claude API error or Phase 3 DB failure.
     """

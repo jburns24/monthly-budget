@@ -7,7 +7,8 @@ Covers:
 - Phase 2: non-receipt → 422, receipt marked failed, image deleted
 - Phase 3: happy path (high confidence + category) → receipt+expense, needs_edit=False
 - Phase 3: low confidence → needs_edit=True, expense persists with amount_cents=0
-- Phase 3: no category → expense=None, receipt still completed
+- Phase 3: no suggestion match → falls back to any active category
+- Phase 3: family has no active categories → 409, receipt failed, image kept
 - Phase 3: no total amount → needs_edit=True
 - Helper unit tests: _parse_expense_date, _amount_cents
 """
@@ -349,14 +350,20 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
 
 
 # ---------------------------------------------------------------------------
-# Phase 3: no category found → no expense created, receipt still completed
+# Phase 3: no suggestion match → falls back to any active category
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_success_no_category_no_expense(db_session: AsyncSession) -> None:
+async def test_no_suggestion_falls_back_to_first_active_category(db_session: AsyncSession) -> None:
+    """When suggest_for_store finds nothing, the expense still gets created.
+
+    Regression: previously the expense was silently skipped, so the upload
+    returned 201 with nothing in the family's expense list.
+    """
     user = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family, name="Groceries")
     image_path = _fake_path(family.id)
 
     with (
@@ -379,8 +386,86 @@ async def test_success_no_category_no_expense(db_session: AsyncSession) -> None:
         receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert receipt.status == "completed"
-    assert expense is None
+    assert expense is not None
+    assert expense.category_id == category.id
     assert needs_edit is False
+
+
+@pytest.mark.asyncio
+async def test_low_confidence_no_store_name_still_creates_expense(db_session: AsyncSession) -> None:
+    """A low-confidence extraction with no store name still produces an expense.
+
+    Regression: ``suggest_for_store(family, "")`` never matches on similarity, and
+    a family with no expenses in the last 90 days has no usage fallback either —
+    which used to mean the receipt completed with no expense at all.
+    """
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family, name="Groceries")
+    image_path = _fake_path(family.id)
+
+    extracted = _extracted(confidence="low", total_amount=None, date=None, store_name=None)
+
+    with (
+        patch("app.services.receipt_service.receipt_storage.validate_mime"),
+        patch(
+            "app.services.receipt_service.receipt_storage.sanitize_image",
+            return_value=(b"sanitized", (100, 100)),
+        ),
+        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
+        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
+        patch(
+            "app.services.receipt_service.claude_client.extract_receipt",
+            AsyncMock(return_value=extracted),
+        ),
+    ):
+        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+
+    assert receipt.status == "completed"
+    assert expense is not None
+    assert expense.category_id == category.id
+    assert expense.amount_cents == 0
+    assert expense.description == "Unknown merchant"
+    assert needs_edit is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: family has no active categories → 409, receipt failed, image kept
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_no_active_categories_raises_409(db_session: AsyncSession) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    image_path = _fake_path(family.id)
+    delete_mock = AsyncMock()
+
+    with (
+        patch("app.services.receipt_service.receipt_storage.validate_mime"),
+        patch(
+            "app.services.receipt_service.receipt_storage.sanitize_image",
+            return_value=(b"sanitized", (100, 100)),
+        ),
+        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
+        patch("app.services.receipt_service.receipt_storage.delete", delete_mock),
+        patch(
+            "app.services.receipt_service.claude_client.extract_receipt",
+            AsyncMock(return_value=_extracted()),
+        ),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+
+    assert exc_info.value.status_code == 409
+    assert "categor" in str(exc_info.value.detail).lower()
+    # Image is preserved so the retry endpoint works once a category exists.
+    delete_mock.assert_not_called()
+
+    result = await db_session.execute(select(Receipt).where(Receipt.family_id == family.id))
+    receipt = result.scalar_one()
+    assert receipt.status == "failed"
+    assert receipt.error_message is not None
 
 
 # ---------------------------------------------------------------------------
