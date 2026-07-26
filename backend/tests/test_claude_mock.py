@@ -1,5 +1,6 @@
 """Tests for T02.3: Mock branch with 5 deterministic scenarios."""
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -29,7 +30,9 @@ async def test_mock_success_scenario() -> None:
     assert result.is_receipt is True
     assert result.confidence == "high"
     assert result.total_amount == 42.50
-    assert result.date == "2026-03-21"
+    # Dated today, not a frozen literal — a stale date puts the resulting
+    # Expense in a month the UI is not showing.
+    assert result.date == date.today().isoformat()
     assert result.store_name == "Test Market"
     client.messages.create.assert_not_called()
 
