@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "/ko-app/skills-oci install --plain",
+        "timeout": 30
+      }
+    ]
+  }
+}

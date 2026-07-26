@@ -106,6 +106,13 @@ See [.claude/rules/skills.md](.claude/rules/skills.md) for the full skill trigge
 
 ## Agent Skills
 
+Prerequisites:
+- Docker running locally.
+- `gh auth login` once — `scripts/skills-oci.sh` auto-derives `GITHUB_TOKEN` from `gh auth token` for registry pulls/pushes. Override by exporting `GITHUB_TOKEN` yourself (e.g. in CI via `secrets.GITHUB_TOKEN`).
+- Non-interactive use (agents, scripts, CI): pass `--plain` explicitly, e.g. `task skills:add -- --plain ghcr.io/jburns24/skills/<name>:<tag>`. Only `skills:install` defaults to `--plain` today; `skills:add`, `skills:remove`, and raw `skills` will try to open a TTY and crash without it.
+- Known limitation: `task skills -- verify` currently fails with `cosign not found in PATH` (a gap in the upstream `skills-oci` image, not fixable from this repo) — skip verification for now.
+- Tip: tags aren't recorded in the upstream `jburns24/skills` `catalog.yaml`; find a skill's published version with `gh api "/user/packages/container/skills%2F<name>/versions" --jq '.[].metadata.container.tags'`.
+
 Manage Agent Skills in this repo with these tasks (args after `--` pass to the CLI):
 ```bash
 task skills:add -- ghcr.io/jburns24/skills/<name>:<tag>  # install a skill from a registry

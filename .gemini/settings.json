@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/ko-app/skills-oci install --plain",
+            "timeout": 30000
+          }
+        ]
+      }
+    ]
+  }
+}

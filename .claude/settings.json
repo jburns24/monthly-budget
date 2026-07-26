@@ -1,7 +1,4 @@
 {
-  "env": {
-    "CLAUDE_CODE_TASK_LIST_ID": "monthly-budget-auth"
-  },
   "allowedMcpServers": [
     {
       "serverName": "context7"
@@ -12,5 +9,22 @@
   ],
   "enabledPlugins": {
     "claude-workflow@claude-workflow": true
+  },
+  "env": {
+    "CLAUDE_CODE_TASK_LIST_ID": "monthly-budget-auth"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/ko-app/skills-oci install --plain",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }

@@ -1,0 +1,158 @@
+{
+  "skills": [
+    {
+      "name": "architecture-patterns",
+      "source": "ghcr.io/jburns24/skills/architecture-patterns",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "cqrs-implementation",
+      "source": "ghcr.io/jburns24/skills/cqrs-implementation",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "event-store-design",
+      "source": "ghcr.io/jburns24/skills/event-store-design",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "fastapi-templates",
+      "source": "ghcr.io/jburns24/skills/fastapi-templates",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "microservices-patterns",
+      "source": "ghcr.io/jburns24/skills/microservices-patterns",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "python-performance-optimization",
+      "source": "ghcr.io/jburns24/skills/python-performance-optimization",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "saga-orchestration",
+      "source": "ghcr.io/jburns24/skills/saga-orchestration",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "systematic-debugging",
+      "source": "ghcr.io/jburns24/skills/systematic-debugging",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "test-driven-development",
+      "source": "ghcr.io/jburns24/skills/test-driven-development",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "tilt-dev",
+      "source": "ghcr.io/jburns24/skills/tilt-dev",
+      "version": "0.0.0",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "typescript-advanced-types",
+      "source": "ghcr.io/jburns24/skills/typescript-advanced-types",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "vercel-composition-patterns",
+      "source": "ghcr.io/jburns24/skills/vercel-composition-patterns",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "vercel-react-best-practices",
+      "source": "ghcr.io/jburns24/skills/vercel-react-best-practices",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "webapp-testing",
+      "source": "ghcr.io/jburns24/skills/webapp-testing",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    }
+  ]
+}
