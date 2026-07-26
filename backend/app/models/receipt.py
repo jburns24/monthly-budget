@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,7 +46,7 @@ class Receipt(Base):
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
-        server_default="now()",
+        server_default=func.now(),
     )
 
     # Relationships
