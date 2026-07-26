@@ -9,6 +9,7 @@ ExtractedReceipt based on settings.anthropic_mock_scenario without calling the A
 """
 
 import base64
+from datetime import date
 from typing import Literal
 
 import httpx
@@ -45,33 +46,43 @@ _TOOL_DEFINITION = {
 
 MediaType = Literal["image/jpeg", "image/png", "image/webp", "image/gif"]
 
-_MOCK_SCENARIOS: dict[str, ExtractedReceipt] = {
-    "success": ExtractedReceipt(
-        is_receipt=True,
-        confidence="high",
-        total_amount=42.50,
-        date="2026-03-21",
-        store_name="Test Market",
-    ),
-    "medium_confidence": ExtractedReceipt(
-        is_receipt=True,
-        confidence="medium",
-        total_amount=42.50,
-        date=None,
-        store_name="Test Market",
-    ),
-    "low_confidence": ExtractedReceipt(
-        is_receipt=True,
-        confidence="low",
-        total_amount=None,
-        date=None,
-        store_name=None,
-    ),
-    "non_receipt": ExtractedReceipt(
-        is_receipt=False,
-        confidence="high",
-    ),
-}
+
+def _mock_scenarios() -> dict[str, ExtractedReceipt]:
+    """Build the deterministic mock scenarios, dated relative to today.
+
+    The ``success`` date is computed per call rather than frozen at import time:
+    a hardcoded date silently rots, and once it falls outside the current month
+    the resulting Expense lands in a month the UI is not displaying, which reads
+    as "the upload did nothing".
+    """
+    return {
+        "success": ExtractedReceipt(
+            is_receipt=True,
+            confidence="high",
+            total_amount=42.50,
+            date=date.today().isoformat(),
+            store_name="Test Market",
+        ),
+        "medium_confidence": ExtractedReceipt(
+            is_receipt=True,
+            confidence="medium",
+            total_amount=42.50,
+            date=None,
+            store_name="Test Market",
+        ),
+        "low_confidence": ExtractedReceipt(
+            is_receipt=True,
+            confidence="low",
+            total_amount=None,
+            date=None,
+            store_name=None,
+        ),
+        "non_receipt": ExtractedReceipt(
+            is_receipt=False,
+            confidence="high",
+        ),
+    }
+
 
 _MOCK_API_ERROR_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
 
@@ -88,10 +99,11 @@ def _get_mock_response(scenario: str) -> ExtractedReceipt:
             response=httpx.Response(503, request=_MOCK_API_ERROR_REQUEST),
             body=None,
         )
-    result = _MOCK_SCENARIOS.get(scenario)
+    scenarios = _mock_scenarios()
+    result = scenarios.get(scenario)
     if result is None:
         logger.warning("claude_mock_unknown_scenario", scenario=scenario, fallback="success")
-        result = _MOCK_SCENARIOS["success"]
+        result = scenarios["success"]
     return result
 
 
