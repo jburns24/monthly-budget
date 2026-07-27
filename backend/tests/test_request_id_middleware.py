@@ -69,11 +69,11 @@ async def test_sensitive_filter_redacts_keys() -> None:
 
     event_dict = {
         "event": "startup",
-        "anthropic_api_key": "sk-ant-real-key",  # pragma: allowlist secret
-        "jwt_secret": "super-secret",  # pragma: allowlist secret
-        "password": "hunter2",  # pragma: allowlist secret
-        "authorization": "Bearer token123",  # pragma: allowlist secret
-        "google_client_secret": "google-secret",  # pragma: allowlist secret
+        "anthropic_api_key": "test-anthropic-key-not-real",  # pragma: allowlist secret
+        "jwt_secret": "test-jwt-secret-not-real",  # pragma: allowlist secret
+        "password": "test-password-not-real",  # pragma: allowlist secret
+        "authorization": "Bearer test-token-not-real",
+        "google_client_secret": "test-google-secret-not-real",  # pragma: allowlist secret
         "safe_key": "safe_value",
     }
     result = _sensitive_filter(None, "info", event_dict)

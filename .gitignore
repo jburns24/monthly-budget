@@ -56,7 +56,7 @@ pg_data/
 prd-arena/
 
 # Specs
-docs/specs/
+**/docs/specs/
 
 # Tilt
 tilt_modules/
