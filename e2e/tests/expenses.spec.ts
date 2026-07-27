@@ -35,6 +35,68 @@ const CURRENT_MONTH = (() => {
 /** A date string (YYYY-MM-DD) for the first of the current month. */
 const CURRENT_DATE = `${CURRENT_MONTH}-01`
 
+// ---------------------------------------------------------------------------
+// Grace-period helpers
+//
+// The backend (backend/app/services/grace_period.py) treats a month as editable
+// when it is the current month, or when fewer than `edit_grace_days` whole days
+// have passed since the month ended. `edit_grace_days` defaults to 7 and is not
+// settable through the API (backend/app/models/family.py).
+//
+// Everything below is derived from "now" so these tests keep passing as the
+// calendar advances — never hardcode an absolute month here.
+// ---------------------------------------------------------------------------
+
+/** Backend default for `Family.edit_grace_days`. */
+const GRACE_DAYS = 7
+
+/** First day of the month `monthsBack` months before `now`. */
+function monthStart(monthsBack: number): Date {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth() - monthsBack, 1)
+}
+
+/** Format a Date as YYYY-MM using local (not UTC) fields. */
+function toYearMonth(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Format a Date as YYYY-MM-DD using local (not UTC) fields. */
+function toDateString(d: Date): string {
+  return `${toYearMonth(d)}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** The label the month selector renders, e.g. "March 2026". */
+function toMonthLabel(d: Date): string {
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+}
+
+/**
+ * How many months back the most recent *still-editable* month is.
+ *
+ * The previous month stops being editable once `GRACE_DAYS` whole days have
+ * passed since it ended, i.e. once today's day-of-month exceeds GRACE_DAYS + 1.
+ * A one-day safety margin keeps the test off the boundary. When the previous
+ * month is already expired the current month is used, which is always editable.
+ */
+const EDITABLE_MONTHS_BACK = new Date().getDate() <= GRACE_DAYS ? 1 : 0
+
+/** A month comfortably past the grace period (months are >= 28 days long). */
+const EXPIRED_MONTHS_BACK = 5
+
+const EDITABLE_MONTH = monthStart(EDITABLE_MONTHS_BACK)
+const EXPIRED_MONTH = monthStart(EXPIRED_MONTHS_BACK)
+
+/** Click the month selector back `monthsBack` times. */
+async function goBackMonths(
+  pageObject: { goToPrevMonth: () => Promise<void> },
+  monthsBack: number,
+): Promise<void> {
+  for (let i = 0; i < monthsBack; i++) {
+    await pageObject.goToPrevMonth()
+  }
+}
+
 test.beforeEach(async () => {
   const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
   await resetTestData(ctx)
@@ -387,8 +449,7 @@ test("multiple family members can create and see each other's expenses", async (
 // ---------------------------------------------------------------------------
 
 test('expense edit succeeds for a month still within the grace period', async ({ page }) => {
-  // Seed an expense for March 2026 (ended 2026-04-01 — 4 days ago in America/New_York,
-  // within the default 7-day grace period).
+  // Seed an expense in the most recent month that is still inside the grace period.
   const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
   await ctx.post('/api/auth/dev-login', {
     data: { email: 'usera@e2e-test.com', display_name: 'User A' },
@@ -398,20 +459,22 @@ test('expense edit succeeds for a month still within the grace period', async ({
     familyId,
     groceryCategoryId,
     3000,
-    'March groceries',
-    '2026-03-15',
+    'Editable groceries',
+    toDateString(EDITABLE_MONTH),
   )
   await ctx.dispose()
 
   const expensesPage = new ExpensesPage(page)
   await expensesPage.goto()
 
-  // Navigate to March 2026 (two prev-month clicks from April 2026).
-  await expensesPage.goToPrevMonth()
-  await expect(expensesPage.monthDisplay).toContainText('March 2026', { timeout: 5_000 })
+  // Navigate back to the editable month (0 or 1 clicks depending on today's date).
+  await goBackMonths(expensesPage, EDITABLE_MONTHS_BACK)
+  await expect(expensesPage.monthDisplay).toContainText(toMonthLabel(EDITABLE_MONTH), {
+    timeout: 5_000,
+  })
 
   // The expense should be visible.
-  await expect(page.getByText('March groceries')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Editable groceries')).toBeVisible({ timeout: 10_000 })
 
   // Click the edit button for the expense.
   await expensesPage.editExpense(expense.id)
@@ -440,8 +503,7 @@ test('expense edit succeeds for a month still within the grace period', async ({
 // ---------------------------------------------------------------------------
 
 test('expense edit is blocked with 403 after the grace period has expired', async ({ page }) => {
-  // Seed an expense for February 2026 (ended 2026-03-01 — 35 days ago,
-  // well beyond the default 7-day grace period).
+  // Seed an expense in a month well beyond the grace period.
   const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
   await ctx.post('/api/auth/dev-login', {
     data: { email: 'usera@e2e-test.com', display_name: 'User A' },
@@ -451,21 +513,22 @@ test('expense edit is blocked with 403 after the grace period has expired', asyn
     familyId,
     groceryCategoryId,
     2000,
-    'February groceries',
-    '2026-02-15',
+    'Expired groceries',
+    toDateString(EXPIRED_MONTH),
   )
   await ctx.dispose()
 
   const expensesPage = new ExpensesPage(page)
   await expensesPage.goto()
 
-  // Navigate to February 2026 (two prev-month clicks from April 2026).
-  await expensesPage.goToPrevMonth()
-  await expensesPage.goToPrevMonth()
-  await expect(expensesPage.monthDisplay).toContainText('February 2026', { timeout: 5_000 })
+  // Navigate back to the expired month.
+  await goBackMonths(expensesPage, EXPIRED_MONTHS_BACK)
+  await expect(expensesPage.monthDisplay).toContainText(toMonthLabel(EXPIRED_MONTH), {
+    timeout: 5_000,
+  })
 
   // The expense should be visible.
-  await expect(page.getByText('February groceries')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Expired groceries')).toBeVisible({ timeout: 10_000 })
 
   // Attempt edit — the API should return 403 (grace period expired).
   await expensesPage.editExpense(expense.id)
@@ -489,8 +552,7 @@ test('expense edit is blocked with 403 after the grace period has expired', asyn
 // ---------------------------------------------------------------------------
 
 test('expense delete is blocked with 403 after the grace period has expired', async ({ page }) => {
-  // Seed an expense for February 2026 (ended 2026-03-01 — 35 days ago,
-  // well beyond the default 7-day grace period).
+  // Seed an expense in a month well beyond the grace period.
   const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
   await ctx.post('/api/auth/dev-login', {
     data: { email: 'usera@e2e-test.com', display_name: 'User A' },
@@ -500,21 +562,22 @@ test('expense delete is blocked with 403 after the grace period has expired', as
     familyId,
     groceryCategoryId,
     1500,
-    'February transport',
-    '2026-02-20',
+    'Expired transport',
+    toDateString(EXPIRED_MONTH),
   )
   await ctx.dispose()
 
   const expensesPage = new ExpensesPage(page)
   await expensesPage.goto()
 
-  // Navigate to February 2026 (two prev-month clicks from April 2026).
-  await expensesPage.goToPrevMonth()
-  await expensesPage.goToPrevMonth()
-  await expect(expensesPage.monthDisplay).toContainText('February 2026', { timeout: 5_000 })
+  // Navigate back to the expired month.
+  await goBackMonths(expensesPage, EXPIRED_MONTHS_BACK)
+  await expect(expensesPage.monthDisplay).toContainText(toMonthLabel(EXPIRED_MONTH), {
+    timeout: 5_000,
+  })
 
   // The expense should be visible.
-  await expect(page.getByText('February transport')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Expired transport')).toBeVisible({ timeout: 10_000 })
 
   // Attempt delete — the API should return 403 (grace period expired).
   await expensesPage.deleteExpense(expense.id)
@@ -537,12 +600,19 @@ test('expense delete is blocked with 403 after the grace period has expired', as
 test('budget summary API returns is_editable=false for months past the grace period', async ({
   page,
 }) => {
-  // Seed an expense for February 2026 (past the 7-day grace period).
+  // Seed an expense in a month past the grace period.
   const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
   await ctx.post('/api/auth/dev-login', {
     data: { email: 'usera@e2e-test.com', display_name: 'User A' },
   })
-  await createExpenseViaApi(ctx, familyId, groceryCategoryId, 1000, 'Feb item', '2026-02-10')
+  await createExpenseViaApi(
+    ctx,
+    familyId,
+    groceryCategoryId,
+    1000,
+    'Expired item',
+    toDateString(EXPIRED_MONTH),
+  )
   await ctx.dispose()
 
   // Intercept the budget summary API response and capture its body.
@@ -557,14 +627,16 @@ test('budget summary API returns is_editable=false for months past the grace per
   const dashboard = new DashboardPage(page)
   await dashboard.goto()
 
-  // Navigate to February 2026 (two prev-month clicks from April 2026).
-  await dashboard.goToPrevMonth()
-  await dashboard.goToPrevMonth()
+  // Navigate back to the expired month.
+  await goBackMonths(dashboard, EXPIRED_MONTHS_BACK)
 
-  // Wait until the budget summary for February loads.
-  await page.waitForResponse((res) => res.url().includes('/budget/summary') && res.url().includes('2026-02'))
+  // Wait until the budget summary for that month loads.
+  await page.waitForResponse(
+    (res) =>
+      res.url().includes('/budget/summary') && res.url().includes(toYearMonth(EXPIRED_MONTH)),
+  )
 
-  // The budget summary for February 2026 should report is_editable = false.
+  // The budget summary for the expired month should report is_editable = false.
   expect(capturedSummary).not.toBeNull()
   expect((capturedSummary as Record<string, unknown>)['is_editable']).toBe(false)
 })
