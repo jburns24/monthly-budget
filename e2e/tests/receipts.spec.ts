@@ -172,13 +172,21 @@ test('multi-user: User A uploads receipt, User B sees the expense', async ({ use
   const uploadBody = (await uploadRes.json()) as { expense_id: string | null }
   expect(uploadBody.expense_id).toBeTruthy()
 
-  // User B fetches expenses for the family
-  const expensesRes = await userBContext.get(`${API_BASE}/api/families/${familyId}/expenses`)
+  // User B fetches expenses for the family. `year_month` is a required query
+  // param on GET /api/families/{id}/expenses — derive it from today so the test
+  // keeps working as the calendar advances.
+  const now = new Date()
+  const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const expensesRes = await userBContext.get(
+    `${API_BASE}/api/families/${familyId}/expenses?year_month=${yearMonth}`,
+  )
   expect(expensesRes.ok()).toBeTruthy()
-  const expenses = (await expensesRes.json()) as Array<{ id: string; description: string }>
+  const body = (await expensesRes.json()) as {
+    expenses: Array<{ id: string; description: string }>
+  }
 
   // The expense created from the receipt should be visible to User B
-  expect(expenses.some((e) => e.id === uploadBody.expense_id)).toBeTruthy()
+  expect(body.expenses.some((e) => e.id === uploadBody.expense_id)).toBeTruthy()
 
   await adminCtx.dispose()
 })
