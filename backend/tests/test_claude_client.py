@@ -152,7 +152,15 @@ async def test_extract_receipt_tool_schema_uses_wire_names_and_category_enum() -
     await extract_receipt(client, b"fake-image-bytes")
 
     props = client.messages.create.call_args.kwargs["tools"][0]["input_schema"]["properties"]
-    assert set(props) == {"is_receipt", "confidence", "total", "date", "name", "category"}
+    assert set(props) == {
+        "date_reasoning",
+        "is_receipt",
+        "confidence",
+        "total",
+        "date",
+        "name",
+        "category",
+    }
     # None is a permitted enum member so a non-receipt can leave the field unset
     # without violating the schema it was handed.
     assert props["category"]["enum"] == [*CATEGORY_LABELS, None]
@@ -172,6 +180,59 @@ async def test_extract_receipt_system_prompt_is_phased() -> None:
     # or the model is choosing from a list it was never shown.
     for label in CATEGORY_LABELS:
         assert label in system
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_tells_the_model_todays_date() -> None:
+    """The request must carry the current date.
+
+    Regression guard. The model has no clock, so with no reference date in the
+    prompt an absent or illegible year on the receipt is resolved against the
+    year distribution of its training data — which lands the expense in a
+    previous year, on a month the UI is not showing, with nothing downstream
+    able to detect it. Asserted on the outgoing request rather than on the
+    prompt constant so that building the prompt without wiring it into the call
+    also fails.
+    """
+    from datetime import date
+
+    client = _make_client(_make_tool_use_response({"is_receipt": True, "confidence": "high"}))
+
+    await extract_receipt(client, b"fake-image-bytes")
+
+    system = client.messages.create.call_args.kwargs["system"]
+    assert date.today().isoformat() in system
+
+
+def test_system_prompt_date_is_not_frozen_at_import() -> None:
+    """The date is rendered per call, not baked in when the module loads.
+
+    A module-level f-string would pin the date to the worker's start-up day and
+    drift further wrong for as long as the process lives.
+    """
+    from datetime import date
+
+    from app.services.claude_client import _build_system_prompt
+
+    assert "2030-01-02" in _build_system_prompt(date(2030, 1, 2))
+    assert "2031-06-15" in _build_system_prompt(date(2031, 6, 15))
+
+
+def test_system_prompt_bounds_the_year_it_may_invent() -> None:
+    """Phase 3 must scope the recency heuristic to a missing year only.
+
+    A blanket "prefer the most recent year" would rewrite legitimately old
+    receipts, which is the same confidently-wrong failure the total rules guard
+    against — so the printed-year rule has to survive alongside the fallback.
+    """
+    from datetime import date
+
+    from app.services.claude_client import _build_system_prompt
+
+    system = _build_system_prompt(date(2026, 7, 26))
+    assert "Never adjust a printed year toward today" in system
+    assert "most recent year" in system
+    assert "cannot have happened in the future" in system
 
 
 @pytest.mark.asyncio
@@ -365,8 +426,9 @@ async def test_extract_receipt_builds_correct_request() -> None:
       - text_block:  {"type": "text", "text": "Extract structured data from this receipt image."}
     """
     import base64
+    from datetime import date
 
-    from app.services.claude_client import _MAX_TOKENS, _SYSTEM_PROMPT, _USER_TEXT_PROMPT
+    from app.services.claude_client import _MAX_TOKENS, _USER_TEXT_PROMPT, _build_system_prompt
 
     image_bytes = b"prd-section-13-bytes"
     expected_b64 = base64.standard_b64encode(image_bytes).decode()
@@ -381,7 +443,7 @@ async def test_extract_receipt_builds_correct_request() -> None:
 
     assert call_kwargs["model"] == _MODEL
     assert call_kwargs["max_tokens"] == _MAX_TOKENS
-    assert call_kwargs["system"] == _SYSTEM_PROMPT
+    assert call_kwargs["system"] == _build_system_prompt(date.today())
     assert call_kwargs["tool_choice"] == {"type": "tool", "name": "extract_receipt"}
 
     messages = call_kwargs["messages"]

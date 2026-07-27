@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ChakraProvider } from '@chakra-ui/react'
@@ -24,6 +24,11 @@ vi.mock('../api/categories', () => ({
   seedCategories: vi.fn(() => new Promise(() => {})),
 }))
 
+vi.mock('../api/expenses', () => ({
+  getExpense: vi.fn(() => new Promise(() => {})),
+  updateExpense: vi.fn(() => new Promise(() => {})),
+}))
+
 vi.mock('../components/ui/toaster', () => ({
   toaster: { create: vi.fn() },
   Toaster: vi.fn(() => null),
@@ -35,7 +40,9 @@ vi.mock('browser-image-compression', () => ({
 
 import { uploadReceipt } from '../api/receipts'
 import { getCategories } from '../api/categories'
+import { getExpense, updateExpense } from '../api/expenses'
 import { toaster } from '../components/ui/toaster'
+import type { Expense } from '../types/expenses'
 
 const FAMILY_ID = 'fam-123'
 
@@ -77,6 +84,23 @@ function makeUploadResponse(overrides: Partial<ReceiptUploadResponse> = {}): Rec
     },
     expense_id: 'exp-1',
     needs_edit: false,
+    ...overrides,
+  }
+}
+
+function makeExpense(overrides: Partial<Expense> = {}): Expense {
+  return {
+    id: 'exp-1',
+    family_id: FAMILY_ID,
+    category: { id: 'cat-2', name: 'Transport', icon: '🚗' },
+    created_by_user: { id: 'user-1', display_name: 'Tester' },
+    amount_cents: 4523,
+    description: 'Whole Foods',
+    expense_date: '2026-04-19',
+    created_at: '2026-04-19T10:00:00Z',
+    updated_at: '2026-04-19T10:00:00Z',
+    receipt_id: 'rcpt-1',
+    receipt_status: 'completed',
     ...overrides,
   }
 }
@@ -261,6 +285,43 @@ describe('reviewing phase', () => {
     })
   })
 
+  it('shows the extracted date in an editable input', async () => {
+    vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+    vi.mocked(getExpense).mockResolvedValue(makeExpense())
+    renderDialog()
+    await reachReviewing()
+    await waitFor(() => expect(screen.getByTestId('receipt-date-input')).toHaveValue('2026-04-19'))
+  })
+
+  it('shows the extracted date before the expense finishes loading', async () => {
+    vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+    vi.mocked(getExpense).mockReturnValue(new Promise(() => {}))
+    renderDialog()
+    await reachReviewing()
+    expect(screen.getByTestId('receipt-date-input')).toHaveValue('2026-04-19')
+  })
+
+  it('explains the fallback when the receipt had no legible date', async () => {
+    vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+    vi.mocked(getExpense).mockResolvedValue(makeExpense({ expense_date: '2026-07-26' }))
+    const response = makeUploadResponse()
+    response.receipt.parsed_date = null
+    renderDialog()
+    await reachReviewing(response)
+    await waitFor(() => expect(screen.getByTestId('receipt-date-input')).toHaveValue('2026-07-26'))
+    expect(screen.getByTestId('receipt-date-hint')).toBeInTheDocument()
+  })
+
+  it('defaults the category select to the category the upload already assigned', async () => {
+    vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+    vi.mocked(getExpense).mockResolvedValue(makeExpense())
+    renderDialog()
+    await reachReviewing()
+    // cat-2, not sampleCategories[0] — defaulting to the first option would
+    // overwrite the suggestion on Confirm.
+    await waitFor(() => expect(screen.getByTestId('receipt-category-select')).toHaveValue('cat-2'))
+  })
+
   it('shows Confirm and Cancel buttons', async () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
     renderDialog()
@@ -289,6 +350,69 @@ describe('reviewing phase', () => {
       expect(keys).toContain('budget-summary')
       expect(keys).toContain('receipts')
     })
+  })
+})
+
+describe('confirming edits', () => {
+  beforeEach(() => {
+    vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+    vi.mocked(getExpense).mockResolvedValue(makeExpense())
+  })
+
+  async function reachLoadedReviewing() {
+    renderDialog()
+    await reachReviewing()
+    await waitFor(() => expect(screen.getByTestId('receipt-date-input')).toBeEnabled())
+  }
+
+  it('saves an edited date on Confirm', async () => {
+    vi.mocked(updateExpense).mockResolvedValue(makeExpense({ expense_date: '2026-07-20' }))
+    await reachLoadedReviewing()
+    fireEvent.change(screen.getByTestId('receipt-date-input'), {
+      target: { value: '2026-07-20' },
+    })
+    await userEvent.click(screen.getByTestId('receipt-confirm-btn'))
+    await waitFor(() =>
+      expect(updateExpense).toHaveBeenCalledWith(FAMILY_ID, 'exp-1', {
+        expected_updated_at: '2026-04-19T10:00:00Z',
+        expense_date: '2026-07-20',
+      })
+    )
+    await waitFor(() => expect(screen.getByTestId('receipt-done')).toBeInTheDocument())
+  })
+
+  it('saves an edited category on Confirm', async () => {
+    vi.mocked(updateExpense).mockResolvedValue(makeExpense())
+    await reachLoadedReviewing()
+    await userEvent.selectOptions(screen.getByTestId('receipt-category-select'), 'cat-1')
+    await userEvent.click(screen.getByTestId('receipt-confirm-btn'))
+    await waitFor(() =>
+      expect(updateExpense).toHaveBeenCalledWith(FAMILY_ID, 'exp-1', {
+        expected_updated_at: '2026-04-19T10:00:00Z',
+        category_id: 'cat-1',
+      })
+    )
+  })
+
+  it('skips the update call when nothing was edited', async () => {
+    await reachLoadedReviewing()
+    await userEvent.click(screen.getByTestId('receipt-confirm-btn'))
+    await waitFor(() => expect(screen.getByTestId('receipt-done')).toBeInTheDocument())
+    expect(updateExpense).not.toHaveBeenCalled()
+  })
+
+  it('stays in reviewing and toasts when saving fails', async () => {
+    vi.mocked(updateExpense).mockRejectedValueOnce(new Error('CONFLICT'))
+    await reachLoadedReviewing()
+    fireEvent.change(screen.getByTestId('receipt-date-input'), {
+      target: { value: '2026-07-20' },
+    })
+    await userEvent.click(screen.getByTestId('receipt-confirm-btn'))
+    await waitFor(() =>
+      expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
+    )
+    expect(screen.getByTestId('receipt-reviewing')).toBeInTheDocument()
+    expect(screen.queryByTestId('receipt-done')).not.toBeInTheDocument()
   })
 })
 
