@@ -25,7 +25,10 @@ from app.schemas.receipt import ExtractedReceipt
 logger = get_logger(__name__)
 
 _MODEL = "claude-haiku-4-5-20251001"
-_MAX_TOKENS = 1024
+# Headroom for the date_reasoning field below. The extracted JSON itself is
+# small, but truncating the tool input mid-object surfaces as a confusing
+# model_validate failure rather than an obvious cap-hit, so leave slack.
+_MAX_TOKENS = 2048
 
 # Pinned rather than left to the API default of 1.0. Tuning against a real
 # split-tender receipt showed this model's "which figure is the total" judgment
@@ -50,7 +53,16 @@ _CATEGORY_GUIDE = """\
   Bills - utilities, phone, internet, insurance, rent, subscriptions, medical
   Other - anything that does not clearly fit above, including general merchandise and clothing"""
 
-_SYSTEM_PROMPT = f"""\
+
+def _build_system_prompt(today: date) -> str:
+    """Render the extraction prompt for a given "today".
+
+    Built per call rather than assembled once at import: the model has no clock,
+    so Phase 3 has to be told the current date, and a module-level f-string would
+    freeze that date for the lifetime of the worker process — a long-running
+    uvicorn worker would keep telling the model it is still its start-up day.
+    """
+    return f"""\
 You are a receipt data extractor. Work through the phases below in order, then report \
 your result by calling the extract_receipt tool exactly once.
 
@@ -78,12 +90,25 @@ readable total is a normal outcome, and a computed figure would be wrong in a wa
 downstream can detect.
 
 Phase 3 - Date.
+Today's date is {today.isoformat()}. Use it only to work out which year a receipt belongs \
+to and to sanity-check what you read; never report it as the transaction date.
 Find the transaction date - the date of purchase, not a "valid until", "printed on", or \
 expiry date. Normalize it to YYYY-MM-DD. To disambiguate a numeric format: a leading \
 value above 12 is the day; otherwise, if the receipt shows US cues (dollar amounts, a US \
 address, a state abbreviation) read it as MM/DD/YYYY, and read it as DD/MM/YYYY \
-otherwise. Expand a two-digit year to 20YY. If no date is legible, omit the date field \
-entirely - do not substitute today's date.
+otherwise.
+Resolve the year in this order:
+  - A legible four-digit year is reported exactly as printed, even if it is years in the \
+past. Never adjust a printed year toward today.
+  - Expand a legible two-digit year to 20YY: 24 is 2024, 26 is 2026.
+  - If the year is not printed at all, or is illegible, choose the most recent year that \
+places the month and day on or before today's date. Do not default to the year you would \
+otherwise assume - a receipt is almost always recent, and reporting last year's date for \
+this year's purchase files the expense into a month nobody is looking at.
+A purchase cannot have happened in the future. If your reading lands after today's date, \
+you have misread something - re-read the field, and if you still cannot resolve it, omit \
+the date field.
+If no date is legible, omit the date field entirely - do not substitute today's date.
 
 Phase 4 - Store name.
 Report the merchant's brand name the way a person would say it, taken from the header, \
@@ -110,6 +135,7 @@ omitted the total, confidence is low.
 Never invent a value to fill a field, and never write the text "null" as a value. Leaving a \
 field out is always the correct way to report something you cannot read."""
 
+
 _USER_TEXT_PROMPT = "Extract structured data from this receipt image."
 _TOOL_DEFINITION = {
     "name": "extract_receipt",
@@ -117,6 +143,19 @@ _TOOL_DEFINITION = {
     "input_schema": {
         "type": "object",
         "properties": {
+            # First on purpose. Tool input is generated in schema order, and the
+            # forced tool_choice means the model cannot emit a text block before
+            # the tool call — so without a field to think in, Phase 3's year
+            # resolution has to happen in one forward pass with no intermediate
+            # tokens. This buys that room, and it is what gets logged when a date
+            # still comes back wrong.
+            "date_reasoning": {
+                "type": ["string", "null"],
+                "description": (
+                    "One sentence: which field you read the date from, and how you "
+                    "resolved its year against today's date"
+                ),
+            },
             "is_receipt": {"type": "boolean"},
             "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
             # Each optional field is typed as a union with "null" rather than a
@@ -254,7 +293,7 @@ async def _call_claude(
     response = await client.messages.create(
         model=model or _MODEL,
         max_tokens=_MAX_TOKENS,
-        system=_SYSTEM_PROMPT,
+        system=_build_system_prompt(date.today()),
         tools=[_TOOL_DEFINITION],
         tool_choice={"type": "tool", "name": "extract_receipt"},
         messages=[
@@ -293,6 +332,10 @@ async def _call_claude(
         has_date=extracted.date is not None,
         has_store=extracted.store_name is not None,
         category=extracted.category,
+        # Not persisted on the Receipt — it is scaffolding for the model, not
+        # data — but it is the only way to tell a misread year from a mis-picked
+        # one when a date comes back wrong.
+        date_reasoning=tool_block.input.get("date_reasoning") if isinstance(tool_block.input, dict) else None,
         input_tokens=response.usage.input_tokens,
         output_tokens=response.usage.output_tokens,
     )

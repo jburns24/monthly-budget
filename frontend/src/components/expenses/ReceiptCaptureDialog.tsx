@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Image,
+  Input,
   NativeSelectField,
   NativeSelectRoot,
   Spinner,
@@ -24,8 +25,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { uploadReceipt } from '../../api/receipts'
 import { getCategories } from '../../api/categories'
+import { getExpense, updateExpense } from '../../api/expenses'
 import { toaster } from '../ui/toaster'
 import type { ReceiptUploadResponse } from '../../types/receipts'
+import type { ExpenseUpdate } from '../../types/expenses'
 
 const COMPRESSION_OPTIONS = { maxSizeMB: 1.5, maxWidthOrHeight: 2400, useWebWorker: true }
 const MAX_SIZE = 5 * 1024 * 1024
@@ -38,6 +41,8 @@ interface State {
   previewUrl: string | null
   uploadResponse: ReceiptUploadResponse | null
   categoryId: string
+  /** Empty until the user edits the date; the persisted value is the default. */
+  expenseDate: string
 }
 
 type Action =
@@ -46,6 +51,7 @@ type Action =
   | { type: 'UPLOAD_SUCCESS'; response: ReceiptUploadResponse }
   | { type: 'UPLOAD_FAILED' }
   | { type: 'SET_CATEGORY'; categoryId: string }
+  | { type: 'SET_DATE'; expenseDate: string }
   | { type: 'CONFIRM' }
   | { type: 'RESET' }
 
@@ -55,6 +61,7 @@ const initialState: State = {
   previewUrl: null,
   uploadResponse: null,
   categoryId: '',
+  expenseDate: '',
 }
 
 function reducer(state: State, action: Action): State {
@@ -69,6 +76,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, phase: 'preview' }
     case 'SET_CATEGORY':
       return { ...state, categoryId: action.categoryId }
+    case 'SET_DATE':
+      return { ...state, expenseDate: action.expenseDate }
     case 'CONFIRM':
       return { ...state, phase: 'done' }
     case 'RESET':
@@ -131,6 +140,49 @@ export default function ReceiptCaptureDialog({
     },
   })
 
+  // The upload already created the Expense, but the response carries only its
+  // id — we need the persisted date, category, and updated_at (for the
+  // optimistic-locking token) to seed the review fields and to tell an actual
+  // edit apart from an untouched default.
+  const expenseId = state.uploadResponse?.expense_id ?? null
+  const { data: expense } = useQuery({
+    queryKey: ['expense', familyId, expenseId],
+    queryFn: () => getExpense(familyId, expenseId!),
+    enabled: state.phase === 'reviewing' && expenseId != null,
+  })
+
+  const confirmMutation = useMutation({
+    mutationFn: async () => {
+      if (!expense) return
+      const patch: ExpenseUpdate = { expected_updated_at: expense.updated_at }
+      let dirty = false
+      if (state.expenseDate && state.expenseDate !== expense.expense_date) {
+        patch.expense_date = state.expenseDate
+        dirty = true
+      }
+      if (state.categoryId && state.categoryId !== expense.category.id) {
+        patch.category_id = state.categoryId
+        dirty = true
+      }
+      if (!dirty) return
+      await updateExpense(familyId, expense.id, patch)
+    },
+    onSuccess: () => {
+      dispatch({ type: 'CONFIRM' })
+      queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['receipts', familyId] })
+    },
+    onError: () => {
+      toaster.create({
+        title: 'Could not save changes',
+        description: 'Your edits were not saved. Try again.',
+        type: 'error',
+        duration: 5000,
+      })
+    },
+  })
+
   const [dropError, setDropError] = useState<string | null>(null)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -179,7 +231,14 @@ export default function ReceiptCaptureDialog({
   }
 
   const receipt = state.uploadResponse?.receipt
-  const effectiveCategoryId = state.categoryId || categories[0]?.id || ''
+  // Default to what was persisted, not to the first category: the upload already
+  // picked a suggested category, and defaulting to categories[0] would silently
+  // overwrite a good suggestion on Confirm.
+  const effectiveCategoryId = state.categoryId || expense?.category.id || ''
+  // parsed_date is null when Claude could not read a date; the backend fell back
+  // to today, which is what the expense actually holds.
+  const effectiveDate = state.expenseDate || expense?.expense_date || receipt?.parsed_date || ''
+  const fieldsDisabled = expense == null || confirmMutation.isPending
 
   return (
     <DialogRoot
@@ -283,6 +342,23 @@ export default function ReceiptCaptureDialog({
                 </Stack>
                 <Stack gap={1}>
                   <Text fontWeight="medium" fontSize="sm">
+                    Date
+                  </Text>
+                  <Input
+                    type="date"
+                    value={effectiveDate}
+                    onChange={(e) => dispatch({ type: 'SET_DATE', expenseDate: e.target.value })}
+                    disabled={fieldsDisabled}
+                    data-testid="receipt-date-input"
+                  />
+                  {receipt.parsed_date == null && (
+                    <Text fontSize="xs" color="gray.500" data-testid="receipt-date-hint">
+                      No date found on the receipt — defaulted to today.
+                    </Text>
+                  )}
+                </Stack>
+                <Stack gap={1}>
+                  <Text fontWeight="medium" fontSize="sm">
                     Category
                   </Text>
                   <NativeSelectRoot>
@@ -291,6 +367,7 @@ export default function ReceiptCaptureDialog({
                       onChange={(e) =>
                         dispatch({ type: 'SET_CATEGORY', categoryId: e.target.value })
                       }
+                      disabled={fieldsDisabled}
                       data-testid="receipt-category-select"
                     >
                       {categories.map((cat) => (
@@ -345,7 +422,8 @@ export default function ReceiptCaptureDialog({
                 </Button>
                 <Button
                   colorPalette="brand"
-                  onClick={() => dispatch({ type: 'CONFIRM' })}
+                  onClick={() => confirmMutation.mutate()}
+                  loading={confirmMutation.isPending}
                   data-testid="receipt-confirm-btn"
                 >
                   Confirm

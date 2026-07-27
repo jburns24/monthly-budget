@@ -13,7 +13,7 @@ On a family with no active categories: mark Receipt 'failed', preserve image,
 
 import uuid
 from collections.abc import Callable
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
 
@@ -32,14 +32,39 @@ from app.services import category_suggestion, claude_client, receipt_storage
 logger = get_logger(__name__)
 
 
-def _parse_expense_date(date_str: str | None) -> date:
-    """Parse YYYY-MM-DD string from Claude; fall back to today on None or parse error."""
-    if date_str is not None:
-        try:
-            return date.fromisoformat(date_str)
-        except ValueError:
-            logger.warning("receipt_date_parse_error", raw=date_str)
-    return date.today()
+# A purchase cannot happen in the future, but `date.today()` here is the
+# container's UTC day, which can already be tomorrow relative to the uploader's
+# local day. One day of slack keeps a genuine same-day receipt from being
+# thrown away over timezone skew.
+_FUTURE_DATE_SLACK = timedelta(days=1)
+
+
+def _parse_expense_date(date_str: str | None) -> date | None:
+    """Parse a trustworthy YYYY-MM-DD from Claude, or None when there isn't one.
+
+    Returns None for a missing, unparseable, or impossible date; the caller
+    substitutes today and leaves ``Receipt.parsed_date`` unset, so "we could not
+    read a date" stays distinguishable from "the receipt is dated today".
+
+    The future-date check is a deterministic backstop for the prompt's year
+    resolution. The model has no clock, so an absent or illegible year is
+    resolved against a date we hand it in the system prompt (see
+    claude_client Phase 3) — a soft constraint. A date past today means that
+    resolution went wrong, and unlike a wrong-but-plausible past year it is
+    detectable here, so it is worth catching rather than filing an expense into
+    a month that has not happened.
+    """
+    if date_str is None:
+        return None
+    try:
+        parsed = date.fromisoformat(date_str)
+    except ValueError:
+        logger.warning("receipt_date_parse_error", raw=date_str)
+        return None
+    if parsed - date.today() > _FUTURE_DATE_SLACK:
+        logger.warning("receipt_date_in_future", raw=date_str)
+        return None
+    return parsed
 
 
 def _amount_cents(total_amount: float | None) -> int | None:
@@ -80,7 +105,8 @@ async def _run_phase3(
     image_path: Path | None,
 ) -> tuple[Expense, bool]:
     """Phase 3: update Receipt fields + create Expense. Returns (expense, needs_edit)."""
-    expense_date = _parse_expense_date(extracted.date)
+    parsed_date = _parse_expense_date(extracted.date)
+    expense_date = parsed_date if parsed_date is not None else date.today()
     total_cents = _amount_cents(extracted.total_amount)
     # Tracked separately from needs_edit: this one governs whether the amount is
     # trustworthy, and it alone decides the amount_cents=0 placeholder below.
@@ -122,7 +148,11 @@ async def _run_phase3(
     try:
         async with db.begin_nested():
             receipt.status = "completed"
-            receipt.parsed_date = expense_date if extracted.date else None
+            # Left None when the date was missing, unparseable, or impossible —
+            # the expense still gets today's date, but the review UI keys its
+            # "no date found, defaulted to today" hint off this being unset and
+            # must not be told a fallback was read off the receipt.
+            receipt.parsed_date = parsed_date
             receipt.parsed_total_cents = total_cents
             receipt.parsed_merchant = extracted.store_name
             receipt.raw_response = extracted.model_dump()

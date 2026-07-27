@@ -16,7 +16,7 @@ Covers:
 
 import uuid
 from collections.abc import AsyncGenerator
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -563,16 +563,34 @@ def test_parse_expense_date_valid_iso() -> None:
     assert _parse_expense_date("2026-03-21") == date(2026, 3, 21)
 
 
-def test_parse_expense_date_none_returns_today() -> None:
-    assert _parse_expense_date(None) == date.today()
+def test_parse_expense_date_none_returns_none() -> None:
+    assert _parse_expense_date(None) is None
 
 
-def test_parse_expense_date_invalid_string_returns_today() -> None:
-    assert _parse_expense_date("not-a-date") == date.today()
+def test_parse_expense_date_invalid_string_returns_none() -> None:
+    assert _parse_expense_date("not-a-date") is None
 
 
-def test_parse_expense_date_partial_string_returns_today() -> None:
-    assert _parse_expense_date("2026-03") == date.today()
+def test_parse_expense_date_partial_string_returns_none() -> None:
+    assert _parse_expense_date("2026-03") is None
+
+
+def test_parse_expense_date_accepts_a_genuinely_old_receipt() -> None:
+    """Years-old dates are legitimate — only the future is impossible."""
+    old = date.today() - timedelta(days=800)
+    assert _parse_expense_date(old.isoformat()) == old
+
+
+def test_parse_expense_date_rejects_future_date() -> None:
+    """A purchase cannot postdate today; treat it as unread rather than as data."""
+    future = date.today() + timedelta(days=30)
+    assert _parse_expense_date(future.isoformat()) is None
+
+
+def test_parse_expense_date_tolerates_one_day_of_timezone_skew() -> None:
+    """A same-day receipt must survive a container clock a day ahead of the user."""
+    tomorrow = date.today() + timedelta(days=1)
+    assert _parse_expense_date(tomorrow.isoformat()) == tomorrow
 
 
 # ---------------------------------------------------------------------------
