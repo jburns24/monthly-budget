@@ -12,10 +12,13 @@ On a family with no active categories: mark Receipt 'failed', preserve image,
 """
 
 import uuid
+from collections.abc import Callable
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import cast
 
 from anthropic import AsyncAnthropic
+from anthropic.types import Usage
 from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,7 +82,9 @@ async def _run_phase3(
     """Phase 3: update Receipt fields + create Expense. Returns (expense, needs_edit)."""
     expense_date = _parse_expense_date(extracted.date)
     total_cents = _amount_cents(extracted.total_amount)
-    needs_edit = extracted.confidence == "low" or total_cents is None
+    # Tracked separately from needs_edit: this one governs whether the amount is
+    # trustworthy, and it alone decides the amount_cents=0 placeholder below.
+    unusable_amount = extracted.confidence == "low" or total_cents is None
     year_month = expense_date.strftime("%Y-%m")
     description = extracted.store_name or "Unknown merchant"
 
@@ -87,7 +92,13 @@ async def _run_phase3(
     # suggest_for_store returns None whenever neither name similarity nor recent
     # usage matches — common for a low-confidence extraction with no store name —
     # so degrade to any active category rather than completing with no expense.
-    suggested_category = await category_suggestion.suggest_for_store(db, family_id, extracted.store_name or "")
+    suggested_category = await category_suggestion.suggest_for_store(
+        db,
+        family_id,
+        extracted.store_name or "",
+        category_hint=extracted.category,
+    )
+    category_is_fallback = suggested_category is None
     if suggested_category is None:
         suggested_category = await category_suggestion.first_active_category(db, family_id)
     if suggested_category is None:
@@ -101,6 +112,10 @@ async def _run_phase3(
             status_code=409,
             detail="No active categories. Create a category, then retry this receipt.",
         )
+
+    # first_active_category is an arbitrary pick, not a match on the store name, so
+    # the user has to confirm it even when the extraction itself was clean.
+    needs_edit = unusable_amount or category_is_fallback
 
     expense: Expense
 
@@ -117,9 +132,10 @@ async def _run_phase3(
             # Spec §Unit 3: low-confidence or missing-total extractions persist
             # with amount_cents=0 so the frontend "Needs review" chip fires
             # (keyed on receipt_status == 'completed' && amount_cents == 0).
-            # When needs_edit is False, total_cents is guaranteed not None
-            # (needs_edit = low-confidence OR total_cents is None).
-            expense_amount_cents: int = total_cents if (total_cents is not None and not needs_edit) else 0
+            # Keyed on unusable_amount, not needs_edit: a clean extraction that
+            # only fell back on the category keeps its real total.
+            # When unusable_amount is False, total_cents is guaranteed not None.
+            expense_amount_cents: int = 0 if unusable_amount else cast(int, total_cents)
             expense = Expense(
                 family_id=family_id,
                 user_id=uploader_id,
@@ -160,15 +176,28 @@ async def process_upload(
     family_id: uuid.UUID,
     uploader_id: uuid.UUID,
     raw_bytes: bytes,
+    *,
+    model: str | None = None,
+    temperature: float | None = claude_client.DEFAULT_TEMPERATURE,
+    usage_callback: Callable[[Usage], None] | None = None,
 ) -> tuple[Receipt, Expense, bool]:
     """Process a receipt image upload through the three-phase pipeline.
+
+    ``model``/``temperature``/``usage_callback`` are forwarded to
+    ``claude_client.extract_receipt``. ``model``/``usage_callback`` are
+    probe-only overrides (see test-scripts/scan_receipt_probe.py); temperature
+    defaults to the pinned DEFAULT_TEMPERATURE that production relies on, and
+    passing None omits the key for models that reject it.
 
     Returns
     -------
     tuple[Receipt, Expense, bool]
         ``(receipt, expense, needs_edit)`` where ``needs_edit`` is True when
-        Claude had low confidence or could not extract the total. A successful
-        return always carries an Expense.
+        Claude had low confidence, could not extract the total, or no category
+        matched the store name (leaving the expense on an arbitrary fallback
+        category the user should confirm). A successful return always carries
+        an Expense. Note that ``needs_edit`` does not imply ``amount_cents == 0``
+        — only the first two causes zero the amount.
 
     Raises
     ------
@@ -232,6 +261,9 @@ async def process_upload(
             anthropic_client_inst,
             sanitized_bytes,
             media_type="image/jpeg",
+            model=model,
+            temperature=temperature,
+            usage_callback=usage_callback,
         )
     except Exception as exc:
         # Keep image on disk so the retry endpoint can re-run extraction.

@@ -13,37 +13,56 @@ from app.models.expense import Expense
 logger = get_logger(__name__)
 
 
-async def suggest_for_store(
-    db: AsyncSession,
-    family_id: uuid.UUID,
-    store_name: str,
-) -> Category | None:
-    """Suggest an active category for a store name.
-
-    Primary path: pg_trgm similarity(name, store_name) > 0.3, highest similarity first.
-    Fallback: most-used active category from expenses in the last 90 days.
-    Returns None if the family has no active categories at all.
-    """
+async def _trgm_match(db: AsyncSession, family_id: uuid.UUID, term: str) -> Category | None:
+    """Best active category whose name trigram-matches ``term`` above 0.3, else None."""
+    if not term:
+        return None
     result = await db.execute(
         select(Category)
         .where(
             Category.family_id == family_id,
             Category.is_active.is_(True),
-            func.similarity(Category.name, store_name) > 0.3,
+            func.similarity(Category.name, term) > 0.3,
         )
-        .order_by(func.similarity(Category.name, store_name).desc())
+        .order_by(func.similarity(Category.name, term).desc())
         .limit(1)
     )
-    category = result.scalar_one_or_none()
-    if category is not None:
-        logger.info(
-            "category_suggestion_trgm_match",
-            family_id=str(family_id),
-            store_name=store_name,
-            category_id=str(category.id),
-            category_name=category.name,
-        )
-        return category
+    return result.scalar_one_or_none()
+
+
+async def suggest_for_store(
+    db: AsyncSession,
+    family_id: uuid.UUID,
+    store_name: str,
+    category_hint: str | None = None,
+) -> Category | None:
+    """Suggest an active category for a store name.
+
+    Tries pg_trgm similarity > 0.3 against ``category_hint`` first, then against
+    ``store_name``, then falls back to the most-used active category from expenses
+    in the last 90 days. Returns None if nothing matches.
+
+    The hint is checked first because it is the far stronger signal: it is a
+    category label (e.g. "Groceries") produced by the receipt extractor, and a
+    store name like "Safeway" will never trigram-match a category named
+    "Groceries" no matter how well the extraction went. ``store_name`` is still
+    tried second, since families do sometimes name a category after a merchant.
+    """
+    for term, source in ((category_hint, "hint"), (store_name, "store_name")):
+        if not term:
+            continue
+        category = await _trgm_match(db, family_id, term)
+        if category is not None:
+            logger.info(
+                "category_suggestion_trgm_match",
+                family_id=str(family_id),
+                store_name=store_name,
+                matched_term=term,
+                matched_on=source,
+                category_id=str(category.id),
+                category_name=category.name,
+            )
+            return category
 
     cutoff = date.today() - timedelta(days=90)
     fallback_result = await db.execute(

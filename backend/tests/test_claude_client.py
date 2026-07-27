@@ -7,7 +7,7 @@ import pytest
 from anthropic import APIConnectionError, APIStatusError
 
 from app.schemas.receipt import ExtractedReceipt
-from app.services.claude_client import _MODEL, extract_receipt
+from app.services.claude_client import _MODEL, CATEGORY_LABELS, extract_receipt
 
 _ANTHROPIC_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
 
@@ -43,9 +43,10 @@ async def test_extract_receipt_success_full_fields() -> None:
     tool_input = {
         "is_receipt": True,
         "confidence": "high",
-        "total_amount": 47.23,
+        "total": 47.23,
         "date": "2026-03-21",
-        "store_name": "Whole Foods Market",
+        "name": "Whole Foods Market",
+        "category": "Groceries",
     }
     response = _make_tool_use_response(tool_input)
     client = _make_client(response)
@@ -58,6 +59,119 @@ async def test_extract_receipt_success_full_fields() -> None:
     assert result.total_amount == 47.23
     assert result.date == "2026-03-21"
     assert result.store_name == "Whole Foods Market"
+    assert result.category == "Groceries"
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_maps_wire_aliases_to_field_names() -> None:
+    """The wire keys name/total map onto .store_name/.total_amount, and only those.
+
+    Guards the alias contract both ways: the pipeline reads the long attribute
+    names, while Receipt.raw_response must keep serializing under them too.
+    """
+    tool_input = {"is_receipt": True, "confidence": "high", "name": "Safeway", "total": 12.5}
+    client = _make_client(_make_tool_use_response(tool_input))
+
+    result = await extract_receipt(client, b"fake-image-bytes")
+
+    assert result.store_name == "Safeway"
+    assert result.total_amount == 12.5
+    dumped = result.model_dump()
+    assert dumped["store_name"] == "Safeway"
+    assert dumped["total_amount"] == 12.5
+    assert "name" not in dumped
+    assert "total" not in dumped
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_coerces_stringified_null_to_none() -> None:
+    """A literal "null" string for an unreadable field becomes None, not an error.
+
+    Regression, caught against the live API: asked for a receipt whose total was
+    cropped out of frame, Haiku returned {"total": "null"} — a string, because the
+    schema typed total as a number and gave it no legal way to say "unreadable".
+    That failed float parsing and turned the upload into a 503. The date case is
+    quieter and worse: "null" validates as a str, then _parse_expense_date falls
+    back to today, silently dating the expense wrong.
+    """
+    tool_input = {
+        "is_receipt": True,
+        "confidence": "low",
+        "total": "null",
+        "date": "null",
+        "name": "N/A",
+        "category": "",
+    }
+    client = _make_client(_make_tool_use_response(tool_input))
+
+    result = await extract_receipt(client, b"cropped-image")
+
+    assert result.total_amount is None
+    assert result.date is None
+    assert result.store_name is None
+    assert result.category is None
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_accepts_real_json_null() -> None:
+    """Explicit JSON nulls validate too — the schema now permits them."""
+    tool_input = {
+        "is_receipt": True,
+        "confidence": "low",
+        "total": None,
+        "date": None,
+        "name": None,
+        "category": None,
+    }
+    client = _make_client(_make_tool_use_response(tool_input))
+
+    result = await extract_receipt(client, b"blurry-image")
+
+    assert result.total_amount is None
+    assert result.date is None
+    assert result.store_name is None
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_optional_fields_permit_null_in_schema() -> None:
+    """Optional fields advertise a null-able type so "unreadable" is expressible."""
+    client = _make_client(_make_tool_use_response({"is_receipt": True, "confidence": "high"}))
+
+    await extract_receipt(client, b"fake-image-bytes")
+
+    props = client.messages.create.call_args.kwargs["tools"][0]["input_schema"]["properties"]
+    for field in ("total", "date", "name", "category"):
+        assert "null" in props[field]["type"], f"{field} cannot express 'unreadable'"
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_tool_schema_uses_wire_names_and_category_enum() -> None:
+    """The tool schema advertises name/total/category, with category constrained."""
+    client = _make_client(_make_tool_use_response({"is_receipt": True, "confidence": "high"}))
+
+    await extract_receipt(client, b"fake-image-bytes")
+
+    props = client.messages.create.call_args.kwargs["tools"][0]["input_schema"]["properties"]
+    assert set(props) == {"is_receipt", "confidence", "total", "date", "name", "category"}
+    # None is a permitted enum member so a non-receipt can leave the field unset
+    # without violating the schema it was handed.
+    assert props["category"]["enum"] == [*CATEGORY_LABELS, None]
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_system_prompt_is_phased() -> None:
+    """The system prompt walks the model through all six extraction phases."""
+    client = _make_client(_make_tool_use_response({"is_receipt": True, "confidence": "high"}))
+
+    await extract_receipt(client, b"fake-image-bytes")
+
+    system = client.messages.create.call_args.kwargs["system"]
+    for phase in ("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"):
+        assert phase in system
+    # Every category the schema allows must also be described in the prompt,
+    # or the model is choosing from a list it was never shown.
+    for label in CATEGORY_LABELS:
+        assert label in system
 
 
 @pytest.mark.asyncio

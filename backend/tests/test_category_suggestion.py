@@ -113,6 +113,72 @@ async def test_trgm_below_threshold_returns_none_or_fallback(db_session: AsyncSe
 
 
 # ---------------------------------------------------------------------------
+# category_hint: the label the receipt extractor picked
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_hint_matches_where_store_name_cannot(db_session: AsyncSession) -> None:
+    """The hint carries the match when the store name shares nothing with any category.
+
+    This is the whole point of the parameter: "Safeway" will never trigram-match
+    "Groceries", so without the hint this receipt would fall through to the
+    90-day fallback and be flagged needs_edit.
+    """
+    family, _ = await _setup(db_session)
+    groceries = await create_test_category(db_session, family, name="Groceries")
+    await create_test_category(db_session, family, name="Transport")
+
+    result = await suggest_for_store(db_session, family.id, "Safeway", category_hint="Groceries")
+
+    assert result is not None
+    assert result.id == groceries.id
+
+
+@pytest.mark.asyncio
+async def test_store_name_still_matches_when_hint_misses(db_session: AsyncSession) -> None:
+    """A hint that matches nothing does not suppress the store-name trgm path."""
+    family, _ = await _setup(db_session)
+    groceries = await create_test_category(db_session, family, name="Groceries")
+
+    result = await suggest_for_store(db_session, family.id, "Grocery Store", category_hint="Entertainment")
+
+    assert result is not None
+    assert result.id == groceries.id
+
+
+@pytest.mark.asyncio
+async def test_hint_wins_over_store_name(db_session: AsyncSession) -> None:
+    """When both terms match different categories, the hint is preferred."""
+    family, _ = await _setup(db_session)
+    await create_test_category(db_session, family, name="Groceries")
+    dining = await create_test_category(db_session, family, name="Dining")
+
+    # "Grocery Store" trgm-matches Groceries, but the extractor saw a restaurant bill.
+    result = await suggest_for_store(db_session, family.id, "Grocery Store", category_hint="Dining")
+
+    assert result is not None
+    assert result.id == dining.id
+
+
+@pytest.mark.asyncio
+async def test_hint_none_falls_back_as_before(db_session: AsyncSession) -> None:
+    """Omitting the hint preserves the original store-name-then-usage behaviour."""
+    family, user = await _setup(db_session)
+    groceries = await create_test_category(db_session, family, name="Groceries")
+
+    recent = _recent_date()
+    await create_test_expense(
+        db_session, family, user, groceries, expense_date=recent, year_month=recent.strftime("%Y-%m")
+    )
+
+    result = await suggest_for_store(db_session, family.id, "XYZ123", category_hint=None)
+
+    assert result is not None
+    assert result.id == groceries.id
+
+
+# ---------------------------------------------------------------------------
 # Fallback: most-used active category in last 90 days
 # ---------------------------------------------------------------------------
 

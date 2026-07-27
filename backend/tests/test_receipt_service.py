@@ -7,7 +7,8 @@ Covers:
 - Phase 2: non-receipt → 422, receipt marked failed, image deleted
 - Phase 3: happy path (high confidence + category) → receipt+expense, needs_edit=False
 - Phase 3: low confidence → needs_edit=True, expense persists with amount_cents=0
-- Phase 3: no suggestion match → falls back to any active category
+- Phase 3: no suggestion match → falls back to any active category, needs_edit=True
+  with the extracted amount preserved
 - Phase 3: family has no active categories → 409, receipt failed, image kept
 - Phase 3: no total amount → needs_edit=True
 - Helper unit tests: _parse_expense_date, _amount_cents
@@ -73,6 +74,7 @@ def _extracted(**overrides) -> ExtractedReceipt:
         total_amount=42.50,
         date="2026-03-21",
         store_name="Test Market",
+        category="Groceries",
     )
     defaults.update(overrides)
     return ExtractedReceipt(**defaults)
@@ -269,6 +271,45 @@ async def test_success_high_confidence_creates_expense(db_session: AsyncSession)
     assert needs_edit is False
 
 
+@pytest.mark.asyncio
+async def test_extracted_category_resolves_against_real_categories(db_session: AsyncSession) -> None:
+    """Claude's category label routes the expense without needing a store-name match.
+
+    suggest_for_store is deliberately *not* patched here: the point is that a real
+    merchant name ("Safeway") trigram-matches no category at all, so before the
+    category hint existed this receipt landed on the arbitrary first_active_category
+    pick and reported needs_edit=True. The label carries it to the right row.
+    """
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    # Ordered so first_active_category would pick Bills, not Groceries — that way
+    # a passing assertion can only mean the hint matched, not that we got lucky.
+    await create_test_category(db_session, family, name="Bills", sort_order=0)
+    groceries = await create_test_category(db_session, family, name="Groceries", sort_order=1)
+    image_path = _fake_path(family.id)
+
+    with (
+        patch("app.services.receipt_service.receipt_storage.validate_mime"),
+        patch(
+            "app.services.receipt_service.receipt_storage.sanitize_image",
+            return_value=(b"sanitized", (100, 100)),
+        ),
+        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
+        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
+        patch(
+            "app.services.receipt_service.claude_client.extract_receipt",
+            AsyncMock(return_value=_extracted(store_name="Safeway", category="Groceries")),
+        ),
+    ):
+        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+
+    assert expense.category_id == groceries.id
+    assert needs_edit is False
+    # The label is persisted for later auditing / prompt tuning.
+    assert receipt.raw_response["category"] == "Groceries"
+    assert receipt.raw_response["store_name"] == "Safeway"
+
+
 # ---------------------------------------------------------------------------
 # Phase 3: low confidence → needs_edit=True, expense with placeholder
 # ---------------------------------------------------------------------------
@@ -360,6 +401,10 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
 
     Regression: previously the expense was silently skipped, so the upload
     returned 201 with nothing in the family's expense list.
+
+    The fallback category is an arbitrary pick, not a real suggestion, so the
+    upload reports needs_edit=True to prompt review — but a cleanly extracted
+    total is still preserved, since only the extraction quality zeroes the amount.
     """
     user = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, user)
@@ -388,7 +433,11 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
     assert receipt.status == "completed"
     assert expense is not None
     assert expense.category_id == category.id
-    assert needs_edit is False
+    assert needs_edit is True
+    # A high-confidence total must survive the category fallback — needs_edit no
+    # longer implies a zeroed amount.
+    assert expense.amount_cents == 4250
+    assert receipt.parsed_total_cents == 4250
 
 
 @pytest.mark.asyncio
