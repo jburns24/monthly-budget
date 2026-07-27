@@ -10,5 +10,18 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # Build stage: full source copy + production build
 FROM dev AS build
+# Vite inlines VITE_* vars at build time, so they must be present here
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 COPY . .
 RUN npm run build
+
+# ============================================================
+# Runtime stage: nginx serving the static bundle
+# /api is NOT proxied here — the deploy layer (ingress / reverse proxy)
+# routes /api to the backend service.
+# ============================================================
+FROM nginx:1.27-alpine AS runtime
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80

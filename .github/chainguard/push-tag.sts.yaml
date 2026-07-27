@@ -1,0 +1,10 @@
+# Octo STS trust policy — lets the Release workflow mint a short-lived token
+# that can push tags (the default GITHUB_TOKEN cannot trigger other workflows).
+# Requires the Octo STS GitHub App to be installed on this repository.
+issuer: https://token.actions.githubusercontent.com
+subject_pattern: repo:jburns24/monthly-budget:ref:refs/heads/master
+claim_pattern:
+  workflow_ref: jburns24/monthly-budget/.github/workflows/semantic-release.yaml@.*
+
+permissions:
+  contents: write
