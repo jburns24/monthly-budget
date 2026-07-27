@@ -58,6 +58,12 @@ uv run alembic upgrade head                    # Apply all migrations
 uv run alembic revision --autogenerate -m "desc"  # Generate migration from model changes
 ```
 
+## Manual Test Scripts
+
+```bash
+uv run python test-scripts/scan_receipt_probe.py [IMAGE]  # From backend/. Runs a receipt through the real pipeline with a LIVE Anthropic call — use when touching receipt scanning, the Claude prompt/tool schema, or category suggestion, since tests/ and the e2e suite all mock AsyncAnthropic. See backend/test-scripts/README.md.
+```
+
 ## Architecture
 
 **Monorepo** with a FastAPI backend and React frontend, orchestrated via Tilt (live-reload dev environment) + Taskfile (CLI command orchestration).
