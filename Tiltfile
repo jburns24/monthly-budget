@@ -99,6 +99,13 @@ local_resource(
 # Application services (Docker containers with bind-mounted source)
 # ============================================================
 
+# Receipt image storage. The container path is whatever the app is configured to
+# write to, so the bind mount is derived from it — otherwise an override sends
+# uploads to an unmounted directory inside the container, where they are
+# invisible on the host and lost on every container recreate.
+receipt_container_path = os.getenv('RECEIPT_STORAGE_PATH', '/data/receipts')
+receipt_host_dir = 'backend/data/receipts'
+
 api_env = {
     'DATABASE_URL': container_database_url,
     'REDIS_URL': container_redis_url,
@@ -109,12 +116,12 @@ api_env = {
     'ANTHROPIC_API_KEY': os.getenv('ANTHROPIC_API_KEY', ''),
     'ANTHROPIC_MOCK': os.getenv('ANTHROPIC_MOCK', 'false'),
     'ANTHROPIC_MOCK_SCENARIO': os.getenv('ANTHROPIC_MOCK_SCENARIO', 'success'),
-    'RECEIPT_STORAGE_PATH': os.getenv('RECEIPT_STORAGE_PATH', '/data/receipts'),
+    'RECEIPT_STORAGE_PATH': receipt_container_path,
     'ENVIRONMENT': os.getenv('ENVIRONMENT', 'development'),
     'LOG_LEVEL': os.getenv('LOG_LEVEL', 'INFO'),
 }
 
-local('mkdir -p backend/data/receipts', echo_off=True)
+local('mkdir -p "%s"' % receipt_host_dir, echo_off=True)
 
 local_resource(
     'api',
@@ -130,7 +137,7 @@ local_resource(
         '-v $(pwd)/backend/app:/app/app',
         '-v $(pwd)/backend/alembic:/app/alembic',
         '-v $(pwd)/backend/alembic.ini:/app/alembic.ini',
-        '-v $(pwd)/backend/data/receipts:/data/receipts',
+        '-v $(pwd)/%s:%s' % (receipt_host_dir, receipt_container_path),
     ] + ['-e %s="%s"' % (k, v) for k, v in api_env.items()] + [
         'monthly-budget-api',
     ]),

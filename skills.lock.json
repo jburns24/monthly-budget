@@ -1,6 +1,6 @@
 {
   "lockfileVersion": 1,
-  "generatedAt": "2026-07-26T21:03:26Z",
+  "generatedAt": "2026-07-27T01:05:41Z",
   "skills": [
     {
       "name": "architecture-patterns",
@@ -138,7 +138,7 @@
         "digest": "sha256:47a09a747b18c7ae7f96f47800350503fcfad2d3a79d90c904f14b76258281d6",
         "ref": "ghcr.io/jburns24/skills/systematic-debugging:0.0.1@sha256:47a09a747b18c7ae7f96f47800350503fcfad2d3a79d90c904f14b76258281d6"
       },
-      "installedAt": "2026-07-26T21:03:20Z",
+      "installedAt": "2026-07-27T01:05:39Z",
       "additionalInstalledPaths": [
         ".claude/skills/systematic-debugging",
         ".codex/skills/systematic-debugging",
@@ -174,7 +174,7 @@
         "digest": "sha256:f65055b0eabe5e5133399fccd0e23671a41b47151249bf398d2849cf4e58f2d4",
         "ref": "ghcr.io/jburns24/skills/tilt-dev:0.0.0@sha256:f65055b0eabe5e5133399fccd0e23671a41b47151249bf398d2849cf4e58f2d4"
       },
-      "installedAt": "2026-07-26T21:03:22Z",
+      "installedAt": "2026-07-27T01:05:40Z",
       "additionalInstalledPaths": [
         ".claude/skills/tilt-dev",
         ".codex/skills/tilt-dev",
@@ -246,7 +246,7 @@
         "digest": "sha256:fd4481010f24c63e404676a795033a5f0fa50923aab3e45aa01413aa8c4938c5",
         "ref": "ghcr.io/jburns24/skills/webapp-testing:0.0.1@sha256:fd4481010f24c63e404676a795033a5f0fa50923aab3e45aa01413aa8c4938c5"
       },
-      "installedAt": "2026-07-26T21:03:26Z",
+      "installedAt": "2026-07-27T01:05:41Z",
       "additionalInstalledPaths": [
         ".claude/skills/webapp-testing",
         ".codex/skills/webapp-testing",
