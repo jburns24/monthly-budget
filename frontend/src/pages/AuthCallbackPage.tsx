@@ -59,7 +59,7 @@ function AuthCallbackPage() {
   if (error !== null) {
     return (
       <Container maxW="md" py={16}>
-        <VStack spacing={4} align="center">
+        <VStack gap={4} align="center">
           <Text color="red.500" fontSize="lg" fontWeight="semibold">
             Sign In Failed
           </Text>
@@ -78,7 +78,7 @@ function AuthCallbackPage() {
 
   return (
     <Container maxW="md" py={16}>
-      <VStack spacing={4} align="center">
+      <VStack gap={4} align="center">
         <Spinner size="xl" />
         <Text color="gray.600">Signing you in…</Text>
       </VStack>

@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { Box, Button, Card, Heading, Input, Text } from '@chakra-ui/react'
+import {
+  Box,
+  Button,
+  Card,
+  Heading,
+  Input,
+  NativeSelectField,
+  NativeSelectRoot,
+  Text,
+} from '@chakra-ui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFamily } from '../../api/family'
 import { toaster } from '../ui/toaster'
@@ -82,26 +91,20 @@ function CreateFamilyView() {
               <Text fontWeight="medium" mb={1}>
                 Timezone
               </Text>
-              <Box
-                as="select"
-                id="timezone"
-                name="timezone"
-                w="full"
-                h="40px"
-                px={3}
-                borderWidth="1px"
-                borderRadius="md"
-                borderColor="gray.200"
-                bg="white"
-                value={timezone}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTimezone(e.target.value)}
-              >
-                {TIMEZONE_OPTIONS.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz.replace(/_/g, ' ')}
-                  </option>
-                ))}
-              </Box>
+              <NativeSelectRoot>
+                <NativeSelectField
+                  id="timezone"
+                  name="timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                >
+                  {TIMEZONE_OPTIONS.map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </NativeSelectField>
+              </NativeSelectRoot>
             </Box>
             <Button
               type="submit"

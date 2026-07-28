@@ -1,5 +1,7 @@
 """Health check endpoints for the Monthly Budget API."""
 
+from typing import Awaitable, cast
+
 from fastapi import APIRouter, Response
 from sqlalchemy import text
 
@@ -29,7 +31,8 @@ async def _check_redis() -> tuple[bool, str]:
         import redis.asyncio as aioredis
 
         client = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
-        await client.ping()
+        # redis-py's ping() is typed as `Awaitable[bool] | bool` (shared sync/async stub)
+        await cast(Awaitable[bool], client.ping())
         await client.aclose()  # type: ignore[attr-defined]
         return True, "connected"
     except Exception as exc:

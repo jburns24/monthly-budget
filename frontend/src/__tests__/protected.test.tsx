@@ -87,7 +87,14 @@ describe('ProtectedRoute', () => {
 
   it('renders children when authenticated', () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: '1', email: 'a@b.com', display_name: 'Alice', avatar_url: null, timezone: 'UTC' },
+      user: {
+        id: '1',
+        email: 'a@b.com',
+        display_name: 'Alice',
+        avatar_url: null,
+        timezone: 'UTC',
+        family: null,
+      },
       isLoading: false,
       isAuthenticated: true,
       logout: mockLogout,
@@ -143,6 +150,7 @@ describe('Header', () => {
         display_name: 'Alice Smith',
         avatar_url: null,
         timezone: 'UTC',
+        family: null,
       },
       isLoading: false,
       isAuthenticated: true,
@@ -167,6 +175,7 @@ describe('Header', () => {
         display_name: 'Alice Smith',
         avatar_url: null,
         timezone: 'UTC',
+        family: null,
       },
       isLoading: false,
       isAuthenticated: true,
@@ -184,7 +193,14 @@ describe('Header', () => {
 
   it('calls logout and navigates to /login on sign out click', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { id: '1', email: 'a@b.com', display_name: 'Alice', avatar_url: null, timezone: 'UTC' },
+      user: {
+        id: '1',
+        email: 'a@b.com',
+        display_name: 'Alice',
+        avatar_url: null,
+        timezone: 'UTC',
+        family: null,
+      },
       isLoading: false,
       isAuthenticated: true,
       logout: mockLogout,

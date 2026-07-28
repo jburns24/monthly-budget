@@ -57,8 +57,8 @@ function LoginPage() {
       px={4}
     >
       <Container maxW="sm">
-        <VStack spacing={8} align="center">
-          <VStack spacing={2} align="center">
+        <VStack gap={8} align="center">
+          <VStack gap={2} align="center">
             <Heading as="h1" size="2xl" textAlign="center" color="white" fontWeight="800">
               Monthly Budget
             </Heading>
@@ -67,7 +67,7 @@ function LoginPage() {
             </Text>
           </VStack>
           <Box w="full" p={8} bg="white" borderRadius="xl" boxShadow="xl">
-            <VStack spacing={4}>
+            <VStack gap={4}>
               {error !== null && (
                 <Box
                   w="full"
