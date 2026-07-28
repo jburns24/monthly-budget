@@ -9,6 +9,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --all-extras --no-install-project
+# Bake the source in so the image is self-contained under Kubernetes, where
+# there is no bind mount. Tilt's live_update syncs edits over the top of it.
+COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
 

@@ -1,7 +1,10 @@
 /**
  * E2E tests for the receipt scanning feature.
  *
- * Requires backend running with ANTHROPIC_MOCK=true (set in Tiltfile).
+ * Requires backend running with ANTHROPIC_MOCK=true. That now comes from
+ * manifests/overlays/dev/config/app-config.env, which kustomize renders into
+ * the app-config ConfigMap that the backend Deployment pulls in via envFrom --
+ * it is no longer set in the Tiltfile.
  * Uses POST /api/dev/mock-claude to control deterministic Claude responses.
  *
  * Scenarios:

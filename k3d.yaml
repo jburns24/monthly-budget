@@ -1,0 +1,59 @@
+# k3d cluster definition for local development.
+#
+#   k3d cluster create --config k3d.yaml
+#   k3d cluster delete --config k3d.yaml
+#
+# Driven by `task up` / `task down` — see Taskfile.yml.
+#
+# Registry footgun (read before changing the name or port):
+#   The k3d-managed registry is reachable under two different names AND two
+#   different ports.
+#     * from the host / docker push  ->  localhost:5111
+#     * from inside the cluster      ->  monthly-budget-registry:5000
+#   hostPort below is a host-side publish only; inside the docker network the
+#   registry always listens on 5000. Note also that k3d does NOT prefix the
+#   registry container with "k3d-" the way it does node names.
+#   Tilt is told about both via default_registry(..., host_from_cluster=...)
+#   in the Tiltfile. Changing anything here means changing it there too.
+---
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: monthly-budget
+
+servers: 1
+agents: 1
+
+image: docker.io/rancher/k3s:v1.31.5-k3s1
+
+# k3d-managed image registry that Tilt pushes dev images into.
+registries:
+  create:
+    name: monthly-budget-registry
+    host: '0.0.0.0'
+    hostPort: '5111'
+
+ports:
+  # Traefik ingress -> http://localhost:8080
+  - port: 8080:80
+    nodeFilters:
+      - loadbalancer
+
+options:
+  k3d:
+    wait: true
+    timeout: 180s
+    disableLoadbalancer: false
+    disableImageVolume: false
+  k3s:
+    extraArgs:
+      # Not needed locally; trims cluster startup time and memory.
+      # NOTE: do not disable servicelb — Traefik's LoadBalancer Service relies
+      # on klipper-lb to bind node ports 80/443, which is what the k3d
+      # loadbalancer forwards host port 8080 into.
+      - arg: --disable=metrics-server
+        nodeFilters:
+          - server:*
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true

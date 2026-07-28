@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local development overlay -- targets a k3d/k3s cluster with Traefik ingress.
+# Render with:
+#   kustomize build manifests/overlays/dev
+# Tilt loads this same overlay and rewrites the two placeholder image names.
+
+namespace: monthly-budget
+
+resources:
+  - ../../base
+
+# disableNameSuffixHash is REQUIRED here, not a style choice:
+#   1. Hashed names change on every edit, which would roll the backend and
+#      frontend pods and throw away Tilt's live_update state.
+#   2. The base references `app-config` / `app-secrets` from places kustomize's
+#      name-reference transformer does not rewrite reliably, and the migration
+#      Job's envFrom must keep resolving to the same names across re-runs.
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: app-config
+    behavior: create
+    envs:
+      - config/app-config.env
+
+secretGenerator:
+  - name: app-secrets
+    behavior: create
+    type: Opaque
+    envs:
+      - config/app-secrets.env
+
+patches:
+  - path: patches/fast-teardown.yaml
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/managed-by: kustomize
+      monthly-budget.dev/overlay: dev

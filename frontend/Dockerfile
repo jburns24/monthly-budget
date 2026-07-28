@@ -5,6 +5,10 @@ COPY package.json package-lock.json ./
 # Remove lockfile and reinstall to get correct platform-specific bindings
 # (lockfile generated on macOS won't resolve linux native modules correctly)
 RUN rm package-lock.json && npm install
+# Bake the source in so the image is self-contained under Kubernetes, where
+# there is no bind mount. Tilt's live_update syncs edits over the top of it.
+# node_modules is excluded by .dockerignore, so the install above survives.
+COPY . .
 EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 

@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  # The receipts PVC is ReadWriteOnce, so never let two pods hold it at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/component: api
+    spec:
+      # The dev stage of backend/Dockerfile runs as root on purpose: uvicorn
+      # --reload writes .pyc files and needs inotify watches over the synced
+      # source tree. Do NOT add runAsNonRoot/readOnlyRootFilesystem here.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+              echo "postgres is accepting connections"
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: POSTGRES_DB
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+      containers:
+        - name: backend
+          # Placeholder image name -- Tilt's docker_build('monthly-budget-backend')
+          # rewrites this reference. It does NOT stay untagged: default_registry()
+          # in the Tiltfile turns it into
+          #   monthly-budget-registry:5000/monthly-budget-backend:tilt-<hash>
+          # and Tilt pushes that to the k3d registry before applying, so the
+          # kubelet really does pull.
+          #
+          # IfNotPresent is the right policy precisely because that tag is unique
+          # per build: a tag the node has never seen gets pulled regardless, and a
+          # tag it already has cannot have changed underneath it. So this skips a
+          # pointless registry round-trip on every pod restart without any risk of
+          # serving a stale image. Always would also work, but it turns a registry
+          # hiccup into an ImagePullBackOff for an image already on the node.
+          #
+          # Note this overlay is only ever applied by Tilt. A bare
+          # `kubectl apply -k manifests/overlays/dev` leaves the literal
+          # `monthly-budget-backend:latest`, which exists nowhere and fails to
+          # pull under any policy.
+          image: monthly-budget-backend
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # uvicorn --reload watches the source tree through watchfiles, which
+            # relies on inotify. Tilt's live_update tar-extracts changed files
+            # into an overlayfs layer, and inotify events across that boundary
+            # are unreliable -- edits can simply never fire a reload. Polling
+            # costs a little CPU and always works, so it is the dev default.
+            - name: WATCHFILES_FORCE_POLLING
+              value: "true"
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          volumeMounts:
+            - name: receipts
+              # Must stay in sync with RECEIPT_STORAGE_PATH in app-config.env.
+              mountPath: /data/receipts
+          # Probe strategy, deliberately chosen -- see backend/app/routers/health.py:
+          #
+          #   GET /api/health       -> 200 healthy, 503 when DB *or* Redis is down.
+          #   GET /api/health/ready -> 200 ready, 503 otherwise, but it shells out
+          #                            to `alembic check` (subprocess, 10s timeout)
+          #                            on every single call. Far too expensive to
+          #                            poll on a schedule, so it is not used here.
+          #
+          # startupProbe is a plain tcpSocket: it only asks "has uvicorn bound
+          # the port yet", which tolerates a slow cold start without depending
+          # on postgres/redis being healthy at that instant.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 36 # up to 3 minutes to come up
+          # readinessProbe uses the real health endpoint. A Tilt live_update
+          # sync triggers a uvicorn --reload cycle during which the socket
+          # briefly refuses connections; failureThreshold 6 x 10s gives it a
+          # full minute before the pod is pulled from the Service endpoints.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          # NO livenessProbe on purpose. Restarting the pod would blow away the
+          # live_update'd source tree and force a full image rebuild, so a
+          # flapping liveness check during a reload would be actively harmful.
+          # Readiness alone is enough to gate traffic in a dev cluster.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+      volumes:
+        - name: receipts
+          persistentVolumeClaim:
+            claimName: backend-receipts

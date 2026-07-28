@@ -1,0 +1,68 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monthly-budget
+  labels:
+    app.kubernetes.io/name: monthly-budget
+    app.kubernetes.io/component: ingress
+spec:
+  ingressClassName: traefik
+  rules:
+    # Host-less rule: matches any Host header, so http://localhost:8080 works
+    # without touching /etc/hosts or inventing a *.localhost domain.
+    - http:
+        paths:
+          # Traefik on k3s already sorts by path specificity, but list /api
+          # first so the intent is explicit and does not depend on that.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          # FastAPI mounts these OUTSIDE settings.api_prefix, so an /api-only
+          # rule sends them to the Vite catch-all below, which answers with
+          # index.html instead of 404 -- the confusing symptom being a blank
+          # SPA shell where the Swagger page should be. /docs, /redoc and
+          # /openapi.json are FastAPI defaults (app has no *_url overrides);
+          # /metrics comes from Instrumentator().expose(app) in app/main.py.
+          # The Tiltfile's "API Docs" link points at http://localhost:8080/docs
+          # and depends on this rule.
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /redoc
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+          # Catch-all last: the Vite dev server, which also serves the HMR
+          # websocket at /@vite/client -- Traefik proxies the Upgrade for free.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 5173
