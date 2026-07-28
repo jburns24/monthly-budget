@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import {
   Box,
+  chakra,
   TooltipContent,
   TooltipPositioner,
   TooltipRoot,
   TooltipTrigger,
 } from '@chakra-ui/react'
+
+const ChakraButton = chakra('button')
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import CreateExpenseDialog from './CreateExpenseDialog'
 import ReceiptCaptureDialog from './ReceiptCaptureDialog'
@@ -81,8 +84,7 @@ function FAB({ familyId }: FABProps) {
             zIndex="overlay"
             display="inline-block"
           >
-            <Box
-              as="button"
+            <ChakraButton
               w="48px"
               h="48px"
               minW="40px"
@@ -103,7 +105,7 @@ function FAB({ familyId }: FABProps) {
               data-testid="fab-scan-receipt"
             >
               <CameraIcon />
-            </Box>
+            </ChakraButton>
           </Box>
         </TooltipTrigger>
         <TooltipPositioner>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Badge, Box, Button, Flex, Heading, Text } from '@chakra-ui/react'
+import { Badge, Box, Button, Flex, Heading, Image, Text } from '@chakra-ui/react'
 import type { FamilyMember } from '../../types/family'
 import RoleChangeDialog from './RoleChangeDialog'
 import RemoveMemberDialog from './RemoveMemberDialog'
@@ -59,8 +59,7 @@ function MemberList({ members, currentUserId, familyId, isAdmin, ownerId }: Memb
                 flexShrink={0}
               >
                 {member.avatar_url ? (
-                  <Box
-                    as="img"
+                  <Image
                     src={member.avatar_url}
                     alt={member.display_name}
                     w="40px"

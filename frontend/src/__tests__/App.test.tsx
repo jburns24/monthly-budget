@@ -39,6 +39,7 @@ describe('App', () => {
         display_name: 'Test User',
         avatar_url: null,
         timezone: 'UTC',
+        family: null,
       },
       isLoading: false,
       isAuthenticated: true,

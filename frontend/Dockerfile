@@ -8,8 +8,13 @@ RUN rm package-lock.json && npm install
 EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
-# Build stage: full source copy + production build
-FROM dev AS build
+# Build stage: production build against the pinned lockfile.
+# Uses a fresh install (not the dev stage's floating `npm install`) so the
+# published image matches what CI/local reproducibly resolve.
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 # Vite inlines VITE_* vars at build time, so they must be present here
 ARG VITE_GOOGLE_CLIENT_ID
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID

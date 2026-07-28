@@ -5,6 +5,7 @@ import { ChakraProvider } from '@chakra-ui/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import CreateExpenseDialog from '../components/expenses/CreateExpenseDialog'
 import system from '../theme'
+import type { Expense } from '../types/expenses'
 
 // Mock expenses API to prevent real HTTP calls
 vi.mock('../api/expenses', () => ({
@@ -80,7 +81,7 @@ const sampleCategories = [
   },
 ]
 
-function makeExpense(overrides = {}) {
+function makeExpense(overrides: Partial<Expense> = {}): Expense {
   return {
     id: 'exp-1',
     family_id: FAMILY_ID,
@@ -91,6 +92,8 @@ function makeExpense(overrides = {}) {
     expense_date: '2026-04-01',
     created_at: '2026-04-01T10:00:00Z',
     updated_at: '2026-04-01T10:00:00Z',
+    receipt_id: null,
+    receipt_status: null,
     ...overrides,
   }
 }

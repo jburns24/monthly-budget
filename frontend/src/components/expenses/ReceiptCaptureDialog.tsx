@@ -1,5 +1,5 @@
 import { useCallback, useReducer, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
+import { useDropzone, type FileRejection } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
 import {
   Box,
@@ -193,7 +193,7 @@ export default function ReceiptCaptureDialog({
     dispatch({ type: 'FILE_SELECTED', file, previewUrl })
   }, [])
 
-  const onDropRejected = useCallback((fileRejections: { errors: { code: string }[] }[]) => {
+  const onDropRejected = useCallback((fileRejections: FileRejection[]) => {
     const codes = fileRejections.flatMap((r) => r.errors.map((e) => e.code))
     if (codes.includes('file-too-large')) {
       setDropError('Image too large (max 5MB).')
@@ -361,13 +361,12 @@ export default function ReceiptCaptureDialog({
                   <Text fontWeight="medium" fontSize="sm">
                     Category
                   </Text>
-                  <NativeSelectRoot>
+                  <NativeSelectRoot disabled={fieldsDisabled}>
                     <NativeSelectField
                       value={effectiveCategoryId}
                       onChange={(e) =>
                         dispatch({ type: 'SET_CATEGORY', categoryId: e.target.value })
                       }
-                      disabled={fieldsDisabled}
                       data-testid="receipt-category-select"
                     >
                       {categories.map((cat) => (

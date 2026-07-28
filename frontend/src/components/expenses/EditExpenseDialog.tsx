@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Button, Input, Stack, Text } from '@chakra-ui/react'
+import { Button, Input, NativeSelectField, NativeSelectRoot, Stack, Text } from '@chakra-ui/react'
 import {
   DialogRoot,
   DialogPositioner,
@@ -128,27 +128,20 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
                 *
               </Text>
             </Text>
-            <Box
-              as="select"
-              w="full"
-              h="40px"
-              px={3}
-              borderWidth="1px"
-              borderRadius="md"
-              borderColor="gray.200"
-              bg="white"
-              value={categoryId}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCategoryId(e.target.value)}
-              disabled={mutation.isPending}
-              data-testid="edit-expense-category"
-            >
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.icon ? `${cat.icon} ` : ''}
-                  {cat.name}
-                </option>
-              ))}
-            </Box>
+            <NativeSelectRoot disabled={mutation.isPending}>
+              <NativeSelectField
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                data-testid="edit-expense-category"
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon ? `${cat.icon} ` : ''}
+                    {cat.name}
+                  </option>
+                ))}
+              </NativeSelectField>
+            </NativeSelectRoot>
           </Stack>
           <Stack gap={1}>
             <Text fontWeight="medium" fontSize="sm">

@@ -1,4 +1,3 @@
-import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -54,6 +53,7 @@ vi.mock('../components/expenses/DeleteExpenseDialog', () => ({
 import { useAuth } from '../hooks/useAuth'
 import { getExpenses } from '../api/expenses'
 import { getCategories } from '../api/categories'
+import type { Expense } from '../types/expenses'
 
 const FAMILY_ID = 'fam-123'
 
@@ -96,7 +96,7 @@ function renderExpensesPage(initialPath = '/expenses') {
   )
 }
 
-const sampleExpenses = [
+const sampleExpenses: Expense[] = [
   {
     id: 'exp-1',
     family_id: FAMILY_ID,
@@ -107,6 +107,8 @@ const sampleExpenses = [
     expense_date: '2026-04-01',
     created_at: '2026-04-01T10:00:00Z',
     updated_at: '2026-04-01T10:00:00Z',
+    receipt_id: null,
+    receipt_status: null,
   },
   {
     id: 'exp-2',
@@ -118,6 +120,8 @@ const sampleExpenses = [
     expense_date: '2026-04-03',
     created_at: '2026-04-03T08:00:00Z',
     updated_at: '2026-04-03T08:00:00Z',
+    receipt_id: null,
+    receipt_status: null,
   },
 ]
 
