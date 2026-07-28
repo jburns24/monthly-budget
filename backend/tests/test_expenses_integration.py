@@ -29,6 +29,36 @@ from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F4
 from tests.conftest import _TEST_JWT_SECRET, create_test_category, create_test_family, create_test_user
 
 # ---------------------------------------------------------------------------
+# Grace-period-safe dates
+#
+# app/services/grace_period.py only lets an expense be updated or deleted while
+# its month is the current month, or while no more than family.edit_grace_days
+# whole days have passed since that month ended. Any test that mutates an
+# expense must therefore derive its dates from the clock — an absolute month
+# silently rots into a 403 once the calendar moves past the grace window.
+# Commit 19c019d fixed the same rot in the e2e specs.
+#
+# The current month is always editable, so that is what the mutating tests use.
+#
+# Two tests keep their fixed dates, for two different reasons:
+#   - test_budget_summary_multiple_categories only creates and reads, and the
+#     grace check runs on neither path.
+#   - test_rbac_non_member_gets_404 does issue a PUT and a DELETE, but as a
+#     non-member: require_family_member is a FastAPI dependency, so it resolves
+#     and 404s before the handler body reaches the grace check at
+#     app/routers/expenses.py:122 and :159.
+# Point the second one at a member client and its fixed date becomes a 403.
+# ---------------------------------------------------------------------------
+
+_TODAY = date.today()
+
+#: A month that is always inside the grace period, as ``YYYY-MM``.
+EDITABLE_MONTH = f"{_TODAY:%Y-%m}"
+
+#: A date inside :data:`EDITABLE_MONTH`, as ``YYYY-MM-DD``.
+EDITABLE_DATE = f"{EDITABLE_MONTH}-01"
+
+# ---------------------------------------------------------------------------
 # NullPool db_session fixture — per-test transaction rollback
 # ---------------------------------------------------------------------------
 
@@ -126,20 +156,20 @@ async def test_full_expense_lifecycle(db_session: AsyncSession) -> None:
                         "amount_cents": 4500,
                         "description": "Weekly shopping",
                         "category_id": str(category.id),
-                        "expense_date": "2026-04-05",
+                        "expense_date": EDITABLE_DATE,
                     },
                 )
                 assert resp1.status_code == 201, f"create failed: {resp1.text}"
                 exp_data = resp1.json()
                 assert exp_data["amount_cents"] == 4500
                 assert exp_data["description"] == "Weekly shopping"
-                assert exp_data["expense_date"] == "2026-04-05"
+                assert exp_data["expense_date"] == EDITABLE_DATE
                 assert exp_data["family_id"] == family_id
                 expense_id = exp_data["id"]
                 updated_at = exp_data["updated_at"]
 
                 # Step 2: List expenses — new expense appears
-                resp2 = await client.get(f"/api/families/{family_id}/expenses?year_month=2026-04")
+                resp2 = await client.get(f"/api/families/{family_id}/expenses?year_month={EDITABLE_MONTH}")
                 assert resp2.status_code == 200, f"list failed: {resp2.text}"
                 expenses = resp2.json()["expenses"]
                 assert len(expenses) == 1
@@ -175,7 +205,7 @@ async def test_full_expense_lifecycle(db_session: AsyncSession) -> None:
                 assert "message" in del_data
 
                 # Step 6: List expenses — now empty
-                resp6 = await client.get(f"/api/families/{family_id}/expenses?year_month=2026-04")
+                resp6 = await client.get(f"/api/families/{family_id}/expenses?year_month={EDITABLE_MONTH}")
                 assert resp6.status_code == 200, f"list after delete failed: {resp6.text}"
                 assert resp6.json()["total_count"] == 0
                 assert resp6.json()["expenses"] == []
@@ -361,7 +391,7 @@ async def test_rbac_member_can_crud_expenses(db_session: AsyncSession) -> None:
                         "amount_cents": 1500,
                         "description": "Phone bill",
                         "category_id": str(category.id),
-                        "expense_date": "2026-04-08",
+                        "expense_date": EDITABLE_DATE,
                     },
                 )
                 assert resp_create.status_code == 201, f"member create failed: {resp_create.text}"
@@ -369,7 +399,7 @@ async def test_rbac_member_can_crud_expenses(db_session: AsyncSession) -> None:
                 exp_updated_at = resp_create.json()["updated_at"]
 
                 # Member CAN list expenses
-                resp_list = await client.get(f"/api/families/{family_id}/expenses?year_month=2026-04")
+                resp_list = await client.get(f"/api/families/{family_id}/expenses?year_month={EDITABLE_MONTH}")
                 assert resp_list.status_code == 200, f"member list failed: {resp_list.text}"
                 assert any(e["id"] == exp_id for e in resp_list.json()["expenses"])
 

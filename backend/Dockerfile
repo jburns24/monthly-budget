@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ============================================================
-# Dev stage: all extras installed, source mounted at runtime for uvicorn --reload
+# Dev stage: dev dependency group installed, source mounted at runtime for uvicorn --reload
 # ============================================================
 FROM python:3.12-slim AS dev
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -8,7 +8,7 @@ WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
 RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --all-extras --no-install-project
+RUN uv sync --locked --no-install-project
 # Bake the source in so the image is self-contained under Kubernetes, where
 # there is no bind mount. Tilt's live_update syncs edits over the top of it.
 COPY app/ ./app/

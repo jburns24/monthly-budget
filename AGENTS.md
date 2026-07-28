@@ -46,7 +46,7 @@ task fe:typecheck         # tsc --noEmit
 ### Backend direct CLI (from `backend/` directory)
 `conftest.py` opens a real engine against `settings.database_url` (localhost:5432 per the repo-root `.env`), but Postgres is in-cluster and unpublished — so prefix any bare `pytest` with the port-forward helper, or just use `task be:test`.
 ```bash
-uv sync --all-extras              # Install deps including dev
+uv sync                           # Install deps including the dev group
 ../scripts/dev/pg_port_forward.sh uv run pytest                    # Run all tests
 ../scripts/dev/pg_port_forward.sh uv run pytest tests/test_foo.py  # Single test file
 ../scripts/dev/pg_port_forward.sh uv run pytest -k "test_name"     # Single test by name

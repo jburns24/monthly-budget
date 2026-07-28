@@ -81,7 +81,13 @@ async def test_full_auth_flow(db_session: AsyncSession) -> None:
         ):
             ms.jwt_secret = _TEST_JWT_SECRET
 
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            # https:// (not http://) because app/routers/auth.py marks the auth
+            # cookies Secure outside development, and CI runs with
+            # ENVIRONMENT=test. httpx will not return a Secure cookie over a
+            # plain-http base_url, so the callback would set the cookies and
+            # every following request would still come back 401. ASGITransport
+            # does no real TLS — the scheme only drives cookie handling.
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as client:
                 # ── Step 1: OAuth callback ──────────────────────────────────
                 resp1 = await client.post(
                     "/api/auth/callback",

@@ -11,7 +11,7 @@ tasks:
   install:
     desc: Install backend dependencies
     cmds:
-      - uv sync --all-extras
+      - uv sync
     sources:
       - pyproject.toml
       - uv.lock
