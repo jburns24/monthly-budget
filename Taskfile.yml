@@ -3,6 +3,10 @@ version: '3'
 
 dotenv: ['.env']
 
+vars:
+  CLUSTER: monthly-budget
+  NAMESPACE: monthly-budget
+
 includes:
   be:
     taskfile: ./backend/Taskfile.yml
@@ -32,29 +36,95 @@ tasks:
     desc: Run all tests
     deps: [be:test, fe:test]
 
+  # --- Local Kubernetes dev environment ---------------------------------------
+  # `task up`   -> create the k3d cluster (if absent) and run Tilt against it
+  # `task down` -> stop Tilt and delete the cluster
+  # `task stop` -> stop Tilt but leave the cluster (and its data) in place
+
   up:
-    desc: Start development environment (Tilt)
+    desc: Start the local k8s development environment (k3d + Tilt)
+    deps: [cluster:up]
     cmds:
-      - tilt down 2>/dev/null || true
-      - pkill -f "tilt up" 2>/dev/null || true
-      - |
-        for i in $(seq 1 15); do
-          lsof -ti :10350 >/dev/null 2>&1 || break
-          sleep 0.5
-        done
+      - task: tilt:stop
       - tilt up
 
   down:
-    desc: Stop development environment
+    desc: Stop Tilt and delete the local k3d cluster
     cmds:
-      - tilt down
+      - task: tilt:stop
+      - task: cluster:down
+
+  stop:
+    desc: Stop Tilt but keep the k3d cluster and its data
+    cmds:
+      - tilt down 2>/dev/null || true
+      - task: tilt:stop
+
+  cluster:up:
+    desc: Create the local k3d cluster if it does not already exist
+    cmds:
+      - |
+        if k3d cluster list {{.CLUSTER}} >/dev/null 2>&1; then
+          echo "==> k3d cluster '{{.CLUSTER}}' already exists; ensuring it is running"
+          k3d cluster start {{.CLUSTER}} >/dev/null 2>&1 || true
+        else
+          echo "==> Creating k3d cluster '{{.CLUSTER}}'"
+          k3d cluster create --config k3d.yaml
+        fi
+      # k3d refuses to guess a target when KUBECONFIG lists several files, so
+      # name the file explicitly rather than relying on updateDefaultKubeconfig.
+      - k3d kubeconfig merge {{.CLUSTER}} --output "${HOME}/.kube/config" --kubeconfig-switch-context
+      - kubectl config use-context k3d-{{.CLUSTER}}
+      # k3s installs Traefik through a HelmChart CR, so the Deployment does not
+      # exist for the first several seconds. Wait for the object, then the
+      # rollout — otherwise the ingress on :8080 404s on the first `task up`.
+      - |
+        echo "==> Waiting for Traefik ingress controller"
+        for _ in $(seq 1 60); do
+          kubectl -n kube-system get deploy/traefik >/dev/null 2>&1 && break
+          sleep 2
+        done
+        kubectl -n kube-system rollout status deploy/traefik --timeout=180s
+
+  cluster:down:
+    desc: Delete the local k3d cluster and its registry
+    cmds:
+      - k3d cluster delete --config k3d.yaml
+
+  cluster:reset:
+    desc: Recreate the local k3d cluster from scratch
+    cmds:
+      - task: cluster:down
+      - task: cluster:up
+
+  tilt:stop:
+    internal: true
+    desc: Kill any stray `tilt up` process and wait for its port to free up
+    cmds:
       - pkill -f "tilt up" 2>/dev/null || true
+      - |
+        for _ in $(seq 1 15); do
+          lsof -ti :10350 >/dev/null 2>&1 || break
+          sleep 0.5
+        done
 
   db:reset:
-    desc: Wipe dev Postgres volume and re-run migrations (requires Tilt)
+    desc: Wipe the dev Postgres volume and re-run migrations (requires Tilt)
     cmds:
-      - ./scripts/dev/ensure_dev_db.sh --force-reset
-      - tilt trigger db:migrate --port 10350
+      - kubectl -n {{.NAMESPACE}} delete statefulset postgres --ignore-not-found
+      - kubectl -n {{.NAMESPACE}} delete pvc -l app.kubernetes.io/name=postgres --ignore-not-found
+      - tilt trigger postgres --port 10350
+      - tilt trigger backend-migrate --port 10350
+
+  k8s:logs:
+    desc: 'Tail logs for a workload: task k8s:logs -- backend'
+    cmds:
+      - kubectl -n {{.NAMESPACE}} logs -f -l app.kubernetes.io/name={{.CLI_ARGS}} --tail=100
+
+  k8s:status:
+    desc: Show the state of every object in the dev namespace
+    cmds:
+      - kubectl -n {{.NAMESPACE}} get all,ingress,pvc
 
   clean:
     desc: Clean generated files and caches

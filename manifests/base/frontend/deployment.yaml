@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/component: web
+    spec:
+      containers:
+        - name: frontend
+          # Placeholder image name -- Tilt's docker_build('monthly-budget-frontend')
+          # rewrites this, and default_registry() in the Tiltfile makes the
+          # rewritten ref a pushed, uniquely tagged one:
+          #   monthly-budget-registry:5000/monthly-budget-frontend:tilt-<hash>
+          # See the longer note on the backend Deployment for why IfNotPresent is
+          # correct against a per-build tag (short version: the tag can never go
+          # stale, so re-pulling it would buy nothing).
+          image: monthly-budget-frontend
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5173
+          env:
+            # Vite proxies /api to this target, so the browser only ever sees
+            # same-origin relative /api/... paths and CORS never comes up.
+            - name: VITE_DEV_PROXY_TARGET
+              value: http://backend:8000
+            # HMR through the Traefik ingress: the browser loads the app from
+            # http://localhost:8080 but the dev server believes it is serving
+            # on 5173, so the websocket URL it advertises would point at the
+            # wrong port. vite.config.ts reads these two vars to set
+            # server.hmr.clientPort / server.hmr.protocol accordingly.
+            # (vite.config.ts is owned by the Tiltfile change, not this tree.)
+            - name: VITE_HMR_CLIENT_PORT
+              value: "8080"
+            - name: VITE_HMR_PROTOCOL
+              value: ws
+            # Same inotify caveat as the backend: Vite's file watcher misses
+            # events when Tilt's live_update writes into the container's
+            # overlayfs, so fall back to polling. vite.config.ts reads this for
+            # server.watch.usePolling.
+            - name: VITE_USE_POLLING
+              value: "true"
+            # The only import.meta.env var the app source actually reads
+            # (src/pages/LoginPage.tsx). Vite's loadEnv() folds VITE_-prefixed
+            # *process* env vars into import.meta.env alongside .env files, so
+            # setting it on the container is enough -- no .env baked into the
+            # image. Sourced from the same app-secrets key the backend reads as
+            # GOOGLE_CLIENT_ID so the two halves of the OAuth flow cannot
+            # disagree. It ships empty (dev uses the /api/dev-auth bypass);
+            # filling it in app-secrets.env is what makes the real Google
+            # button work, and without this wiring that edit would silently do
+            # nothing on the frontend.
+            - name: VITE_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: GOOGLE_CLIENT_ID
+                  optional: true
+          # Vite's cold start (dependency pre-bundling on first boot) is slow,
+          # hence the long startup budget. No livenessProbe: an HMR hiccup must
+          # never restart the pod and throw away Tilt's live_update'd files.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 36 # up to 3 minutes
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi

@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
-# Ensure the dev Postgres volume matches Alembic migrations on the current branch.
-# When alembic_version references a revision missing from backend/alembic/versions/,
-# wipe mb_pg_data and wait for Postgres to come back (via Tilt or an existing container).
+# Detect a dev database left on a migration that no longer exists on this branch.
+#
+# Switch branches and the DB keeps whatever alembic_version the old branch put
+# there. If that revision file is gone, `alembic upgrade head` dies with a bare
+#   FAILED: Can't locate revision identified by '<hash>'
+# which gives no hint that the fix is to wipe the volume. This script catches it
+# first and says so.
+#
+# Exit codes:
+#   0  DB is fine, absent, or empty — nothing to do
+#   1  DB is on a revision this branch does not have
+#
+# WHAT CHANGED IN THE K8S MIGRATION
+# This used to `docker exec monthly-budget-db psql`, `docker volume rm
+# mb_pg_data` and `tilt trigger db` — none of which exist any more. Postgres is
+# now a StatefulSet pod backed by a PVC and the Tilt resource is named
+# `postgres`. It is also now DETECT-ONLY: the old `--force-reset` flag is gone
+# because the root Taskfile's `task db:reset` already owns the destructive path
+# (delete statefulset + pvc, then re-trigger postgres and backend-migrate), and
+# duplicating that here would mean two places to keep correct. Refusing loudly
+# also beats silently destroying a database as a side effect of `db:migrate`.
 set -euo pipefail
 
-CONTAINER="${DEV_DB_CONTAINER:-monthly-budget-db}"
-VOLUME="${DEV_DB_VOLUME:-mb_pg_data}"
-TILT_PORT="${TILT_PORT:-10350}"
-
+NAMESPACE="${NAMESPACE:-monthly-budget}"
 POSTGRES_USER="${POSTGRES_USER:-monthly_budget}"
 POSTGRES_DB="${POSTGRES_DB:-monthly_budget}"
 
@@ -15,75 +30,50 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 VERSIONS_DIR="${REPO_ROOT}/backend/alembic/versions"
 
-tilt_is_running() {
-  command -v tilt >/dev/null 2>&1 && lsof -ti ":${TILT_PORT}" >/dev/null 2>&1
-}
+# A missing pod is not a failure: a fresh cluster has nothing to be stale about,
+# and backend-migrate will build the schema from scratch.
+pod="$(kubectl -n "${NAMESPACE}" get pod -l app.kubernetes.io/name=postgres \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
 
-container_running() {
-  docker ps --format '{{.Names}}' | grep -qx "${CONTAINER}"
-}
+if [[ -z "${pod}" ]]; then
+  exit 0
+fi
 
-get_db_revision() {
-  if ! container_running; then
-    return 0
+if ! kubectl -n "${NAMESPACE}" wait --for=condition=ready "pod/${pod}" --timeout=5s >/dev/null 2>&1; then
+  echo "==> ${pod} is not ready; skipping the stale-migration check."
+  exit 0
+fi
+
+# psql over the pod's local socket is trusted, so no password is needed here.
+# Every row matters: alembic_version holds one per head, and any one of them
+# going missing is enough to break `upgrade`.
+revisions="$(kubectl -n "${NAMESPACE}" exec "${pod}" -c postgres -- \
+  psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc \
+  'SELECT version_num FROM alembic_version' 2>/dev/null | tr -d '\r' || true)"
+
+# Empty means a fresh database or no alembic_version table yet — both fine.
+if [[ -z "$(echo "${revisions}" | tr -d '[:space:]')" ]]; then
+  exit 0
+fi
+
+stale=()
+while IFS= read -r revision; do
+  revision="$(echo "${revision}" | tr -d '[:space:]')"
+  [[ -z "${revision}" ]] && continue
+  if ! grep -rqE "revision[^=]*= *[\"']${revision}[\"']" "${VERSIONS_DIR}/"; then
+    stale+=("${revision}")
   fi
+done <<<"${revisions}"
 
-  docker exec "${CONTAINER}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc \
-    "SELECT version_num FROM alembic_version LIMIT 1" 2>/dev/null | tr -d '[:space:]' || true
-}
-
-revision_exists_in_code() {
-  local revision="$1"
-  grep -rqE "revision[^=]*= *[\"']${revision}[\"']" "${VERSIONS_DIR}/"
-}
-
-wait_for_postgres() {
-  local max_attempts="${1:-60}"
-
-  for _ in $(seq 1 "${max_attempts}"); do
-    if container_running && \
-      docker exec "${CONTAINER}" pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-
-  echo "ERROR: Postgres did not become ready within ${max_attempts}s." >&2
-  echo "Try: task db:reset (with Tilt running) or task up" >&2
-  return 1
-}
-
-trigger_db_restart() {
-  if tilt_is_running; then
-    tilt trigger db --port "${TILT_PORT}" >/dev/null
-  fi
-}
-
-reset_dev_db() {
-  local reason="$1"
-
-  echo "${reason}"
-  echo "Removing dev database container and volume (${VOLUME}). Local dev data will be lost."
-
-  docker rm -f "${CONTAINER}" 2>/dev/null || true
-  docker volume rm "${VOLUME}" 2>/dev/null || true
-
-  trigger_db_restart
-  wait_for_postgres
-}
-
-if [[ "${1:-}" == "--force-reset" ]]; then
-  reset_dev_db "Resetting dev database."
+if [[ ${#stale[@]} -eq 0 ]]; then
   exit 0
 fi
 
-current_revision="$(get_db_revision)"
-if [[ -z "${current_revision}" ]]; then
-  exit 0
-fi
-
-if revision_exists_in_code "${current_revision}"; then
-  exit 0
-fi
-
-reset_dev_db "Stale migration revision '${current_revision}' is not in the current branch."
+echo "ERROR: the dev database is on migration revision(s) that this branch does not have:" >&2
+for revision in "${stale[@]}"; do
+  echo "         ${revision}" >&2
+done
+echo "       This normally means you switched branches. Wipe the dev database" >&2
+echo "       and let migrations re-apply from scratch (local dev data is lost):" >&2
+echo "         task db:reset" >&2
+exit 1

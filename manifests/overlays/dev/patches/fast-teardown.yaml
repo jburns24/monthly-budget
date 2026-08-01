@@ -1,0 +1,24 @@
+# Dev-only: shrink the pod termination grace period.
+#
+# Tilt deletes and recreates the backend/frontend pods on any change that a
+# live_update cannot handle (dependency changes, Dockerfile edits, Job re-runs).
+# The 30s default grace period makes each of those cycles feel broken. uvicorn
+# --reload and the Vite dev server have no in-flight work worth draining in a
+# local cluster, so 5s is plenty.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 5

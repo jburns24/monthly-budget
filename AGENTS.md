@@ -7,20 +7,32 @@ Agent guidance for the monthly-budget monorepo.
 **Primary commands (Taskfile):**
 ```bash
 task install              # Install pre-commit hooks + all deps (parallel)
-task up                   # Start Tilt (all services + web UI at localhost:10350)
-task down                 # Stop Tilt
+task up                   # Create k3d cluster if absent + run Tilt (UI at localhost:10350)
+task stop                 # Stop Tilt, keep the cluster and its data
+task down                 # Stop Tilt + delete the cluster
 task lint                 # Run all quality checks (pre-commit)
-task test                 # Run all tests (backend + frontend in parallel)
+task test                 # Run all tests (backend + frontend in parallel) — backend half needs the cluster up
 task clean                # Clean generated files
 ```
 
-**Backend (from `backend/` or via namespace):**
+**Dev cluster (k3d + kustomize + Tilt):**
 ```bash
-task be:test              # Run backend tests (supports -- -k "test_name")
+task cluster:up           # Create/start the k3d cluster only
+task cluster:down         # Delete the cluster and its registry
+task cluster:reset        # cluster:down + cluster:up
+task k8s:status           # get all,ingress,pvc in the monthly-budget namespace
+task k8s:logs -- backend  # Tail a workload (backend|frontend|postgres|redis)
+task db:reset             # Delete the postgres StatefulSet+PVC, re-trigger postgres + backend-migrate
+```
+
+**Backend (from `backend/` or via namespace):** — `be:test` and the db tasks all require the dev cluster to be up (`task up`).
+```bash
+task be:test              # pytest via the pg port-forward helper (supports -- -k "test_name")
 task be:lint              # Ruff check + format check
 task be:format            # Auto-format
-task be:db:migrate        # Alembic upgrade head
-task be:db:revision MSG="description"  # Generate migration
+task be:db:migrate        # Staleness check, then `alembic upgrade head` IN-CLUSTER
+task be:db:downgrade      # `alembic downgrade -1` IN-CLUSTER
+task be:db:revision MSG="description"  # Autogenerate on the HOST so the .py lands in git
 ```
 
 **Frontend (from `frontend/` or via namespace):**
@@ -32,13 +44,14 @@ task fe:typecheck         # tsc --noEmit
 ```
 
 ### Backend direct CLI (from `backend/` directory)
+`conftest.py` opens a real engine against `settings.database_url` (localhost:5432 per the repo-root `.env`), but Postgres is in-cluster and unpublished — so prefix any bare `pytest` with the port-forward helper, or just use `task be:test`.
 ```bash
-uv sync --all-extras              # Install deps including dev
-uv run pytest                     # Run all tests
-uv run pytest tests/test_foo.py   # Run a single test file
-uv run pytest -k "test_name"      # Run a single test by name
-uv run ruff check .               # Lint
-uv run ruff format .              # Auto-format
+uv sync                           # Install deps including the dev group
+../scripts/dev/pg_port_forward.sh uv run pytest                    # Run all tests
+../scripts/dev/pg_port_forward.sh uv run pytest tests/test_foo.py  # Single test file
+../scripts/dev/pg_port_forward.sh uv run pytest -k "test_name"     # Single test by name
+uv run ruff check .               # Lint (no DB needed)
+uv run ruff format .              # Auto-format (no DB needed)
 ```
 
 ### Frontend direct CLI (from `frontend/` directory)
@@ -53,9 +66,10 @@ npx tsc --noEmit                  # Type check
 ```
 
 ### Database Migrations (from `backend/` directory)
+Prefer the tasks — they pick the right side of the cluster boundary for you. Raw equivalents:
 ```bash
-uv run alembic upgrade head                    # Apply all migrations
-uv run alembic revision --autogenerate -m "desc"  # Generate migration from model changes
+kubectl -n monthly-budget exec deploy/backend -- alembic upgrade head   # Apply (in-cluster)
+../scripts/dev/pg_port_forward.sh uv run alembic revision --autogenerate -m "desc"  # Generate (host)
 ```
 
 ## Manual Test Scripts
@@ -66,7 +80,9 @@ uv run python test-scripts/scan_receipt_probe.py [IMAGE]  # From backend/. Runs 
 
 ## Architecture
 
-**Monorepo** with a FastAPI backend and React frontend, orchestrated via Tilt (live-reload dev environment) + Taskfile (CLI command orchestration).
+**Monorepo** with a FastAPI backend and React frontend. Local dev runs on a k3d
+(k3s-in-Docker) cluster: kustomize manifests deployed by Tilt (live-reload), with
+Taskfile as the CLI entry point.
 
 ### Backend (`backend/`)
 - **FastAPI** with async SQLAlchemy 2.0 + asyncpg (PostgreSQL) and Redis
@@ -86,9 +102,12 @@ uv run python test-scripts/scan_receipt_probe.py [IMAGE]  # From backend/. Runs 
 - Testing: Vitest + Testing Library + happy-dom/jsdom
 
 ### Infrastructure
-- **Tiltfile** — orchestrates all services as `local_resource` processes with hot-reload; web UI at localhost:10350. Debug service issues via `tilt logs <service>` or the Tilt UI — do NOT use `docker compose` commands.
+- **k3d.yaml** — cluster `monthly-budget` (1 server + 1 agent), Traefik ingress published on host :8080, k3d-managed image registry `monthly-budget-registry` (host :5111 / in-cluster :5000)
+- **manifests/** — `base/` (namespace, postgres StatefulSet, redis, backend Deployment + migrate Job + receipts PVC, frontend, ingress) and `overlays/dev/` (namespace `monthly-budget`, generated `ConfigMap/app-config` + `Secret/app-secrets`, `disableNameSuffixHash: true`). Render with `kubectl kustomize manifests/overlays/dev`. The base has no ConfigMap/Secret of its own — always build an overlay.
+- **Tiltfile** — deploys `manifests/overlays/dev`, builds the `monthly-budget-backend` / `monthly-budget-frontend` images, and live-syncs source into the pods; web UI at localhost:10350. It **hard-fails unless `k8s_context() == 'k3d-monthly-budget'`** — always start via `task up`, never bare `tilt up`.
+- Tilt resources are Kubernetes workloads, not `local_resource` processes: `postgres`, `redis`, `backend-migrate` (Job, deleted+recreated each apply), `backend`, `frontend`, and `cluster-config` (namespace/ConfigMap/Secret/ingress/PVC).
+- Debug via `kubectl -n monthly-budget <...>`, `task k8s:logs -- <workload>`, or the Tilt UI. There is no `docker compose` in this repo.
 - **Taskfile.yml** — root CLI task orchestrator with `backend/Taskfile.yml` and `frontend/Taskfile.yml` includes
-- Services: `api` (FastAPI on :8000), `db` (Postgres 16 on :5432 via `docker run`), `redis` (Redis 7 on :6379 via `docker run`), `frontend` (Vite dev server on :5173)
 - CI: GitHub Actions (`.github/workflows/ci.yml`) runs on PRs to `main` — pre-commit checks, backend tests (with Postgres service), frontend tests
 
 ## Code Quality
@@ -131,16 +150,42 @@ For anything else, run `task skills -- --help`.
 
 ## Dev environment
 
-- Start: `task up` (Tilt UI at http://localhost:10350)
-- Stop: `task down`
-- Frontend: http://localhost:5173 · API: http://localhost:8000
+- Start: `task up` · pause: `task stop` (keeps data) · destroy: `task down`
+- Cluster `k3d-monthly-budget`, namespace `monthly-budget`, Tilt UI http://localhost:10350
+- **App + API: http://localhost:8080** (Traefik ingress). `/api`, `/docs`, `/redoc`, `/openapi.json`, `/metrics` → backend:8000; `/` catch-all → frontend:5173. App and API share one origin, so the frontend's relative `/api/...` requests are same-origin. The frontend Deployment sets `VITE_HMR_CLIENT_PORT=8080`, so Vite advertises its HMR websocket on :8080 whichever URL you browse.
+- Tilt also port-forwards `5173` (frontend pod) and `8000` (backend pod) for direct/single-service access — the Playwright config targets those.
+- Postgres/Redis are not published to the host; in-cluster they are `postgres:5432` / `redis:6379`.
+- Postgres data lives in a PVC inside the cluster. It survives `task stop`; `task down` and `task cluster:reset` destroy it.
 
-Postgres data persists in the Docker volume `mb_pg_data` across restarts.
+### Config and secrets
+
+In-cluster env comes from `manifests/overlays/dev/config/` — `app-config.env` → `ConfigMap/app-config`, `app-secrets.env` → `Secret/app-secrets`, both consumed wholesale via `envFrom`. Every value is a throwaway local-only placeholder, not a real credential. `ANTHROPIC_MOCK=true` is set there, which is why the e2e receipt specs are deterministic and no Anthropic key is needed.
+
+kustomize does **not** strip trailing comments from env files (`FOO=bar # x` yields the literal `bar # x`) — keep comments on their own line. `app-secrets.env` trips detect-secrets; re-baseline rather than adding inline pragmas.
+
+The repo-root `.env` is separate: it feeds `Taskfile.yml` (`dotenv:`) and the Tiltfile (`dotenv()`), i.e. the tooling, not the cluster. `backend/.env` and `frontend/.env` only matter for host-native runs.
+
+### Common failure modes
+
+- `tilt up` aborts with a context error → kube context isn't `k3d-monthly-budget`. Use `task up`.
+- `ImagePullBackOff` → the registry's two names/two ports (`localhost:5111` for pushes, `monthly-budget-registry:5000` for in-cluster pulls) disagree between `k3d.yaml` and `default_registry()` in the Tiltfile. Read the comment blocks in both before touching either.
+- http://localhost:8080 404s on a fresh cluster → Traefik is installed via a HelmChart CR and isn't ready yet. `kubectl -n kube-system rollout status deploy/traefik`.
+
+### Migrations across the cluster boundary
+
+Postgres is an unpublished StatefulSet, which splits the alembic tasks by whether they write files:
+
+- **In-cluster** (`kubectl exec deploy/backend`): `be:db:migrate`, `be:db:downgrade`. They only mutate the DB, and the pod already has the URL and creds. Both go through an internal `_require-backend` guard that errors with "the dev environment has to be up first: task up" when there's no `deploy/backend`, and otherwise waits on `rollout status` (up to 180s).
+- **On the host** (via `scripts/dev/pg_port_forward.sh`): `be:db:revision`, `be:test`. `revision --autogenerate` **writes a `.py` file** — run it in-cluster and the file lands in the pod's overlayfs, where `live_update` (host→container only) never copies it back and the next rebuild discards it. Autogenerate also needs the DB already at head, so run `be:db:migrate` first.
+
+`pg_port_forward.sh` gives host commands `localhost:5432` via a temporary `kubectl port-forward` for the life of the command. **Gotcha:** if something already listens on 5432 it reuses it *without checking what it is* — a local Postgres.app/Homebrew install wins and you silently work against the wrong database. It prints a notice; `DEV_DB_PORT` overrides.
 
 ### Stale database migrations
 
-Switching git branches with different Alembic histories leaves `alembic_version` pointing at revisions that no longer exist in `backend/alembic/versions/`. Before every migrate, `scripts/dev/ensure_dev_db.sh` checks the stored revision against the current branch. If it is missing, the script wipes `mb_pg_data`, waits for Postgres to restart, and migrations run on a fresh database.
+Switching branches with divergent Alembic histories leaves `alembic_version` pointing at a revision absent from `backend/alembic/versions/`, and bare `alembic upgrade` then dies with an unhelpful `Can't locate revision identified by '<hash>'`. `scripts/dev/ensure_dev_db.sh` runs first in `be:db:migrate` and catches it.
 
-This is dev-only behavior: local data in that volume is intentionally discarded when stale.
+It is **detect-only** — it never destroys anything; `task db:reset` owns the destructive side. On a stale DB it exits 1 and tells you to run `task db:reset`. A missing or not-ready Postgres pod, or an empty `alembic_version`, all exit 0.
 
-Manual reset (Tilt must be running): `task db:reset`
+### Resetting the database
+
+`task db:reset` deletes the postgres StatefulSet and its PVC, then `tilt trigger postgres` + `tilt trigger backend-migrate`. Tilt must be running. Local dev data is intentionally disposable.

@@ -4,17 +4,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.config import settings
+from app.config import Settings, settings
+
+# These two assert on the declared field *defaults*, so they read the field
+# definitions rather than a constructed Settings. Reading the global settings
+# made them fail for anyone whose .env set ANTHROPIC_MOCK=true, even though the
+# defaults were untouched. Going through model_fields is independent of both
+# .env and real environment variables. CI has neither, so nothing changes there.
 
 
 def test_anthropic_mock_setting_defaults_to_false() -> None:
     """Settings.anthropic_mock defaults to False."""
-    assert settings.anthropic_mock is False
+    assert Settings.model_fields["anthropic_mock"].default is False
 
 
 def test_anthropic_mock_scenario_defaults_to_success() -> None:
     """Settings.anthropic_mock_scenario defaults to 'success'."""
-    assert settings.anthropic_mock_scenario == "success"
+    assert Settings.model_fields["anthropic_mock_scenario"].default == "success"
 
 
 def test_anthropic_api_key_setting_exists() -> None:

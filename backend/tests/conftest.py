@@ -49,6 +49,28 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+async def _dispose_app_engine() -> AsyncGenerator[None, None]:
+    """Drain the application engine's connection pool after every test.
+
+    ``app/database.py`` builds a module-level engine with a 5-connection pool,
+    but pytest-asyncio runs each test on its own event loop. A connection opened
+    on one test's loop and handed back to the pool is reused by the next test,
+    which then awaits a future bound to a loop that no longer exists —
+    ``got Future attached to a different loop``, surfacing as an unrelated test
+    failing depending on ordering.
+
+    Any test that exercises a route through the real ``get_db`` dependency
+    (rather than overriding it) borrows from that pool, so the pool is drained
+    here instead of in the handful of tests that happen to trip over it.
+    """
+    yield
+
+    from app.database import engine
+
+    await engine.dispose()
+
+
 @pytest.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Async DB session with per-test transaction rollback for isolation.

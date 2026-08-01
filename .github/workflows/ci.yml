@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
     branches:
-      - main
+      - master
 
 jobs:
   pre-commit:
@@ -40,7 +40,11 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd backend
-          uv sync
+          # --locked matches backend/Dockerfile, which builds with `uv sync
+          # --locked` in both stages. A bare `uv sync` would silently re-lock a
+          # pyproject/uv.lock mismatch here and let the PR pass while the
+          # release build hard-fails on it.
+          uv sync --locked
 
       - name: Cache npm dependencies
         uses: actions/cache@v4
@@ -107,9 +111,16 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://budget:budget@localhost:5432/monthly_budget
           SECRET_KEY: ci-test-secret-key
+          # conftest signs test JWTs with settings.jwt_secret when it is >= 32
+          # chars, while the app verifies with the same setting. Unset, both
+          # sides fall out of sync and every authenticated request 401s.
+          JWT_SECRET: ci-test-jwt-secret-at-least-32-chars-long # pragma: allowlist secret
           ENVIRONMENT: test
         run: |
-          uv sync
+          uv sync --locked
+          # The service container starts empty and conftest.py never creates the
+          # schema, so the tables have to exist before the first test connects.
+          uv run alembic upgrade head
           uv run pytest
 
   frontend-tests:

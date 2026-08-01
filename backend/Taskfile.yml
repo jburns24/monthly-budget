@@ -1,11 +1,17 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 version: '3'
 
+vars:
+  # Mirrors NAMESPACE in the root Taskfile. Declared again here so these tasks
+  # also work when run directly from backend/ (`task db:migrate`) rather than
+  # only through the root include (`task be:db:migrate`).
+  NAMESPACE: monthly-budget
+
 tasks:
   install:
     desc: Install backend dependencies
     cmds:
-      - uv sync --all-extras
+      - uv sync
     sources:
       - pyproject.toml
       - uv.lock
@@ -25,25 +31,67 @@ tasks:
   test:
     desc: Run backend tests
     cmds:
-      - uv run pytest {{.CLI_ARGS}}
+      # tests/conftest.py opens a real engine against settings.database_url, so
+      # the suite needs Postgres on localhost:5432. Since Postgres moved into
+      # the cluster and Tilt does not publish it, the helper supplies the port.
+      - ../scripts/dev/pg_port_forward.sh uv run pytest {{.CLI_ARGS}}
+
+  # --- Database ---------------------------------------------------------------
+  # Postgres is a StatefulSet in the k3d cluster (namespace monthly-budget) and
+  # is not published on a host port, which splits the alembic tasks in two:
+  #
+  #   upgrade / downgrade  ->  run IN the cluster. They only mutate the database,
+  #                            and the backend pod already has the URL and creds.
+  #   revision --autogenerate -> run on the HOST. It WRITES a .py file, and Tilt's
+  #                            live_update only syncs host -> container, so a file
+  #                            created in the pod is invisible to git and is lost
+  #                            on the next rebuild.
+  #
+  # Host-side tasks get localhost:5432 from scripts/dev/pg_port_forward.sh, which
+  # reuses an existing listener if there is one and otherwise opens a temporary
+  # kubectl port-forward for the duration of the command.
 
   db:migrate:
-    desc: Run database migrations
+    desc: Apply migrations (runs alembic inside the cluster)
     cmds:
+      # Staleness check first: it is cheap and only needs Postgres, whereas
+      # _require-backend can sit in `rollout status` for up to 3 minutes. On a
+      # stale DB that ordering is the difference between an instant, actionable
+      # error and a long wait followed by a cryptic alembic failure.
       - ../scripts/dev/ensure_dev_db.sh
-      - uv run alembic upgrade head
+      - task: _require-backend
+      # WORKDIR is /app and alembic is on PATH from /app/.venv, so no cd needed.
+      - kubectl -n {{.NAMESPACE}} exec deploy/backend -- alembic upgrade head
 
   db:revision:
-    desc: Create a new migration
+    desc: Create a new migration (autogenerate runs on the host so the file lands in git)
     requires:
       vars: [MSG]
     cmds:
-      - uv run alembic revision --autogenerate -m "{{.MSG}}"
+      # Autogenerate diffs the models against the live schema, so the DB must
+      # already be at head — run `task be:db:migrate` first if it is not.
+      - ../scripts/dev/pg_port_forward.sh uv run alembic revision --autogenerate -m "{{.MSG}}"
 
   db:downgrade:
-    desc: Downgrade database one revision
+    desc: Downgrade one revision (runs alembic inside the cluster)
     cmds:
-      - uv run alembic downgrade -1
+      - task: _require-backend
+      - kubectl -n {{.NAMESPACE}} exec deploy/backend -- alembic downgrade -1
+
+  _require-backend:
+    internal: true
+    desc: Fail with a useful message when the backend workload is not deployed
+    # silent, or Task echoes the whole guard script above its own error message.
+    silent: true
+    cmds:
+      - |
+        if ! kubectl -n {{.NAMESPACE}} get deploy/backend >/dev/null 2>&1; then
+          echo "ERROR: no deployment/backend in namespace '{{.NAMESPACE}}'." >&2
+          echo "       Migrations now run inside the cluster, so the dev" >&2
+          echo "       environment has to be up first: task up" >&2
+          exit 1
+        fi
+        kubectl -n {{.NAMESPACE}} rollout status deploy/backend --timeout=180s
 
   clean:
     desc: Clean backend caches
