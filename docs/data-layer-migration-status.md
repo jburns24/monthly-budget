@@ -26,39 +26,14 @@ uncommitted in the working tree.
 | Step 0–2: seam + Category pilot | `app/ports/`, `app/adapters/{sqlalchemy,memory}/`, `app/deps/provider.py` | 560 |
 | Step 3: `dependencies.py` + `update_me` fix | User + FamilyMember repos; `get_current_user`, `require_family_member`, `require_family_admin` on ports | 598 |
 | Steps 4–5: MonthlyGoal + Expense | `BudgetQuery` + pure `build_budget_summary`; both adapters | 717 |
+| Step 6: Family cluster | `FamilyRepository` + `InviteRepository`; `family_service.py` fully off `get_db` | 736 |
 
 Each row's suite count was verified by a full foreground run against PG17.
 
-## In progress — Step 6, PARTIAL AND UNVERIFIED
-
-The Family cluster migration was interrupted partway. **This is the first thing to deal with
-on resume.**
-
-Modified but not finished:
-
-- `app/services/family_service.py`
-- `app/routers/family.py`
-- `tests/test_family_service.py`, `tests/test_family_integration.py`
-
-Known incomplete: the agent was about to update `_is_editable` in `app/routers/expenses.py`
-to use the new Family port when it was stopped. That edit was very likely **not made**.
-
-The unit tier passes (200 tests, 0.25s), but that does not exercise the Postgres tier.
-**The Postgres-tier state of this partial work is UNKNOWN** — a verification run was started
-and then killed before finishing, so nobody has seen the full suite pass or fail with Step 6
-half-applied. Assume nothing; run it first thing on resume.
-
-Resume options: finish Step 6, or `git checkout` the four files above to drop back to the
-verified 717-test state and restart Step 6 cleanly. The latter is safer if the diff looks messy.
+Unit tier is now 200 tests, DB-free, in ~0.26s.
 
 ## Remaining work
 
-- **Step 6** — Family + FamilyMember + Invite + User as one unit. `UserRepository` and
-  `FamilyMemberRepository` already exist from Step 3; this step adds `FamilyRepository` and
-  `InviteRepository` and moves `family_service.py` itself off `get_db`.
-  Risk (a) applies: `_family_to_response` walks `family.members[*].user.email`, so eager
-  loading is part of the port contract and the memory adapter must populate it explicitly —
-  same approach as `app/adapters/memory/expense_repo.py`.
 - **Step 7 — Receipt, the riskiest.** `receipt_service` commits mid-request on purpose in
   `_mark_failed` and `claim_receipt_for_retry` so audit rows survive the `HTTPException` that
   follows, and uses `begin_nested()` savepoints in three places.

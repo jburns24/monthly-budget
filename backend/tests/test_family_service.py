@@ -65,7 +65,7 @@ def uow(db_session: AsyncSession) -> SqlAlchemyUnitOfWork:
 
 
 @pytest.mark.asyncio
-async def test_create_family_success(db_session: AsyncSession) -> None:
+async def test_create_family_success(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_family creates the family and an admin membership for the user."""
     user = await create_test_user(db_session)
 
@@ -90,7 +90,7 @@ async def test_create_family_success(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_family_user_already_in_family(db_session: AsyncSession) -> None:
+async def test_create_family_user_already_in_family(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_family raises 409 if the user already belongs to a family."""
     user = await create_test_user(db_session)
 
@@ -106,7 +106,7 @@ async def test_create_family_user_already_in_family(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_create_family_default_timezone(db_session: AsyncSession) -> None:
+async def test_create_family_default_timezone(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_family uses 'America/New_York' as the default timezone."""
     user = await create_test_user(db_session)
 
@@ -121,7 +121,7 @@ async def test_create_family_default_timezone(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_family_with_members(db_session: AsyncSession) -> None:
+async def test_get_family_with_members(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """get_family_with_members returns the family with members and their users populated."""
     user = await create_test_user(db_session, display_name="Alice", email="alice@example.com")
     family = await create_family(uow, user, name="Alice Family")
@@ -140,7 +140,7 @@ async def test_get_family_with_members(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_family_with_members_multiple_members(db_session: AsyncSession) -> None:
+async def test_get_family_with_members_multiple_members(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """get_family_with_members returns all members when multiple exist."""
     owner = await create_test_user(db_session, display_name="Owner")
     family = await create_family(uow, owner, name="Multi Family")
@@ -163,7 +163,7 @@ async def test_get_family_with_members_multiple_members(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_get_family_with_members_not_found(db_session: AsyncSession) -> None:
+async def test_get_family_with_members_not_found(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """get_family_with_members raises 404 for an unknown family_id."""
     non_existent_id = uuid.uuid4()
 
@@ -180,7 +180,9 @@ async def test_get_family_with_members_not_found(db_session: AsyncSession) -> No
 
 
 @pytest.mark.asyncio
-async def test_invite_user_nonexistent_email_succeeds_silently(db_session: AsyncSession) -> None:
+async def test_invite_user_nonexistent_email_succeeds_silently(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """invite_user returns None and creates no invite when the email is unknown."""
     from sqlalchemy import select
 
@@ -196,7 +198,9 @@ async def test_invite_user_nonexistent_email_succeeds_silently(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_invite_user_already_in_family_succeeds_silently(db_session: AsyncSession) -> None:
+async def test_invite_user_already_in_family_succeeds_silently(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """invite_user returns None and creates no invite when the target user is already in a family."""
     from sqlalchemy import select
 
@@ -219,7 +223,9 @@ async def test_invite_user_already_in_family_succeeds_silently(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_invite_user_already_has_pending_invite_succeeds_silently(db_session: AsyncSession) -> None:
+async def test_invite_user_already_has_pending_invite_succeeds_silently(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """invite_user returns None and creates no duplicate invite when one is already pending."""
     from sqlalchemy import select
 
@@ -246,7 +252,7 @@ async def test_invite_user_already_has_pending_invite_succeeds_silently(db_sessi
 
 
 @pytest.mark.asyncio
-async def test_invite_user_valid_email_creates_invite(db_session: AsyncSession) -> None:
+async def test_invite_user_valid_email_creates_invite(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """invite_user creates a pending Invite record when the target user is eligible."""
     from sqlalchemy import select
 
@@ -277,7 +283,7 @@ async def test_invite_user_valid_email_creates_invite(db_session: AsyncSession) 
 # ---------------------------------------------------------------------------
 
 
-async def _create_pending_invite(db_session: AsyncSession) -> tuple:
+async def _create_pending_invite(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> tuple:
     """Helper: create a family with an owner and a pending invite for a target user."""
     owner = await create_test_user(db_session, display_name="Owner")
     family = await create_family(uow, owner, name="Invite Family")
@@ -295,11 +301,11 @@ async def _create_pending_invite(db_session: AsyncSession) -> tuple:
 
 
 @pytest.mark.asyncio
-async def test_respond_to_invite_accept_adds_member(db_session: AsyncSession) -> None:
+async def test_respond_to_invite_accept_adds_member(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """Accepting an invite adds the user as a member and marks the invite accepted."""
     from sqlalchemy import select
 
-    _owner, family, target, invite = await _create_pending_invite(db_session)
+    _owner, family, target, invite = await _create_pending_invite(db_session, uow)
 
     result = await respond_to_invite(uow, invite.id, target, "accept")
 
@@ -316,9 +322,11 @@ async def test_respond_to_invite_accept_adds_member(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_respond_to_invite_accept_already_in_family_409(db_session: AsyncSession) -> None:
+async def test_respond_to_invite_accept_already_in_family_409(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """Accepting an invite raises 409 if user already belongs to a family."""
-    _owner, _family, target, invite = await _create_pending_invite(db_session)
+    _owner, _family, target, invite = await _create_pending_invite(db_session, uow)
 
     # Put the target in another family first
     other_owner = await create_test_user(db_session, display_name="Other Owner")
@@ -335,9 +343,9 @@ async def test_respond_to_invite_accept_already_in_family_409(db_session: AsyncS
 
 
 @pytest.mark.asyncio
-async def test_respond_to_invite_decline_updates_status(db_session: AsyncSession) -> None:
+async def test_respond_to_invite_decline_updates_status(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """Declining an invite updates status to declined and sets responded_at."""
-    _owner, _family, target, invite = await _create_pending_invite(db_session)
+    _owner, _family, target, invite = await _create_pending_invite(db_session, uow)
 
     result = await respond_to_invite(uow, invite.id, target, "decline")
 
@@ -351,7 +359,7 @@ async def test_respond_to_invite_decline_updates_status(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_remove_member_success(db_session: AsyncSession) -> None:
+async def test_remove_member_success(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """remove_member deletes a non-owner member from the family."""
     from sqlalchemy import select
 
@@ -373,7 +381,7 @@ async def test_remove_member_success(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_remove_member_owner_blocked_403(db_session: AsyncSession) -> None:
+async def test_remove_member_owner_blocked_403(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """remove_member raises 403 when trying to remove the family owner."""
     owner = await create_test_user(db_session, display_name="Owner")
     family = await create_family(uow, owner, name="Remove Owner Family")
@@ -397,7 +405,7 @@ async def test_remove_member_owner_blocked_403(db_session: AsyncSession) -> None
 
 
 @pytest.mark.asyncio
-async def test_change_role_success(db_session: AsyncSession) -> None:
+async def test_change_role_success(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """change_role promotes a member to admin."""
     owner = await create_test_user(db_session, display_name="Owner")
     family = await create_family(uow, owner, name="Role Family")
@@ -413,7 +421,7 @@ async def test_change_role_success(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_change_role_demote_owner_blocked_403(db_session: AsyncSession) -> None:
+async def test_change_role_demote_owner_blocked_403(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """change_role raises 403 when demoting the family owner."""
     owner = await create_test_user(db_session, display_name="Owner")
     family = await create_family(uow, owner, name="Demote Owner Family")
@@ -432,7 +440,7 @@ async def test_change_role_demote_owner_blocked_403(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_change_role_demote_last_admin_blocked_403(db_session: AsyncSession) -> None:
+async def test_change_role_demote_last_admin_blocked_403(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """change_role raises 403 when demoting the last admin (who is not the owner)."""
     # Create family where created_by is a different user than the sole admin
     creator = await create_test_user(db_session, display_name="Creator")
