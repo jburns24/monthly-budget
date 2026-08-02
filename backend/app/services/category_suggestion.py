@@ -1,4 +1,13 @@
-"""Category suggestion service using pg_trgm similarity with 90-day usage fallback."""
+"""Category suggestion service using pg_trgm similarity with 90-day usage fallback.
+
+Still on ``AsyncSession``. All three of its queries now also exist behind the
+repository seam — ``_trgm_match`` as ``CategoryRepository.find_similar_active``,
+the 90-day fallback as ``most_used_since``, and ``first_active_category`` as
+``first_active`` — because the Category port was defined in full while its only
+caller, ``receipt_service``, is not migrated until Step 7 of
+``docs/data-layer-ports-design.md``. Until then the two copies must be changed
+together; retiring the ones below is part of that step.
+"""
 
 import uuid
 from datetime import date, timedelta

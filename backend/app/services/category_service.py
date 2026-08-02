@@ -1,21 +1,44 @@
-"""Category service: create, list, and update budget categories."""
+"""Category service: create, list, and update budget categories.
+
+First aggregate on the repository/UnitOfWork seam. Note what is *absent*: no
+``AsyncSession``, no ``select()``, no ``sqlalchemy.exc.IntegrityError``. The 409
+paths key on :class:`~app.ports.errors.UniqueViolation`, which the SQLAlchemy
+adapter translates ``IntegrityError`` into and the in-memory adapter raises
+directly — which is what lets ``tests/unit/test_category_service.py`` exercise
+them with no database.
+"""
 
 import uuid
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging import get_logger
 from app.models.category import Category
-from app.models.expense import Expense
+from app.ports.errors import UniqueViolation
+from app.ports.unit_of_work import UnitOfWork
 
 logger = get_logger(__name__)
 
 
+async def _flush_or_name_conflict(uow: UnitOfWork, name: str | None) -> None:
+    """Flush, turning a duplicate-name rejection into HTTP 409.
+
+    The rollback discards the whole request, not just the failed write. Preserved
+    from the pre-seam code; the right fix is a savepoint, and that is a behaviour
+    change deserving its own PR (design doc risk (f)).
+    """
+    try:
+        await uow.flush()
+    except UniqueViolation:
+        await uow.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Category '{name}' already exists in this family",
+        )
+
+
 async def create_category(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     name: str,
     icon: str | None,
@@ -32,15 +55,8 @@ async def create_category(
         sort_order=sort_order,
         is_active=True,
     )
-    db.add(category)
-    try:
-        await db.flush()
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail=f"Category '{name}' already exists in this family",
-        )
+    uow.categories.add(category)
+    await _flush_or_name_conflict(uow, name)
 
     logger.info(
         "category_created",
@@ -52,20 +68,15 @@ async def create_category(
 
 
 async def list_active_categories(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
 ) -> list[Category]:
     """Return all active categories for a family, ordered by sort_order ASC then name ASC."""
-    result = await db.execute(
-        select(Category)
-        .where(Category.family_id == family_id, Category.is_active.is_(True))
-        .order_by(Category.sort_order.asc(), Category.name.asc())
-    )
-    return list(result.scalars().all())
+    return await uow.categories.list_active(family_id)
 
 
 async def update_category(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     category_id: uuid.UUID,
     name: str | None,
@@ -77,11 +88,13 @@ async def update_category(
     Raises HTTPException(404) if the category is not found or belongs to a different family.
     Raises HTTPException(409) if the new name conflicts with an existing category in the family.
     """
-    result = await db.execute(select(Category).where(Category.id == category_id, Category.family_id == family_id))
-    category = result.scalar_one_or_none()
+    category = await uow.categories.get_in_family(category_id, family_id)
     if category is None:
         raise HTTPException(status_code=404, detail="Category not found")
 
+    # No add() call: the repository hands back a tracked instance, so mutating it
+    # and flushing is the update. Any adapter returning a copy or a DTO would make
+    # this a silent no-op (design doc risk (b)).
     if name is not None:
         category.name = name
     if icon is not None:
@@ -89,14 +102,7 @@ async def update_category(
     if sort_order is not None:
         category.sort_order = sort_order
 
-    try:
-        await db.flush()
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail=f"Category '{name}' already exists in this family",
-        )
+    await _flush_or_name_conflict(uow, name)
 
     logger.info(
         "category_updated",
@@ -106,14 +112,8 @@ async def update_category(
     return category
 
 
-async def _count_category_expenses(db: AsyncSession, category_id: uuid.UUID) -> int:
-    """Return the number of expenses that reference this category."""
-    result = await db.execute(select(func.count()).select_from(Expense).where(Expense.category_id == category_id))
-    return result.scalar_one()
-
-
 async def delete_category(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     category_id: uuid.UUID,
 ) -> dict:
@@ -125,16 +125,15 @@ async def delete_category(
 
     Raises HTTPException(404) if the category is not found or belongs to a different family.
     """
-    result = await db.execute(select(Category).where(Category.id == category_id, Category.family_id == family_id))
-    category = result.scalar_one_or_none()
+    category = await uow.categories.get_in_family(category_id, family_id)
     if category is None:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    expense_count = await _count_category_expenses(db, category_id)
+    expense_count = await uow.expenses.count_by_category(category_id)
 
     if expense_count > 0:
         category.is_active = False
-        await db.flush()
+        await uow.flush()
         logger.info(
             "category_archived",
             category_id=str(category_id),
@@ -143,8 +142,8 @@ async def delete_category(
         )
         return {"deleted": False, "archived": True, "expense_count": expense_count}
 
-    await db.delete(category)
-    await db.flush()
+    await uow.categories.delete(category)
+    await uow.flush()
     logger.info(
         "category_deleted",
         category_id=str(category_id),
@@ -164,7 +163,7 @@ _DEFAULT_CATEGORIES: list[tuple[str, str, int]] = [
 
 
 async def seed_default_categories(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
 ) -> int:
     """Bulk-create the 6 default categories for a family.
@@ -172,19 +171,19 @@ async def seed_default_categories(
     Idempotent: skips any category whose name already exists in the family.
     Returns the number of newly created categories.
     """
-    existing_result = await db.execute(select(Category.name).where(Category.family_id == family_id))
-    existing_names: set[str] = set(existing_result.scalars().all())
+    existing_names = await uow.categories.list_names(family_id)
 
-    created = 0
-    for name, icon, sort_order in _DEFAULT_CATEGORIES:
-        if name in existing_names:
-            continue
-        db.add(Category(family_id=family_id, name=name, icon=icon, sort_order=sort_order, is_active=True))
-        created += 1
+    new_categories = [
+        Category(family_id=family_id, name=name, icon=icon, sort_order=sort_order, is_active=True)
+        for name, icon, sort_order in _DEFAULT_CATEGORIES
+        if name not in existing_names
+    ]
 
-    if created:
-        await db.flush()
+    if new_categories:
+        uow.categories.add_all(new_categories)
+        await uow.flush()
 
+    created = len(new_categories)
     logger.info(
         "default_categories_seeded",
         family_id=str(family_id),

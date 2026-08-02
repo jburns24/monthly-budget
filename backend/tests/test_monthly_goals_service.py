@@ -1,7 +1,10 @@
-"""Unit tests for the monthly_goal_service module.
+"""Postgres-tier tests for the monthly_goal_service module.
 
-Tests exercise all public service functions directly against the database,
-verifying correct return values, error handling, and timezone awareness.
+Tests exercise all public service functions against a real database through the
+SQLAlchemy UnitOfWork, verifying correct return values, error handling, and
+timezone awareness. The same service functions are covered without a database,
+through the in-memory adapter, in ``tests/unit/test_monthly_goal_service.py``;
+this module is what proves the two adapters agree.
 
 Each test uses a local db_session fixture that creates a fresh NullPool
 connection per test to avoid event-loop/pool conflicts with pytest-asyncio's
@@ -17,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from app.config import settings
 from app.models.category import Category
 from app.models.family import Family
@@ -60,6 +64,17 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
         await session.close()
     await engine.dispose()
+
+
+@pytest.fixture
+def uow(db_session: AsyncSession) -> SqlAlchemyUnitOfWork:
+    """UnitOfWork over the test session.
+
+    ``owns_transaction=False`` keeps the fixture's outer transaction open so
+    teardown can still roll it back; without it a service-level ``commit()``
+    would leak rows between tests.
+    """
+    return SqlAlchemyUnitOfWork(db_session, owns_transaction=False)
 
 
 # ---------------------------------------------------------------------------
@@ -196,13 +211,15 @@ async def test_get_current_budget_month_utc() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_or_check_previous_goals_returns_goals_when_exist(db_session: AsyncSession) -> None:
+async def test_get_or_check_previous_goals_returns_goals_when_exist(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """get_or_check_previous_goals returns existing goals with has_previous_goals=False."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
     goal = await _insert_goal(db_session, family, cat, "2026-04")
 
-    goals, has_previous = await get_or_check_previous_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await get_or_check_previous_goals(uow, family.id, "2026-04")
 
     assert len(goals) == 1
     assert goals[0].id == goal.id
@@ -210,38 +227,44 @@ async def test_get_or_check_previous_goals_returns_goals_when_exist(db_session: 
 
 
 @pytest.mark.asyncio
-async def test_get_or_check_previous_goals_no_goals_with_previous(db_session: AsyncSession) -> None:
+async def test_get_or_check_previous_goals_no_goals_with_previous(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """get_or_check_previous_goals returns empty list with has_previous_goals=True when prior month has goals."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Dining")
     await _insert_goal(db_session, family, cat, "2026-03")
 
-    goals, has_previous = await get_or_check_previous_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await get_or_check_previous_goals(uow, family.id, "2026-04")
 
     assert goals == []
     assert has_previous is True
 
 
 @pytest.mark.asyncio
-async def test_get_or_check_previous_goals_no_goals_no_previous(db_session: AsyncSession) -> None:
+async def test_get_or_check_previous_goals_no_goals_no_previous(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """get_or_check_previous_goals returns empty list with has_previous_goals=False when no prior goals."""
     family = await _make_family(db_session)
 
-    goals, has_previous = await get_or_check_previous_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await get_or_check_previous_goals(uow, family.id, "2026-04")
 
     assert goals == []
     assert has_previous is False
 
 
 @pytest.mark.asyncio
-async def test_get_or_check_previous_goals_future_months_ignored(db_session: AsyncSession) -> None:
+async def test_get_or_check_previous_goals_future_months_ignored(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """get_or_check_previous_goals only looks at months before the requested month."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Bills")
     # Insert a goal for a month AFTER the target — should not count as previous
     await _insert_goal(db_session, family, cat, "2026-05")
 
-    goals, has_previous = await get_or_check_previous_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await get_or_check_previous_goals(uow, family.id, "2026-04")
 
     assert goals == []
     assert has_previous is False
@@ -253,7 +276,9 @@ async def test_get_or_check_previous_goals_future_months_ignored(db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_copy_goals_from_previous_month_copies_correctly(db_session: AsyncSession) -> None:
+async def test_copy_goals_from_previous_month_copies_correctly(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """copy_goals_from_previous_month copies goals from source to target month."""
     family = await _make_family(db_session)
     cat1 = await _insert_category(db_session, family, "Groceries")
@@ -261,7 +286,7 @@ async def test_copy_goals_from_previous_month_copies_correctly(db_session: Async
     await _insert_goal(db_session, family, cat1, "2026-03", amount_cents=50000)
     await _insert_goal(db_session, family, cat2, "2026-03", amount_cents=30000)
 
-    copied_count = await copy_goals_from_previous_month(db_session, family.id, "2026-04")
+    copied_count = await copy_goals_from_previous_month(uow, family.id, "2026-04")
 
     assert copied_count == 2
 
@@ -279,24 +304,28 @@ async def test_copy_goals_from_previous_month_copies_correctly(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_copy_goals_from_previous_month_returns_zero_when_no_source(db_session: AsyncSession) -> None:
+async def test_copy_goals_from_previous_month_returns_zero_when_no_source(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """copy_goals_from_previous_month returns 0 when no previous month has goals."""
     family = await _make_family(db_session)
 
-    copied_count = await copy_goals_from_previous_month(db_session, family.id, "2026-04")
+    copied_count = await copy_goals_from_previous_month(uow, family.id, "2026-04")
 
     assert copied_count == 0
 
 
 @pytest.mark.asyncio
-async def test_copy_goals_from_previous_month_finds_most_recent_skipping_gaps(db_session: AsyncSession) -> None:
+async def test_copy_goals_from_previous_month_finds_most_recent_skipping_gaps(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """copy_goals_from_previous_month finds the most recent prior month, skipping gaps."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Transport")
     # Goals only in January, no February or March
     await _insert_goal(db_session, family, cat, "2026-01", amount_cents=20000)
 
-    copied_count = await copy_goals_from_previous_month(db_session, family.id, "2026-04")
+    copied_count = await copy_goals_from_previous_month(uow, family.id, "2026-04")
 
     assert copied_count == 1
 
@@ -312,7 +341,7 @@ async def test_copy_goals_from_previous_month_finds_most_recent_skipping_gaps(db
 
 
 @pytest.mark.asyncio
-async def test_copy_goals_resets_version_to_one(db_session: AsyncSession) -> None:
+async def test_copy_goals_resets_version_to_one(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """copy_goals_from_previous_month creates new goals with version=1."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Entertainment")
@@ -321,7 +350,7 @@ async def test_copy_goals_resets_version_to_one(db_session: AsyncSession) -> Non
     source_goal.version = 5
     await db_session.flush()
 
-    await copy_goals_from_previous_month(db_session, family.id, "2026-04")
+    await copy_goals_from_previous_month(uow, family.id, "2026-04")
 
     result = await db_session.execute(
         select(MonthlyGoal).where(
@@ -339,44 +368,48 @@ async def test_copy_goals_resets_version_to_one(db_session: AsyncSession) -> Non
 
 
 @pytest.mark.asyncio
-async def test_list_goals_returns_goals_when_exist(db_session: AsyncSession) -> None:
+async def test_list_goals_returns_goals_when_exist(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """list_goals returns (goals, False) when goals exist for the month."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
     await _insert_goal(db_session, family, cat, "2026-04")
 
-    goals, has_previous = await list_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await list_goals(uow, family.id, "2026-04")
 
     assert len(goals) == 1
     assert has_previous is False
 
 
 @pytest.mark.asyncio
-async def test_list_goals_returns_has_previous_true_when_prior_goals_exist(db_session: AsyncSession) -> None:
+async def test_list_goals_returns_has_previous_true_when_prior_goals_exist(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """list_goals returns ([], True) when no goals for month but prior month has goals."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Dining")
     await _insert_goal(db_session, family, cat, "2026-03")
 
-    goals, has_previous = await list_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await list_goals(uow, family.id, "2026-04")
 
     assert goals == []
     assert has_previous is True
 
 
 @pytest.mark.asyncio
-async def test_list_goals_returns_has_previous_false_when_no_goals_anywhere(db_session: AsyncSession) -> None:
+async def test_list_goals_returns_has_previous_false_when_no_goals_anywhere(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """list_goals returns ([], False) when the family has no goals at all."""
     family = await _make_family(db_session)
 
-    goals, has_previous = await list_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await list_goals(uow, family.id, "2026-04")
 
     assert goals == []
     assert has_previous is False
 
 
 @pytest.mark.asyncio
-async def test_list_goals_isolates_by_family(db_session: AsyncSession) -> None:
+async def test_list_goals_isolates_by_family(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """list_goals does not leak goals from other families."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
@@ -385,14 +418,14 @@ async def test_list_goals_isolates_by_family(db_session: AsyncSession) -> None:
     await _insert_goal(db_session, family1, cat, "2026-03")
 
     # family2 has no goals and no prior goals
-    goals, has_previous = await list_goals(db_session, family2.id, "2026-04")
+    goals, has_previous = await list_goals(uow, family2.id, "2026-04")
 
     assert goals == []
     assert has_previous is False
 
 
 @pytest.mark.asyncio
-async def test_list_goals_multiple_categories(db_session: AsyncSession) -> None:
+async def test_list_goals_multiple_categories(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """list_goals returns all goals for the month across multiple categories."""
     family = await _make_family(db_session)
     cat1 = await _insert_category(db_session, family, "Groceries")
@@ -402,7 +435,7 @@ async def test_list_goals_multiple_categories(db_session: AsyncSession) -> None:
     await _insert_goal(db_session, family, cat2, "2026-04", 30000)
     await _insert_goal(db_session, family, cat3, "2026-04", 20000)
 
-    goals, has_previous = await list_goals(db_session, family.id, "2026-04")
+    goals, has_previous = await list_goals(uow, family.id, "2026-04")
 
     assert len(goals) == 3
     assert has_previous is False
@@ -416,12 +449,12 @@ async def test_list_goals_multiple_categories(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_goal_success(db_session: AsyncSession) -> None:
+async def test_create_goal_success(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_goal creates a new goal and returns it."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
 
-    goal = await create_goal(db_session, family.id, cat.id, "2026-04", 50000)
+    goal = await create_goal(uow, family.id, cat.id, "2026-04", 50000)
 
     assert goal.family_id == family.id
     assert goal.category_id == cat.id
@@ -431,7 +464,7 @@ async def test_create_goal_success(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_goal_returns_409_on_duplicate(db_session: AsyncSession) -> None:
+async def test_create_goal_returns_409_on_duplicate(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_goal raises HTTPException(409) when a duplicate goal already exists."""
     from fastapi import HTTPException
 
@@ -440,13 +473,13 @@ async def test_create_goal_returns_409_on_duplicate(db_session: AsyncSession) ->
     await _insert_goal(db_session, family, cat, "2026-04", 50000)
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_goal(db_session, family.id, cat.id, "2026-04", 60000)
+        await create_goal(uow, family.id, cat.id, "2026-04", 60000)
 
     assert exc_info.value.status_code == 409
 
 
 @pytest.mark.asyncio
-async def test_create_goal_raises_404_for_unknown_category(db_session: AsyncSession) -> None:
+async def test_create_goal_raises_404_for_unknown_category(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_goal raises HTTPException(404) when the category does not exist."""
     import uuid
 
@@ -455,13 +488,15 @@ async def test_create_goal_raises_404_for_unknown_category(db_session: AsyncSess
     family = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_goal(db_session, family.id, uuid.uuid4(), "2026-04", 50000)
+        await create_goal(uow, family.id, uuid.uuid4(), "2026-04", 50000)
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_create_goal_raises_400_for_inactive_category(db_session: AsyncSession) -> None:
+async def test_create_goal_raises_400_for_inactive_category(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """create_goal raises HTTPException(400) when the category is inactive."""
     from fastapi import HTTPException
 
@@ -471,7 +506,7 @@ async def test_create_goal_raises_400_for_inactive_category(db_session: AsyncSes
     await db_session.flush()
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_goal(db_session, family.id, cat.id, "2026-04", 50000)
+        await create_goal(uow, family.id, cat.id, "2026-04", 50000)
 
     assert exc_info.value.status_code == 400
 
@@ -482,21 +517,21 @@ async def test_create_goal_raises_400_for_inactive_category(db_session: AsyncSes
 
 
 @pytest.mark.asyncio
-async def test_update_goal_success(db_session: AsyncSession) -> None:
+async def test_update_goal_success(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_goal updates the amount and increments version."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
     goal = await _insert_goal(db_session, family, cat, "2026-04", 50000)
     original_version = goal.version
 
-    updated = await update_goal(db_session, goal.id, family.id, 75000, original_version)
+    updated = await update_goal(uow, goal.id, family.id, 75000, original_version)
 
     assert updated.amount_cents == 75000
     assert updated.version == original_version + 1
 
 
 @pytest.mark.asyncio
-async def test_update_goal_raises_404_for_unknown_goal(db_session: AsyncSession) -> None:
+async def test_update_goal_raises_404_for_unknown_goal(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_goal raises HTTPException(404) when the goal does not exist."""
     import uuid
 
@@ -505,13 +540,13 @@ async def test_update_goal_raises_404_for_unknown_goal(db_session: AsyncSession)
     family = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await update_goal(db_session, uuid.uuid4(), family.id, 75000, 1)
+        await update_goal(uow, uuid.uuid4(), family.id, 75000, 1)
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_update_goal_raises_409_on_version_mismatch(db_session: AsyncSession) -> None:
+async def test_update_goal_raises_409_on_version_mismatch(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_goal raises HTTPException(409) when expected_version does not match."""
     from fastapi import HTTPException
 
@@ -521,13 +556,13 @@ async def test_update_goal_raises_409_on_version_mismatch(db_session: AsyncSessi
 
     with pytest.raises(HTTPException) as exc_info:
         # Pass wrong version (goal.version + 5)
-        await update_goal(db_session, goal.id, family.id, 75000, goal.version + 5)
+        await update_goal(uow, goal.id, family.id, 75000, goal.version + 5)
 
     assert exc_info.value.status_code == 409
 
 
 @pytest.mark.asyncio
-async def test_update_goal_rejects_wrong_family(db_session: AsyncSession) -> None:
+async def test_update_goal_rejects_wrong_family(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_goal raises HTTPException(404) when goal belongs to a different family."""
     from fastapi import HTTPException
 
@@ -538,7 +573,7 @@ async def test_update_goal_rejects_wrong_family(db_session: AsyncSession) -> Non
     goal = await _insert_goal(db_session, family1, cat, "2026-04", 50000)
 
     with pytest.raises(HTTPException) as exc_info:
-        await update_goal(db_session, goal.id, family2.id, 75000, goal.version)
+        await update_goal(uow, goal.id, family2.id, 75000, goal.version)
 
     assert exc_info.value.status_code == 404
 
@@ -549,21 +584,21 @@ async def test_update_goal_rejects_wrong_family(db_session: AsyncSession) -> Non
 
 
 @pytest.mark.asyncio
-async def test_delete_goal_success(db_session: AsyncSession) -> None:
+async def test_delete_goal_success(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """delete_goal removes the goal from the database."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
     goal = await _insert_goal(db_session, family, cat, "2026-04", 50000)
     goal_id = goal.id
 
-    await delete_goal(db_session, goal_id, family.id)
+    await delete_goal(uow, goal_id, family.id)
 
     result = await db_session.execute(select(MonthlyGoal).where(MonthlyGoal.id == goal_id))
     assert result.scalar_one_or_none() is None
 
 
 @pytest.mark.asyncio
-async def test_delete_goal_raises_404_for_unknown_goal(db_session: AsyncSession) -> None:
+async def test_delete_goal_raises_404_for_unknown_goal(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """delete_goal raises HTTPException(404) when the goal does not exist."""
     import uuid
 
@@ -572,13 +607,13 @@ async def test_delete_goal_raises_404_for_unknown_goal(db_session: AsyncSession)
     family = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await delete_goal(db_session, uuid.uuid4(), family.id)
+        await delete_goal(uow, uuid.uuid4(), family.id)
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_delete_goal_rejects_wrong_family(db_session: AsyncSession) -> None:
+async def test_delete_goal_rejects_wrong_family(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """delete_goal raises HTTPException(404) when goal belongs to a different family."""
     from fastapi import HTTPException
 
@@ -589,7 +624,7 @@ async def test_delete_goal_rejects_wrong_family(db_session: AsyncSession) -> Non
     goal = await _insert_goal(db_session, family1, cat, "2026-04", 50000)
 
     with pytest.raises(HTTPException) as exc_info:
-        await delete_goal(db_session, goal.id, family2.id)
+        await delete_goal(uow, goal.id, family2.id)
 
     assert exc_info.value.status_code == 404
 
@@ -600,14 +635,14 @@ async def test_delete_goal_rejects_wrong_family(db_session: AsyncSession) -> Non
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_creates_new_goals(db_session: AsyncSession) -> None:
+async def test_bulk_upsert_goals_creates_new_goals(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """bulk_upsert_goals creates goals when none exist for the month."""
     family = await _make_family(db_session)
     cat1 = await _insert_category(db_session, family, "Groceries")
     cat2 = await _insert_category(db_session, family, "Dining")
 
     result = await bulk_upsert_goals(
-        db_session,
+        uow,
         family.id,
         "2026-04",
         [
@@ -631,7 +666,7 @@ async def test_bulk_upsert_goals_creates_new_goals(db_session: AsyncSession) -> 
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_updates_existing_goals(db_session: AsyncSession) -> None:
+async def test_bulk_upsert_goals_updates_existing_goals(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """bulk_upsert_goals updates existing goals when they already exist."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
@@ -639,7 +674,7 @@ async def test_bulk_upsert_goals_updates_existing_goals(db_session: AsyncSession
     original_version = existing.version
 
     result = await bulk_upsert_goals(
-        db_session,
+        uow,
         family.id,
         "2026-04",
         [{"category_id": cat.id, "amount_cents": 75000}],
@@ -655,7 +690,7 @@ async def test_bulk_upsert_goals_updates_existing_goals(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession) -> None:
+async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """bulk_upsert_goals deletes goals not present in the incoming list."""
     family = await _make_family(db_session)
     cat1 = await _insert_category(db_session, family, "Groceries")
@@ -665,7 +700,7 @@ async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession)
 
     # Only keep cat1, delete cat2
     result = await bulk_upsert_goals(
-        db_session,
+        uow,
         family.id,
         "2026-04",
         [{"category_id": cat1.id, "amount_cents": 50000}],
@@ -687,7 +722,7 @@ async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession)
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_empty_list_deletes_all(db_session: AsyncSession) -> None:
+async def test_bulk_upsert_goals_empty_list_deletes_all(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """bulk_upsert_goals with empty list deletes all existing goals for the month."""
     family = await _make_family(db_session)
     cat1 = await _insert_category(db_session, family, "Groceries")
@@ -695,7 +730,7 @@ async def test_bulk_upsert_goals_empty_list_deletes_all(db_session: AsyncSession
     await _insert_goal(db_session, family, cat1, "2026-04", 50000)
     await _insert_goal(db_session, family, cat2, "2026-04", 30000)
 
-    result = await bulk_upsert_goals(db_session, family.id, "2026-04", [])
+    result = await bulk_upsert_goals(uow, family.id, "2026-04", [])
 
     assert result["created"] == 0
     assert result["updated"] == 0
@@ -703,7 +738,9 @@ async def test_bulk_upsert_goals_empty_list_deletes_all(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_raises_404_for_unknown_category(db_session: AsyncSession) -> None:
+async def test_bulk_upsert_goals_raises_404_for_unknown_category(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """bulk_upsert_goals raises HTTPException(404) when a category does not exist."""
     import uuid
 
@@ -713,7 +750,7 @@ async def test_bulk_upsert_goals_raises_404_for_unknown_category(db_session: Asy
 
     with pytest.raises(HTTPException) as exc_info:
         await bulk_upsert_goals(
-            db_session,
+            uow,
             family.id,
             "2026-04",
             [{"category_id": uuid.uuid4(), "amount_cents": 50000}],
@@ -723,7 +760,9 @@ async def test_bulk_upsert_goals_raises_404_for_unknown_category(db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_raises_400_for_inactive_category(db_session: AsyncSession) -> None:
+async def test_bulk_upsert_goals_raises_400_for_inactive_category(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """bulk_upsert_goals raises HTTPException(400) when a category is inactive."""
     from fastapi import HTTPException
 
@@ -734,7 +773,7 @@ async def test_bulk_upsert_goals_raises_400_for_inactive_category(db_session: As
 
     with pytest.raises(HTTPException) as exc_info:
         await bulk_upsert_goals(
-            db_session,
+            uow,
             family.id,
             "2026-04",
             [{"category_id": cat.id, "amount_cents": 50000}],
@@ -744,7 +783,7 @@ async def test_bulk_upsert_goals_raises_400_for_inactive_category(db_session: As
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_isolates_by_family(db_session: AsyncSession) -> None:
+async def test_bulk_upsert_goals_isolates_by_family(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """bulk_upsert_goals does not affect or leak goals from other families."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
@@ -757,7 +796,7 @@ async def test_bulk_upsert_goals_isolates_by_family(db_session: AsyncSession) ->
 
     # Upsert goals for family1 only
     result = await bulk_upsert_goals(
-        db_session,
+        uow,
         family1.id,
         "2026-04",
         [{"category_id": cat1.id, "amount_cents": 50000}],
@@ -777,102 +816,46 @@ async def test_bulk_upsert_goals_isolates_by_family(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_copy_goals_race_condition_handled(db_session: AsyncSession) -> None:
-    """copy_goals_from_previous_month handles IntegrityError by returning existing count.
+async def test_copy_goals_race_condition_handled(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
+    """copy_goals_from_previous_month catches a duplicate-key race instead of raising.
 
-    Simulates a concurrent copy scenario by pre-inserting goals for the target
-    month and then triggering the IntegrityError path via mock to confirm the
-    service falls back to reading existing goals rather than crashing.
+    Pre-inserting a target-month goal for the same (family, category) reproduces
+    a genuine unique-constraint collision without any mocking: Postgres rejects
+    the bulk insert against the row already present in the same uncommitted
+    transaction, exactly as two concurrent requests would collide. ``uow.flush()``
+    translates the resulting IntegrityError into UniqueViolation and the service
+    catches it — proving it does not propagate as an unhandled 500.
+
+    Design doc risk (f): the recovery calls ``uow.rollback()`` unconditionally,
+    which discards the *whole* request, not just the failed insert — including,
+    here, the family/category/goal rows this same test just set up on the same
+    session. So the fallback re-read genuinely finds nothing, and 0 is the
+    correct count, not a test artifact. That "oops, rollback ate everything"
+    behaviour is precisely what the correct fix (a savepoint) would avoid — see
+    the NOTE in ``copy_goals_from_previous_month``.
     """
-    from unittest.mock import patch
-
-    from sqlalchemy.exc import IntegrityError
-
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Transport")
-    # Source month goals
     await _insert_goal(db_session, family, cat, "2026-03", amount_cents=30000)
+    # Simulates "another request already won the race" for the target month.
+    await _insert_goal(db_session, family, cat, "2026-04", amount_cents=30000)
 
-    # Pre-insert a target-month goal to simulate the "other request won the race"
-    pre_existing = await _insert_goal(db_session, family, cat, "2026-04", amount_cents=30000)
+    copied_count = await copy_goals_from_previous_month(uow, family.id, "2026-04")
 
-    # Patch db.flush to raise IntegrityError on the first call within copy_goals,
-    # forcing the race-condition handler.  We preserve the pre_existing goal so
-    # the fallback SELECT can find it.
-    original_flush = db_session.flush
-
-    flush_call_count = 0
-
-    async def _flush_raiser(*args, **kwargs):
-        nonlocal flush_call_count
-        flush_call_count += 1
-        if flush_call_count == 1:
-            # Simulate the duplicate-insert IntegrityError
-            raise IntegrityError("duplicate key", {}, Exception("unique violation"))
-        return await original_flush(*args, **kwargs)
-
-    with patch.object(db_session, "flush", side_effect=_flush_raiser):
-        # The service must catch IntegrityError, rollback, then re-read
-        # Expect it to return 1 (the pre-existing goal for the target month)
-        # NOTE: After rollback the pre_existing goal insert is also undone,
-        # so we re-insert it here as part of the fallback setup.
-        pass  # patch exits immediately — the actual test is below
-
-    # Simpler direct test: verify that when flush raises IntegrityError the
-    # function returns without crashing and the count is non-negative.
-    # We test this by verifying the code path exists in the implementation.
-    # The race condition path in copy_goals_from_previous_month calls:
-    #   1. db.add_all(new_goals)
-    #   2. await db.flush()   <-- IntegrityError here
-    #   3. await db.rollback()
-    #   4. re-reads existing goals
-    # We exercise this with a new isolated session to avoid state contamination.
-    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-    from sqlalchemy.pool import NullPool
-
-    from app.config import settings
-
-    engine2 = create_async_engine(settings.database_url, poolclass=NullPool)
-    session2 = AsyncSession(engine2, expire_on_commit=False)
-    await session2.begin()
-    try:
-        owner2 = await create_test_user(session2)
-        family2, _ = await create_test_family(session2, owner2)
-        cat2 = await _insert_category(session2, family2, "Groceries")
-        await _insert_goal(session2, family2, cat2, "2026-03", amount_cents=25000)
-
-        # Simulate another concurrent insert by pre-inserting the target goal
-        await _insert_goal(session2, family2, cat2, "2026-04", amount_cents=25000)
-
-        # Now simulate the IntegrityError on flush inside copy_goals
-        original_flush2 = session2.flush
-        flush_calls = 0
-
-        async def _raiser_flush(*args, **kwargs):
-            nonlocal flush_calls
-            flush_calls += 1
-            if flush_calls == 1:
-                raise IntegrityError("duplicate", {}, Exception("unique violation"))
-            return await original_flush2(*args, **kwargs)
-
-        with patch.object(session2, "flush", side_effect=_raiser_flush):
-            # After IntegrityError the service rolls back, losing the pre-insert too.
-            # The fallback SELECT will find 0 goals — that is the correct result.
-            count = await copy_goals_from_previous_month(session2, family2.id, "2026-04")
-
-        # After rollback + re-read there are 0 goals for target month
-        assert count == 0
-    finally:
-        await session2.rollback()
-        await session2.close()
-    await engine2.dispose()
-
-    # Confirm the pre_existing goal from outer session was not mutated
-    assert pre_existing.id is not None
+    assert copied_count == 0
+    result = await db_session.execute(
+        select(MonthlyGoal).where(
+            MonthlyGoal.family_id == family.id,
+            MonthlyGoal.year_month == "2026-04",
+        )
+    )
+    assert list(result.scalars().all()) == []
 
 
 @pytest.mark.asyncio
-async def test_copy_goals_from_previous_month_isolates_by_family(db_session: AsyncSession) -> None:
+async def test_copy_goals_from_previous_month_isolates_by_family(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """copy_goals_from_previous_month only copies goals belonging to the target family."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
@@ -887,7 +870,7 @@ async def test_copy_goals_from_previous_month_isolates_by_family(db_session: Asy
     await _insert_goal(db_session, family2, cat2, "2026-03", amount_cents=99000)
 
     # Only copy for family1
-    copied = await copy_goals_from_previous_month(db_session, family1.id, "2026-04")
+    copied = await copy_goals_from_previous_month(uow, family1.id, "2026-04")
 
     assert copied == 2
 
@@ -908,14 +891,14 @@ async def test_copy_goals_from_previous_month_isolates_by_family(db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_create_goal_assigns_uuid_id(db_session: AsyncSession) -> None:
+async def test_create_goal_assigns_uuid_id(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_goal assigns a non-null UUID to the new goal's id field."""
     import uuid
 
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
 
-    goal = await create_goal(db_session, family.id, cat.id, "2026-04", 50000)
+    goal = await create_goal(uow, family.id, cat.id, "2026-04", 50000)
 
     assert goal.id is not None
     assert isinstance(goal.id, uuid.UUID)
@@ -927,13 +910,13 @@ async def test_create_goal_assigns_uuid_id(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_goal_does_not_change_year_month(db_session: AsyncSession) -> None:
+async def test_update_goal_does_not_change_year_month(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_goal only updates amount_cents and version; year_month stays the same."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, "Groceries")
     goal = await _insert_goal(db_session, family, cat, "2026-04", 50000)
 
-    updated = await update_goal(db_session, goal.id, family.id, 75000, goal.version)
+    updated = await update_goal(uow, goal.id, family.id, 75000, goal.version)
 
     assert updated.year_month == "2026-04"
     assert updated.category_id == cat.id

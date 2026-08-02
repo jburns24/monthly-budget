@@ -1,17 +1,23 @@
-"""Monthly goal service: timezone utilities, rollover, and goal management."""
+"""Monthly goal service: timezone utilities, rollover, and goal management.
+
+Behind the repository/UnitOfWork seam (design doc Step 4): no ``AsyncSession``,
+no ``select()``, no ``sqlalchemy.exc.IntegrityError``. The 409 paths key on
+:class:`~app.ports.errors.UniqueViolation`, which the SQLAlchemy adapter
+translates ``IntegrityError`` into and the in-memory adapter raises directly —
+the same seam ``category_service`` uses.
+"""
 
 import uuid
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging import get_logger
 from app.models.category import Category
 from app.models.monthly_goal import MonthlyGoal
+from app.ports.errors import UniqueViolation
+from app.ports.unit_of_work import UnitOfWork
 
 logger = get_logger(__name__)
 
@@ -67,7 +73,7 @@ def get_current_budget_month(timezone_str: str) -> str:
 
 
 async def get_or_check_previous_goals(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     year_month: str,
 ) -> tuple[list[MonthlyGoal], bool]:
@@ -81,8 +87,8 @@ async def get_or_check_previous_goals(
 
     Parameters
     ----------
-    db:
-        Active async session.
+    uow:
+        Active UnitOfWork.
     family_id:
         The family's UUID.
     year_month:
@@ -94,28 +100,11 @@ async def get_or_check_previous_goals(
         (goals, has_previous_goals) where has_previous_goals is False when
         goals already exist for the requested month.
     """
-    # Check whether goals already exist for this month
-    result = await db.execute(
-        select(MonthlyGoal).where(
-            MonthlyGoal.family_id == family_id,
-            MonthlyGoal.year_month == year_month,
-        )
-    )
-    goals = list(result.scalars().all())
+    goals = await uow.goals.list_for_month(family_id, year_month)
     if goals:
         return goals, False
 
-    # No goals for this month — check if any previous month has goals
-    result = await db.execute(
-        select(MonthlyGoal.year_month)
-        .where(
-            MonthlyGoal.family_id == family_id,
-            MonthlyGoal.year_month < year_month,
-        )
-        .order_by(MonthlyGoal.year_month.desc())
-        .limit(1)
-    )
-    previous_month = result.scalar_one_or_none()
+    previous_month = await uow.goals.latest_month_before(family_id, year_month)
     has_previous_goals = previous_month is not None
 
     logger.info(
@@ -128,7 +117,7 @@ async def get_or_check_previous_goals(
 
 
 async def copy_goals_from_previous_month(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     target_month: str,
 ) -> int:
@@ -137,14 +126,19 @@ async def copy_goals_from_previous_month(
     Finds the most recent month before `target_month` that has goals for
     this family, then bulk-copies those goal rows into `target_month`.
 
-    Handles IntegrityError race conditions: if a concurrent request has
-    already inserted goals, catches the error, rolls back, and re-reads
-    the existing goals to return the actual copied count.
+    Handles a duplicate-key race: if a concurrent request has already
+    inserted goals, catches the resulting UniqueViolation, rolls back, and
+    re-reads the existing goals to return the actual copied count.
+
+    NOTE (design doc risk (f)): ``uow.rollback()`` here discards the *whole*
+    request, not just the failed insert — ported literally from the
+    pre-seam ``db.rollback()`` call to preserve behaviour. The correct fix is
+    a savepoint, and that is a behaviour change deserving its own PR.
 
     Parameters
     ----------
-    db:
-        Active async session.
+    uow:
+        Active UnitOfWork.
     family_id:
         The family's UUID.
     target_month:
@@ -155,17 +149,7 @@ async def copy_goals_from_previous_month(
     int
         The number of goals copied (0 if no source month was found).
     """
-    # Find the most recent prior month with goals
-    result = await db.execute(
-        select(MonthlyGoal.year_month)
-        .where(
-            MonthlyGoal.family_id == family_id,
-            MonthlyGoal.year_month < target_month,
-        )
-        .order_by(MonthlyGoal.year_month.desc())
-        .limit(1)
-    )
-    source_month = result.scalar_one_or_none()
+    source_month = await uow.goals.latest_month_before(family_id, target_month)
 
     if source_month is None:
         logger.info(
@@ -175,19 +159,11 @@ async def copy_goals_from_previous_month(
         )
         return 0
 
-    # Load source goals
-    result = await db.execute(
-        select(MonthlyGoal).where(
-            MonthlyGoal.family_id == family_id,
-            MonthlyGoal.year_month == source_month,
-        )
-    )
-    source_goals = list(result.scalars().all())
+    source_goals = await uow.goals.list_for_month(family_id, source_month)
 
     if not source_goals:
         return 0
 
-    # Bulk copy to target month
     new_goals = [
         MonthlyGoal(
             family_id=family_id,
@@ -200,19 +176,13 @@ async def copy_goals_from_previous_month(
     ]
 
     try:
-        db.add_all(new_goals)
-        await db.flush()
-    except IntegrityError:
+        uow.goals.add_all(new_goals)
+        await uow.flush()
+    except UniqueViolation:
         # Race condition: another request already inserted goals — rollback
-        # and re-read the existing count
-        await db.rollback()
-        result = await db.execute(
-            select(MonthlyGoal).where(
-                MonthlyGoal.family_id == family_id,
-                MonthlyGoal.year_month == target_month,
-            )
-        )
-        existing = list(result.scalars().all())
+        # (the whole request, see NOTE above) and re-read the existing count.
+        await uow.rollback()
+        existing = await uow.goals.list_for_month(family_id, target_month)
         copied_count = len(existing)
         logger.info(
             "copy_goals_race_condition_handled",
@@ -234,7 +204,7 @@ async def copy_goals_from_previous_month(
 
 
 async def list_goals(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     year_month: str,
 ) -> tuple[list[MonthlyGoal], bool]:
@@ -245,8 +215,8 @@ async def list_goals(
 
     Parameters
     ----------
-    db:
-        Active async session.
+    uow:
+        Active UnitOfWork.
     family_id:
         The family's UUID.
     year_month:
@@ -259,11 +229,11 @@ async def list_goals(
         when the month has no goals but a prior month does — the frontend
         should offer to copy them.
     """
-    return await get_or_check_previous_goals(db, family_id, year_month)
+    return await get_or_check_previous_goals(uow, family_id, year_month)
 
 
 async def _validate_category(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     category_id: uuid.UUID,
 ) -> Category:
@@ -271,8 +241,8 @@ async def _validate_category(
 
     Parameters
     ----------
-    db:
-        Active async session.
+    uow:
+        Active UnitOfWork.
     family_id:
         The family's UUID.
     category_id:
@@ -290,13 +260,7 @@ async def _validate_category(
     HTTPException(400)
         If the category exists but is inactive (archived).
     """
-    result = await db.execute(
-        select(Category).where(
-            Category.id == category_id,
-            Category.family_id == family_id,
-        )
-    )
-    category = result.scalar_one_or_none()
+    category = await uow.categories.get_in_family(category_id, family_id)
     if category is None:
         raise HTTPException(status_code=404, detail="Category not found or does not belong to this family")
     if not category.is_active:
@@ -305,7 +269,7 @@ async def _validate_category(
 
 
 async def create_goal(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     category_id: uuid.UUID,
     year_month: str,
@@ -316,10 +280,15 @@ async def create_goal(
     Validates that the category exists, belongs to the family, and is active.
     Returns HTTP 409 if a goal for the same family/category/month already exists.
 
+    NOTE (design doc risk (f)): the 409 path calls ``uow.rollback()``, which
+    discards the *whole* request, not just the failed insert — ported
+    literally from the pre-seam ``db.rollback()`` call. The correct fix is a
+    savepoint, and that is a behaviour change deserving its own PR.
+
     Parameters
     ----------
-    db:
-        Active async session.
+    uow:
+        Active UnitOfWork.
     family_id:
         The family's UUID.
     category_id:
@@ -343,7 +312,7 @@ async def create_goal(
     HTTPException(409)
         If a goal already exists for this family/category/month.
     """
-    await _validate_category(db, family_id, category_id)
+    await _validate_category(uow, family_id, category_id)
 
     goal = MonthlyGoal(
         family_id=family_id,
@@ -352,17 +321,16 @@ async def create_goal(
         amount_cents=amount_cents,
         version=1,
     )
-    db.add(goal)
+    uow.goals.add(goal)
     try:
-        await db.flush()
-    except IntegrityError:
-        await db.rollback()
+        await uow.flush()
+    except UniqueViolation:
+        await uow.rollback()
         raise HTTPException(
             status_code=409,
             detail="A goal for this category and month already exists",
         )
 
-    await db.refresh(goal)
     logger.info(
         "goal_created",
         goal_id=str(goal.id),
@@ -375,7 +343,7 @@ async def create_goal(
 
 
 async def update_goal(
-    db: AsyncSession,
+    uow: UnitOfWork,
     goal_id: uuid.UUID,
     family_id: uuid.UUID,
     amount_cents: int,
@@ -388,8 +356,8 @@ async def update_goal(
 
     Parameters
     ----------
-    db:
-        Active async session.
+    uow:
+        Active UnitOfWork.
     goal_id:
         The goal's UUID.
     family_id:
@@ -411,13 +379,7 @@ async def update_goal(
     HTTPException(409)
         If expected_version does not match the current version (conflict).
     """
-    result = await db.execute(
-        select(MonthlyGoal).where(
-            MonthlyGoal.id == goal_id,
-            MonthlyGoal.family_id == family_id,
-        )
-    )
-    goal = result.scalar_one_or_none()
+    goal = await uow.goals.get_in_family(goal_id, family_id)
     if goal is None:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -427,10 +389,11 @@ async def update_goal(
             detail="Goal has been modified by another request. Please refresh and try again.",
         )
 
+    # No add() call: the repository hands back a tracked instance, so mutating
+    # it and flushing is the update (design doc risk (b)).
     goal.amount_cents = amount_cents
     goal.version = goal.version + 1
-    await db.flush()
-    await db.refresh(goal)
+    await uow.flush()
 
     logger.info(
         "goal_updated",
@@ -443,7 +406,7 @@ async def update_goal(
 
 
 async def delete_goal(
-    db: AsyncSession,
+    uow: UnitOfWork,
     goal_id: uuid.UUID,
     family_id: uuid.UUID,
 ) -> None:
@@ -451,8 +414,8 @@ async def delete_goal(
 
     Parameters
     ----------
-    db:
-        Active async session.
+    uow:
+        Active UnitOfWork.
     goal_id:
         The goal's UUID.
     family_id:
@@ -463,18 +426,12 @@ async def delete_goal(
     HTTPException(404)
         If the goal does not exist or does not belong to the family.
     """
-    result = await db.execute(
-        select(MonthlyGoal).where(
-            MonthlyGoal.id == goal_id,
-            MonthlyGoal.family_id == family_id,
-        )
-    )
-    goal = result.scalar_one_or_none()
+    goal = await uow.goals.get_in_family(goal_id, family_id)
     if goal is None:
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    await db.delete(goal)
-    await db.flush()
+    await uow.goals.delete(goal)
+    await uow.flush()
 
     logger.info(
         "goal_deleted",
@@ -484,7 +441,7 @@ async def delete_goal(
 
 
 async def bulk_upsert_goals(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     year_month: str,
     goals_list: list[dict],
@@ -506,8 +463,8 @@ async def bulk_upsert_goals(
 
     Parameters
     ----------
-    db:
-        Active async session (the caller is responsible for commit/rollback).
+    uow:
+        Active UnitOfWork (the caller is responsible for commit/rollback).
     family_id:
         The family's UUID.
     year_month:
@@ -528,18 +485,11 @@ async def bulk_upsert_goals(
     HTTPException(400)
         If any category is inactive.
     """
-    # Validate all categories first — fail fast before touching DB
+    # Validate all categories first — fail fast before touching the store.
     for item in goals_list:
-        await _validate_category(db, family_id, item["category_id"])
+        await _validate_category(uow, family_id, item["category_id"])
 
-    # Fetch existing goals for this family+month
-    result = await db.execute(
-        select(MonthlyGoal).where(
-            MonthlyGoal.family_id == family_id,
-            MonthlyGoal.year_month == year_month,
-        )
-    )
-    existing_goals = {g.category_id: g for g in result.scalars().all()}
+    existing_goals = {g.category_id: g for g in await uow.goals.list_for_month(family_id, year_month)}
 
     incoming_category_ids = {item["category_id"] for item in goals_list}
 
@@ -562,16 +512,16 @@ async def bulk_upsert_goals(
                 amount_cents=amount,
                 version=1,
             )
-            db.add(new_goal)
+            uow.goals.add(new_goal)
             created += 1
 
     # Delete goals not in the incoming list
     goals_to_delete = [g for cat_id, g in existing_goals.items() if cat_id not in incoming_category_ids]
     deleted = len(goals_to_delete)
     for goal in goals_to_delete:
-        await db.delete(goal)
+        await uow.goals.delete(goal)
 
-    await db.flush()
+    await uow.flush()
 
     logger.info(
         "bulk_upsert_goals_completed",
