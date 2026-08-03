@@ -1,6 +1,6 @@
 {
   "lockfileVersion": 1,
-  "generatedAt": "2026-07-27T01:05:41Z",
+  "generatedAt": "2026-07-28T03:46:52Z",
   "skills": [
     {
       "name": "architecture-patterns",
@@ -12,7 +12,7 @@
         "digest": "sha256:e0c79a48fe96e937c21b5dcdb328d3884d34f50340245afcd3c88c845e35ffa6",
         "ref": "ghcr.io/jburns24/skills/architecture-patterns:0.0.1@sha256:e0c79a48fe96e937c21b5dcdb328d3884d34f50340245afcd3c88c845e35ffa6"
       },
-      "installedAt": "2026-07-26T21:03:06Z",
+      "installedAt": "2026-07-28T03:46:43Z",
       "additionalInstalledPaths": [
         ".claude/skills/architecture-patterns",
         ".codex/skills/architecture-patterns",
@@ -30,7 +30,7 @@
         "digest": "sha256:8198749892302908fcbc6d2046377dc871832463ca8725f1d5866f6b1604e4fc",
         "ref": "ghcr.io/jburns24/skills/cqrs-implementation:0.0.1@sha256:8198749892302908fcbc6d2046377dc871832463ca8725f1d5866f6b1604e4fc"
       },
-      "installedAt": "2026-07-26T21:03:15Z",
+      "installedAt": "2026-07-28T03:46:44Z",
       "additionalInstalledPaths": [
         ".claude/skills/cqrs-implementation",
         ".codex/skills/cqrs-implementation",
@@ -48,7 +48,7 @@
         "digest": "sha256:dfcf8f4f3c9b5aecb7c9c08d3cd563f6ff34b6609510eaafd4b6d5315b085f2d",
         "ref": "ghcr.io/jburns24/skills/event-store-design:0.0.1@sha256:dfcf8f4f3c9b5aecb7c9c08d3cd563f6ff34b6609510eaafd4b6d5315b085f2d"
       },
-      "installedAt": "2026-07-26T21:03:16Z",
+      "installedAt": "2026-07-28T03:46:44Z",
       "additionalInstalledPaths": [
         ".claude/skills/event-store-design",
         ".codex/skills/event-store-design",
@@ -66,7 +66,7 @@
         "digest": "sha256:628143c2bca1186a9e23bbf50b99aa08daa64fc28fdbb33fc97c4f93a2b7428b",
         "ref": "ghcr.io/jburns24/skills/fastapi-templates:0.0.1@sha256:628143c2bca1186a9e23bbf50b99aa08daa64fc28fdbb33fc97c4f93a2b7428b"
       },
-      "installedAt": "2026-07-26T21:03:17Z",
+      "installedAt": "2026-07-28T03:46:45Z",
       "additionalInstalledPaths": [
         ".claude/skills/fastapi-templates",
         ".codex/skills/fastapi-templates",
@@ -84,7 +84,7 @@
         "digest": "sha256:1b07d3ff2c61ca1bf286a8f188544b8ca6bf17b5ef2b61c9be26d889bbe64331",
         "ref": "ghcr.io/jburns24/skills/microservices-patterns:0.0.1@sha256:1b07d3ff2c61ca1bf286a8f188544b8ca6bf17b5ef2b61c9be26d889bbe64331"
       },
-      "installedAt": "2026-07-26T21:03:18Z",
+      "installedAt": "2026-07-28T03:46:46Z",
       "additionalInstalledPaths": [
         ".claude/skills/microservices-patterns",
         ".codex/skills/microservices-patterns",
@@ -102,7 +102,7 @@
         "digest": "sha256:aa027aa55f6c30cf21878c85d9cee05d354580c6d481a174d355f7663ed94a67",
         "ref": "ghcr.io/jburns24/skills/python-performance-optimization:0.0.1@sha256:aa027aa55f6c30cf21878c85d9cee05d354580c6d481a174d355f7663ed94a67"
       },
-      "installedAt": "2026-07-26T21:03:19Z",
+      "installedAt": "2026-07-28T03:46:46Z",
       "additionalInstalledPaths": [
         ".claude/skills/python-performance-optimization",
         ".codex/skills/python-performance-optimization",
@@ -120,7 +120,7 @@
         "digest": "sha256:e7ce2f89f0702e40fe3c10c1b9918a86b61e18a52fef47cbc1ada90cf643d683",
         "ref": "ghcr.io/jburns24/skills/saga-orchestration:0.0.1@sha256:e7ce2f89f0702e40fe3c10c1b9918a86b61e18a52fef47cbc1ada90cf643d683"
       },
-      "installedAt": "2026-07-26T21:03:20Z",
+      "installedAt": "2026-07-28T03:46:47Z",
       "additionalInstalledPaths": [
         ".claude/skills/saga-orchestration",
         ".codex/skills/saga-orchestration",
@@ -138,7 +138,7 @@
         "digest": "sha256:47a09a747b18c7ae7f96f47800350503fcfad2d3a79d90c904f14b76258281d6",
         "ref": "ghcr.io/jburns24/skills/systematic-debugging:0.0.1@sha256:47a09a747b18c7ae7f96f47800350503fcfad2d3a79d90c904f14b76258281d6"
       },
-      "installedAt": "2026-07-27T01:05:39Z",
+      "installedAt": "2026-07-28T03:46:48Z",
       "additionalInstalledPaths": [
         ".claude/skills/systematic-debugging",
         ".codex/skills/systematic-debugging",
@@ -156,7 +156,7 @@
         "digest": "sha256:c9322d89122721193676dfd3aa28c1dd1847d95caeddd3f9ab3899280b7bf86b",
         "ref": "ghcr.io/jburns24/skills/test-driven-development:0.0.1@sha256:c9322d89122721193676dfd3aa28c1dd1847d95caeddd3f9ab3899280b7bf86b"
       },
-      "installedAt": "2026-07-26T21:03:21Z",
+      "installedAt": "2026-07-28T03:46:48Z",
       "additionalInstalledPaths": [
         ".claude/skills/test-driven-development",
         ".codex/skills/test-driven-development",
@@ -174,7 +174,7 @@
         "digest": "sha256:f65055b0eabe5e5133399fccd0e23671a41b47151249bf398d2849cf4e58f2d4",
         "ref": "ghcr.io/jburns24/skills/tilt-dev:0.0.0@sha256:f65055b0eabe5e5133399fccd0e23671a41b47151249bf398d2849cf4e58f2d4"
       },
-      "installedAt": "2026-07-27T01:05:40Z",
+      "installedAt": "2026-07-28T03:46:49Z",
       "additionalInstalledPaths": [
         ".claude/skills/tilt-dev",
         ".codex/skills/tilt-dev",
@@ -192,7 +192,7 @@
         "digest": "sha256:41d9a12579225ea10ed9cf0d89bbc977a401fa60411675ea1a520fb42f7272c2",
         "ref": "ghcr.io/jburns24/skills/typescript-advanced-types:0.0.1@sha256:41d9a12579225ea10ed9cf0d89bbc977a401fa60411675ea1a520fb42f7272c2"
       },
-      "installedAt": "2026-07-26T21:03:23Z",
+      "installedAt": "2026-07-28T03:46:50Z",
       "additionalInstalledPaths": [
         ".claude/skills/typescript-advanced-types",
         ".codex/skills/typescript-advanced-types",
@@ -210,7 +210,7 @@
         "digest": "sha256:e14dbb3e090fa8d0c151094900f869f972f4e9ae08c566f77fd5489f9071f322",
         "ref": "ghcr.io/jburns24/skills/vercel-composition-patterns:0.0.1@sha256:e14dbb3e090fa8d0c151094900f869f972f4e9ae08c566f77fd5489f9071f322"
       },
-      "installedAt": "2026-07-26T21:03:24Z",
+      "installedAt": "2026-07-28T03:46:51Z",
       "additionalInstalledPaths": [
         ".claude/skills/vercel-composition-patterns",
         ".codex/skills/vercel-composition-patterns",
@@ -228,7 +228,7 @@
         "digest": "sha256:1edee4b881fb976a778d94bc8d6458c97848c8888199b5c148cfe3b398f30c6a",
         "ref": "ghcr.io/jburns24/skills/vercel-react-best-practices:0.0.1@sha256:1edee4b881fb976a778d94bc8d6458c97848c8888199b5c148cfe3b398f30c6a"
       },
-      "installedAt": "2026-07-26T21:03:25Z",
+      "installedAt": "2026-07-28T03:46:51Z",
       "additionalInstalledPaths": [
         ".claude/skills/vercel-react-best-practices",
         ".codex/skills/vercel-react-best-practices",
@@ -246,7 +246,7 @@
         "digest": "sha256:fd4481010f24c63e404676a795033a5f0fa50923aab3e45aa01413aa8c4938c5",
         "ref": "ghcr.io/jburns24/skills/webapp-testing:0.0.1@sha256:fd4481010f24c63e404676a795033a5f0fa50923aab3e45aa01413aa8c4938c5"
       },
-      "installedAt": "2026-07-27T01:05:41Z",
+      "installedAt": "2026-07-28T03:46:52Z",
       "additionalInstalledPaths": [
         ".claude/skills/webapp-testing",
         ".codex/skills/webapp-testing",
