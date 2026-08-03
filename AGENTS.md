@@ -124,6 +124,7 @@ Pre-commit hooks (`.pre-commit-config.yaml`) are the single source of truth for 
 - Backend uses **async throughout** — async routes, async SQLAlchemy sessions, async tests.
 - Alembic is configured for async via `async_engine_from_config` in `env.py`. Models must be imported into `app/database.py` `Base` for autogenerate to detect them.
 - The main branch is `main`. PRs target `main`.
+- PR titles must follow Conventional Commits (enforced by `.github/workflows/pr-lint.yaml`).
 
 ## Installed Skills
 
