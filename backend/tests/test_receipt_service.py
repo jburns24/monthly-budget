@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from app.config import settings
 from app.models.family import Family  # noqa: F401
 from app.models.family_member import FamilyMember  # noqa: F401
@@ -54,6 +55,21 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
         await session.close()
     await engine.dispose()
+
+
+@pytest.fixture
+def uow_factory():
+    """Return a factory building a UoW over a session.
+
+    ``owns_transaction=False`` keeps the fixture's outer transaction open so
+    teardown can still roll it back; without it a service-level ``commit()``
+    would leak rows between tests.
+    """
+
+    def _make(session: AsyncSession) -> SqlAlchemyUnitOfWork:
+        return SqlAlchemyUnitOfWork(session, owns_transaction=False)
+
+    return _make
 
 
 # ---------------------------------------------------------------------------
@@ -86,8 +102,9 @@ def _extracted(**overrides) -> ExtractedReceipt:
 
 
 @pytest.mark.asyncio
-async def test_invalid_mime_raises_415(db_session: AsyncSession) -> None:
+async def test_invalid_mime_raises_415(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
 
     with patch(
@@ -95,15 +112,16 @@ async def test_invalid_mime_raises_415(db_session: AsyncSession) -> None:
         side_effect=ValueError("Unsupported MIME type"),
     ):
         with pytest.raises(HTTPException) as exc_info:
-            await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+            await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 415
     assert "Unsupported MIME type" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-async def test_corrupt_image_raises_400(db_session: AsyncSession) -> None:
+async def test_corrupt_image_raises_400(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
 
     with (
@@ -114,7 +132,7 @@ async def test_corrupt_image_raises_400(db_session: AsyncSession) -> None:
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
-            await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+            await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 400
     assert "Invalid image" in exc_info.value.detail
@@ -126,8 +144,9 @@ async def test_corrupt_image_raises_400(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_phase1_save_failure_raises_500(db_session: AsyncSession) -> None:
+async def test_phase1_save_failure_raises_500(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     delete_mock = AsyncMock()
 
@@ -144,7 +163,7 @@ async def test_phase1_save_failure_raises_500(db_session: AsyncSession) -> None:
         patch("app.services.receipt_service.receipt_storage.delete", delete_mock),
     ):
         with pytest.raises(HTTPException) as exc_info:
-            await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+            await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 500
     # image_path was never set (save raised before path was returned), so no delete
@@ -157,8 +176,9 @@ async def test_phase1_save_failure_raises_500(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_session: AsyncSession) -> None:
+async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     image_path = _fake_path(family.id)
     delete_mock = AsyncMock()
@@ -177,7 +197,7 @@ async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_sessio
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
-            await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+            await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 503
     # Image is preserved (not deleted) on Claude errors so retry can re-run extraction.
@@ -196,8 +216,9 @@ async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_sessio
 
 
 @pytest.mark.asyncio
-async def test_phase2_non_receipt_raises_422_and_marks_receipt_failed(db_session: AsyncSession) -> None:
+async def test_phase2_non_receipt_raises_422_and_marks_receipt_failed(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     image_path = _fake_path(family.id)
     delete_mock = AsyncMock()
@@ -216,7 +237,7 @@ async def test_phase2_non_receipt_raises_422_and_marks_receipt_failed(db_session
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
-            await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+            await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 422
     assert "doesn't appear to be a receipt" in exc_info.value.detail
@@ -234,8 +255,9 @@ async def test_phase2_non_receipt_raises_422_and_marks_receipt_failed(db_session
 
 
 @pytest.mark.asyncio
-async def test_success_high_confidence_creates_expense(db_session: AsyncSession) -> None:
+async def test_success_high_confidence_creates_expense(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
     image_path = _fake_path(family.id)
@@ -257,7 +279,7 @@ async def test_success_high_confidence_creates_expense(db_session: AsyncSession)
             AsyncMock(return_value=category),
         ),
     ):
-        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+        receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert receipt.status == "completed"
     assert receipt.parsed_merchant == "Test Market"
@@ -272,7 +294,7 @@ async def test_success_high_confidence_creates_expense(db_session: AsyncSession)
 
 
 @pytest.mark.asyncio
-async def test_extracted_category_resolves_against_real_categories(db_session: AsyncSession) -> None:
+async def test_extracted_category_resolves_against_real_categories(db_session: AsyncSession, uow_factory) -> None:
     """Claude's category label routes the expense without needing a store-name match.
 
     suggest_for_store is deliberately *not* patched here: the point is that a real
@@ -281,6 +303,7 @@ async def test_extracted_category_resolves_against_real_categories(db_session: A
     pick and reported needs_edit=True. The label carries it to the right row.
     """
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     # Ordered so first_active_category would pick Bills, not Groceries — that way
     # a passing assertion can only mean the hint matched, not that we got lucky.
@@ -301,7 +324,7 @@ async def test_extracted_category_resolves_against_real_categories(db_session: A
             AsyncMock(return_value=_extracted(store_name="Safeway", category="Groceries")),
         ),
     ):
-        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+        receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert expense.category_id == groceries.id
     assert needs_edit is False
@@ -316,8 +339,9 @@ async def test_extracted_category_resolves_against_real_categories(db_session: A
 
 
 @pytest.mark.asyncio
-async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession) -> None:
+async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family)
     image_path = _fake_path(family.id)
@@ -339,7 +363,7 @@ async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession) 
             AsyncMock(return_value=category),
         ),
     ):
-        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+        receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert receipt.status == "completed"
     assert needs_edit is True
@@ -351,6 +375,7 @@ async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession) 
 @pytest.mark.asyncio
 async def test_low_confidence_with_valid_total_still_persists_amount_zero(
     db_session: AsyncSession,
+    uow_factory,
 ) -> None:
     """Even when Claude returned a total, low-confidence forces amount_cents=0.
 
@@ -359,6 +384,7 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
     Spec §Unit 3 requires the placeholder 0 so the user reviews before saving.
     """
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family)
     image_path = _fake_path(family.id)
@@ -380,7 +406,7 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
             AsyncMock(return_value=category),
         ),
     ):
-        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+        receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert receipt.status == "completed"
     # Parsed total is still captured on the receipt row for later review UI.
@@ -396,7 +422,7 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
 
 
 @pytest.mark.asyncio
-async def test_no_suggestion_falls_back_to_first_active_category(db_session: AsyncSession) -> None:
+async def test_no_suggestion_falls_back_to_first_active_category(db_session: AsyncSession, uow_factory) -> None:
     """When suggest_for_store finds nothing, the expense still gets created.
 
     Regression: previously the expense was silently skipped, so the upload
@@ -407,6 +433,7 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
     total is still preserved, since only the extraction quality zeroes the amount.
     """
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
     image_path = _fake_path(family.id)
@@ -428,7 +455,7 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
             AsyncMock(return_value=None),
         ),
     ):
-        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+        receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert receipt.status == "completed"
     assert expense is not None
@@ -441,7 +468,7 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_low_confidence_no_store_name_still_creates_expense(db_session: AsyncSession) -> None:
+async def test_low_confidence_no_store_name_still_creates_expense(db_session: AsyncSession, uow_factory) -> None:
     """A low-confidence extraction with no store name still produces an expense.
 
     Regression: ``suggest_for_store(family, "")`` never matches on similarity, and
@@ -449,6 +476,7 @@ async def test_low_confidence_no_store_name_still_creates_expense(db_session: As
     which used to mean the receipt completed with no expense at all.
     """
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
     image_path = _fake_path(family.id)
@@ -468,7 +496,7 @@ async def test_low_confidence_no_store_name_still_creates_expense(db_session: As
             AsyncMock(return_value=extracted),
         ),
     ):
-        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+        receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert receipt.status == "completed"
     assert expense is not None
@@ -484,8 +512,9 @@ async def test_low_confidence_no_store_name_still_creates_expense(db_session: As
 
 
 @pytest.mark.asyncio
-async def test_no_active_categories_raises_409(db_session: AsyncSession) -> None:
+async def test_no_active_categories_raises_409(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     image_path = _fake_path(family.id)
     delete_mock = AsyncMock()
@@ -504,7 +533,7 @@ async def test_no_active_categories_raises_409(db_session: AsyncSession) -> None
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
-            await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+            await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 409
     assert "categor" in str(exc_info.value.detail).lower()
@@ -523,8 +552,9 @@ async def test_no_active_categories_raises_409(db_session: AsyncSession) -> None
 
 
 @pytest.mark.asyncio
-async def test_success_no_total_needs_edit_true(db_session: AsyncSession) -> None:
+async def test_success_no_total_needs_edit_true(db_session: AsyncSession, uow_factory) -> None:
     user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family)
     image_path = _fake_path(family.id)
@@ -546,7 +576,7 @@ async def test_success_no_total_needs_edit_true(db_session: AsyncSession) -> Non
             AsyncMock(return_value=category),
         ),
     ):
-        receipt, expense, needs_edit = await process_upload(db_session, MagicMock(), family.id, user.id, FAKE_BYTES)
+        receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert needs_edit is True
     assert expense is not None

@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.adapters.sqlalchemy.category_repo import SqlAlchemyCategoryRepository
 from app.config import settings
 from app.models.family import Family
 from app.models.family_member import FamilyMember  # noqa: F401 — registers with Base.metadata
@@ -51,6 +52,18 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def categories(db_session: AsyncSession) -> SqlAlchemyCategoryRepository:
+    """The one repository suggest_for_store needs.
+
+    It takes a ``CategoryRepository`` rather than a ``UnitOfWork`` because it
+    only reads categories — narrowing to the smallest port a caller needs is the
+    point of using ``typing.Protocol`` (design doc section 1). Both queries it
+    makes are Postgres tier, so this suite stays on a real session.
+    """
+    return SqlAlchemyCategoryRepository(db_session)
+
+
 async def _setup(db: AsyncSession) -> tuple[Family, User]:
     """Create a user and family for testing."""
     user = await create_test_user(db)
@@ -72,26 +85,28 @@ def _old_date() -> date:
 
 
 @pytest.mark.asyncio
-async def test_trgm_returns_similar_category(db_session: AsyncSession) -> None:
+async def test_trgm_returns_similar_category(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """similarity(name, store_name) > 0.3 returns the matching active category."""
     family, _ = await _setup(db_session)
     groceries = await create_test_category(db_session, family, name="Groceries")
     await create_test_category(db_session, family, name="Transport")
 
-    result = await suggest_for_store(db_session, family.id, "Grocery Store")
+    result = await suggest_for_store(categories, family.id, "Grocery Store")
 
     assert result is not None
     assert result.id == groceries.id
 
 
 @pytest.mark.asyncio
-async def test_trgm_skips_archived_category(db_session: AsyncSession) -> None:
+async def test_trgm_skips_archived_category(db_session: AsyncSession, categories: SqlAlchemyCategoryRepository) -> None:
     """Archived (is_active=False) categories are excluded from similarity matching."""
     family, _ = await _setup(db_session)
     await create_test_category(db_session, family, name="Groceries", is_active=False)
     dining = await create_test_category(db_session, family, name="Dining")
 
-    result = await suggest_for_store(db_session, family.id, "Grocery Store")
+    result = await suggest_for_store(categories, family.id, "Grocery Store")
 
     # Groceries is archived, so only Dining is a candidate — but similarity is low → None or Dining
     # The important check: Groceries (archived) is not returned
@@ -100,13 +115,15 @@ async def test_trgm_skips_archived_category(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_trgm_below_threshold_returns_none_or_fallback(db_session: AsyncSession) -> None:
+async def test_trgm_below_threshold_returns_none_or_fallback(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """Store names with no similarity match (< 0.3) skip the trgm path."""
     family, _ = await _setup(db_session)
     await create_test_category(db_session, family, name="Groceries")
 
     # "XYZ123" shares nothing with "Groceries"
-    result = await suggest_for_store(db_session, family.id, "XYZ123")
+    result = await suggest_for_store(categories, family.id, "XYZ123")
 
     # No trgm match and no expenses → None
     assert result is None
@@ -118,7 +135,9 @@ async def test_trgm_below_threshold_returns_none_or_fallback(db_session: AsyncSe
 
 
 @pytest.mark.asyncio
-async def test_hint_matches_where_store_name_cannot(db_session: AsyncSession) -> None:
+async def test_hint_matches_where_store_name_cannot(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """The hint carries the match when the store name shares nothing with any category.
 
     This is the whole point of the parameter: "Safeway" will never trigram-match
@@ -129,40 +148,44 @@ async def test_hint_matches_where_store_name_cannot(db_session: AsyncSession) ->
     groceries = await create_test_category(db_session, family, name="Groceries")
     await create_test_category(db_session, family, name="Transport")
 
-    result = await suggest_for_store(db_session, family.id, "Safeway", category_hint="Groceries")
+    result = await suggest_for_store(categories, family.id, "Safeway", category_hint="Groceries")
 
     assert result is not None
     assert result.id == groceries.id
 
 
 @pytest.mark.asyncio
-async def test_store_name_still_matches_when_hint_misses(db_session: AsyncSession) -> None:
+async def test_store_name_still_matches_when_hint_misses(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """A hint that matches nothing does not suppress the store-name trgm path."""
     family, _ = await _setup(db_session)
     groceries = await create_test_category(db_session, family, name="Groceries")
 
-    result = await suggest_for_store(db_session, family.id, "Grocery Store", category_hint="Entertainment")
+    result = await suggest_for_store(categories, family.id, "Grocery Store", category_hint="Entertainment")
 
     assert result is not None
     assert result.id == groceries.id
 
 
 @pytest.mark.asyncio
-async def test_hint_wins_over_store_name(db_session: AsyncSession) -> None:
+async def test_hint_wins_over_store_name(db_session: AsyncSession, categories: SqlAlchemyCategoryRepository) -> None:
     """When both terms match different categories, the hint is preferred."""
     family, _ = await _setup(db_session)
     await create_test_category(db_session, family, name="Groceries")
     dining = await create_test_category(db_session, family, name="Dining")
 
     # "Grocery Store" trgm-matches Groceries, but the extractor saw a restaurant bill.
-    result = await suggest_for_store(db_session, family.id, "Grocery Store", category_hint="Dining")
+    result = await suggest_for_store(categories, family.id, "Grocery Store", category_hint="Dining")
 
     assert result is not None
     assert result.id == dining.id
 
 
 @pytest.mark.asyncio
-async def test_hint_none_falls_back_as_before(db_session: AsyncSession) -> None:
+async def test_hint_none_falls_back_as_before(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """Omitting the hint preserves the original store-name-then-usage behaviour."""
     family, user = await _setup(db_session)
     groceries = await create_test_category(db_session, family, name="Groceries")
@@ -172,7 +195,7 @@ async def test_hint_none_falls_back_as_before(db_session: AsyncSession) -> None:
         db_session, family, user, groceries, expense_date=recent, year_month=recent.strftime("%Y-%m")
     )
 
-    result = await suggest_for_store(db_session, family.id, "XYZ123", category_hint=None)
+    result = await suggest_for_store(categories, family.id, "XYZ123", category_hint=None)
 
     assert result is not None
     assert result.id == groceries.id
@@ -184,7 +207,9 @@ async def test_hint_none_falls_back_as_before(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_fallback_returns_most_used_category(db_session: AsyncSession) -> None:
+async def test_fallback_returns_most_used_category(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """When no trgm match, returns the category with the most expenses in last 90 days."""
     family, user = await _setup(db_session)
     groceries = await create_test_category(db_session, family, name="Groceries")
@@ -196,14 +221,16 @@ async def test_fallback_returns_most_used_category(db_session: AsyncSession) -> 
     await create_test_expense(db_session, family, user, groceries, expense_date=recent, year_month=year_month)
     await create_test_expense(db_session, family, user, dining, expense_date=recent, year_month=year_month)
 
-    result = await suggest_for_store(db_session, family.id, "XYZ123")
+    result = await suggest_for_store(categories, family.id, "XYZ123")
 
     assert result is not None
     assert result.id == groceries.id
 
 
 @pytest.mark.asyncio
-async def test_fallback_ignores_expenses_older_than_90_days(db_session: AsyncSession) -> None:
+async def test_fallback_ignores_expenses_older_than_90_days(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """Fallback ignores expenses older than 90 days, even if they have the highest count."""
     family, user = await _setup(db_session)
     old_winner = await create_test_category(db_session, family, name="Groceries")
@@ -222,14 +249,16 @@ async def test_fallback_ignores_expenses_older_than_90_days(db_session: AsyncSes
     for _ in range(2):
         await create_test_expense(db_session, family, user, recent_winner, expense_date=recent, year_month=recent_ym)
 
-    result = await suggest_for_store(db_session, family.id, "XYZ123")
+    result = await suggest_for_store(categories, family.id, "XYZ123")
 
     assert result is not None
     assert result.id == recent_winner.id
 
 
 @pytest.mark.asyncio
-async def test_fallback_excludes_archived_categories(db_session: AsyncSession) -> None:
+async def test_fallback_excludes_archived_categories(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """Fallback skips categories that are archived (is_active=False)."""
     family, user = await _setup(db_session)
     archived = await create_test_category(db_session, family, name="Groceries", is_active=False)
@@ -242,7 +271,7 @@ async def test_fallback_excludes_archived_categories(db_session: AsyncSession) -
         await create_test_expense(db_session, family, user, archived, expense_date=recent, year_month=year_month)
     await create_test_expense(db_session, family, user, active, expense_date=recent, year_month=year_month)
 
-    result = await suggest_for_store(db_session, family.id, "XYZ123")
+    result = await suggest_for_store(categories, family.id, "XYZ123")
 
     assert result is not None
     assert result.id == active.id
@@ -254,17 +283,21 @@ async def test_fallback_excludes_archived_categories(db_session: AsyncSession) -
 
 
 @pytest.mark.asyncio
-async def test_returns_none_when_no_categories(db_session: AsyncSession) -> None:
+async def test_returns_none_when_no_categories(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """Returns None when the family has no categories at all."""
     family, _ = await _setup(db_session)
 
-    result = await suggest_for_store(db_session, family.id, "Grocery Store")
+    result = await suggest_for_store(categories, family.id, "Grocery Store")
 
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_returns_none_when_no_match_and_no_recent_expenses(db_session: AsyncSession) -> None:
+async def test_returns_none_when_no_match_and_no_recent_expenses(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """Returns None when no trgm match and no expenses in last 90 days."""
     family, user = await _setup(db_session)
     groceries = await create_test_category(db_session, family, name="Groceries")
@@ -273,13 +306,15 @@ async def test_returns_none_when_no_match_and_no_recent_expenses(db_session: Asy
     old_ym = old.strftime("%Y-%m")
     await create_test_expense(db_session, family, user, groceries, expense_date=old, year_month=old_ym)
 
-    result = await suggest_for_store(db_session, family.id, "XYZ123")
+    result = await suggest_for_store(categories, family.id, "XYZ123")
 
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_different_family_categories_not_returned(db_session: AsyncSession) -> None:
+async def test_different_family_categories_not_returned(
+    db_session: AsyncSession, categories: SqlAlchemyCategoryRepository
+) -> None:
     """suggest_for_store only considers categories belonging to the target family."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
@@ -287,6 +322,6 @@ async def test_different_family_categories_not_returned(db_session: AsyncSession
 
     await create_test_category(db_session, family2, name="Groceries")
 
-    result = await suggest_for_store(db_session, family1.id, "Grocery Store")
+    result = await suggest_for_store(categories, family1.id, "Grocery Store")
 
     assert result is None

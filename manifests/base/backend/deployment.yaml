@@ -24,7 +24,7 @@ spec:
       # source tree. Do NOT add runAsNonRoot/readOnlyRootFilesystem here.
       initContainers:
         - name: wait-for-postgres
-          image: postgres:16-alpine
+          image: postgres:17-alpine
           imagePullPolicy: IfNotPresent
           command:
             - sh

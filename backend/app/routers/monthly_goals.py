@@ -4,13 +4,13 @@ import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.dependencies import require_family_admin, require_family_member
+from app.deps.provider import get_uow
 from app.logging import get_logger
 from app.models.family_member import FamilyMember
 from app.models.user import User
+from app.ports.unit_of_work import UnitOfWork
 from app.schemas.monthly_goal import (
     BulkGoalsRequest,
     BulkGoalsResponse,
@@ -47,11 +47,11 @@ async def list_goals(
     family_id: uuid.UUID,
     month: str = Query(..., description="Filter by month in YYYY-MM format"),
     membership: tuple[User, FamilyMember] = Depends(require_family_member),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> GoalsListResponse:
     """List goals for a family for the given month (any member)."""
     _validate_year_month(month)
-    goals, has_previous_goals = await monthly_goal_service.list_goals(db, family_id=family_id, year_month=month)
+    goals, has_previous_goals = await monthly_goal_service.list_goals(uow, family_id=family_id, year_month=month)
     return GoalsListResponse(
         year_month=month,
         goals=[MonthlyGoalResponse.model_validate(g) for g in goals],
@@ -68,19 +68,19 @@ async def bulk_upsert_goals(
     family_id: uuid.UUID,
     body: BulkGoalsRequest,
     membership: tuple[User, FamilyMember] = Depends(require_family_admin),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> BulkGoalsResponse:
     """Bulk upsert goals for a family month (admin only, all-or-nothing)."""
     current_user, _ = membership
     goals_list = [{"category_id": g.category_id, "amount_cents": g.amount_cents} for g in body.goals]
     counts = await monthly_goal_service.bulk_upsert_goals(
-        db,
+        uow,
         family_id=family_id,
         year_month=body.year_month,
         goals_list=goals_list,
     )
     # Re-fetch the resulting goals to return them in the response
-    updated_goals, _ = await monthly_goal_service.list_goals(db, family_id=family_id, year_month=body.year_month)
+    updated_goals, _ = await monthly_goal_service.list_goals(uow, family_id=family_id, year_month=body.year_month)
     logger.info(
         "bulk_upsert_goals_endpoint",
         family_id=str(family_id),
@@ -106,7 +106,7 @@ async def rollover_goals(
     family_id: uuid.UUID,
     body: RolloverRequest,
     membership: tuple[User, FamilyMember] = Depends(require_family_admin),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> RolloverResponse:
     """Copy goals from source_month to target_month (admin only).
 
@@ -118,7 +118,7 @@ async def rollover_goals(
     _validate_year_month(body.source_month)
     _validate_year_month(body.target_month)
     copied_count = await monthly_goal_service.copy_goals_from_previous_month(
-        db,
+        uow,
         family_id=family_id,
         target_month=body.target_month,
     )
@@ -143,12 +143,12 @@ async def update_goal(
     goal_id: uuid.UUID,
     body: MonthlyGoalUpdate,
     membership: tuple[User, FamilyMember] = Depends(require_family_admin),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> MonthlyGoalResponse:
     """Update a single goal with optimistic locking (admin only)."""
     current_user, _ = membership
     goal = await monthly_goal_service.update_goal(
-        db,
+        uow,
         goal_id=goal_id,
         family_id=family_id,
         amount_cents=body.amount_cents,
@@ -166,9 +166,9 @@ async def delete_goal(
     family_id: uuid.UUID,
     goal_id: uuid.UUID,
     membership: tuple[User, FamilyMember] = Depends(require_family_admin),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> None:
     """Delete a goal (admin only). Returns 204 No Content."""
     current_user, _ = membership
-    await monthly_goal_service.delete_goal(db, goal_id=goal_id, family_id=family_id)
+    await monthly_goal_service.delete_goal(uow, goal_id=goal_id, family_id=family_id)
     logger.info("goal_deleted_endpoint", goal_id=str(goal_id), user_id=str(current_user.id))

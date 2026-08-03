@@ -1,7 +1,10 @@
-"""Unit tests for the expense_service module.
+"""Postgres-tier tests for the expense_service module.
 
-Tests exercise all public service functions directly against the database,
-verifying correct return values, error handling, and edge cases.
+Tests exercise all public service functions against a real database through the
+SQLAlchemy UnitOfWork, verifying correct return values, error handling, and
+edge cases. The same service functions are covered without a database, through
+the in-memory adapter, in ``tests/unit/test_expense_service.py``; this module
+is what proves the two adapters agree.
 
 Each test uses a local db_session fixture with NullPool to avoid event-loop
 conflicts with pytest-asyncio's per-function event loop scope.
@@ -17,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from app.config import settings
 from app.models.expense import Expense
 from app.models.family import Family
@@ -25,7 +29,6 @@ from app.models.invite import Invite  # noqa: F401 — registers with Base.metad
 from app.models.monthly_goal import MonthlyGoal
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
 from app.models.user import User  # noqa: F401 — registers with Base.metadata
-from app.services.category_service import _count_category_expenses
 from app.services.expense_service import (
     create_expense,
     delete_expense,
@@ -59,6 +62,17 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     await engine.dispose()
 
 
+@pytest.fixture
+def uow(db_session: AsyncSession) -> SqlAlchemyUnitOfWork:
+    """UnitOfWork over the test session.
+
+    ``owns_transaction=False`` keeps the fixture's outer transaction open so
+    teardown can still roll it back; without it a service-level ``commit()``
+    would leak rows between tests.
+    """
+    return SqlAlchemyUnitOfWork(db_session, owns_transaction=False)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -77,13 +91,13 @@ async def _make_family(db: AsyncSession) -> tuple[Family, User]:
 
 
 @pytest.mark.asyncio
-async def test_create_expense_succeeds_with_valid_inputs(db_session: AsyncSession) -> None:
+async def test_create_expense_succeeds_with_valid_inputs(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_expense returns an Expense with correct fields and eager-loaded relationships."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
 
     expense = await create_expense(
-        db_session,
+        uow,
         family_id=family.id,
         user_id=user.id,
         category_id=category.id,
@@ -107,14 +121,14 @@ async def test_create_expense_succeeds_with_valid_inputs(db_session: AsyncSessio
 
 
 @pytest.mark.asyncio
-async def test_create_expense_rejects_inactive_category(db_session: AsyncSession) -> None:
+async def test_create_expense_rejects_inactive_category(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_expense raises HTTPException(400) when the category is inactive."""
     family, user = await _make_family(db_session)
     inactive_category = await create_test_category(db_session, family, is_active=False)
 
     with pytest.raises(HTTPException) as exc_info:
         await create_expense(
-            db_session,
+            uow,
             family_id=family.id,
             user_id=user.id,
             category_id=inactive_category.id,
@@ -127,13 +141,13 @@ async def test_create_expense_rejects_inactive_category(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_create_expense_rejects_nonexistent_category(db_session: AsyncSession) -> None:
+async def test_create_expense_rejects_nonexistent_category(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_expense raises HTTPException(400) when the category does not exist."""
     family, user = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
         await create_expense(
-            db_session,
+            uow,
             family_id=family.id,
             user_id=user.id,
             category_id=uuid.uuid4(),
@@ -146,13 +160,13 @@ async def test_create_expense_rejects_nonexistent_category(db_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_create_expense_computes_year_month(db_session: AsyncSession) -> None:
+async def test_create_expense_computes_year_month(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_expense computes year_month from expense_date."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
 
     expense = await create_expense(
-        db_session,
+        uow,
         family_id=family.id,
         user_id=user.id,
         category_id=category.id,
@@ -170,7 +184,7 @@ async def test_create_expense_computes_year_month(db_session: AsyncSession) -> N
 
 
 @pytest.mark.asyncio
-async def test_list_expenses_filters_by_year_month(db_session: AsyncSession) -> None:
+async def test_list_expenses_filters_by_year_month(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """list_expenses returns only expenses matching the requested year_month."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
@@ -185,7 +199,7 @@ async def test_list_expenses_filters_by_year_month(db_session: AsyncSession) -> 
             db_session, family, user, category, year_month="2026-03", expense_date=date(2026, 3, 1)
         )
 
-    expenses, total_count = await list_expenses(db_session, family.id, year_month="2026-04")
+    expenses, total_count = await list_expenses(uow, family.id, year_month="2026-04")
 
     assert len(expenses) == 3
     assert total_count == 3
@@ -193,7 +207,7 @@ async def test_list_expenses_filters_by_year_month(db_session: AsyncSession) -> 
 
 
 @pytest.mark.asyncio
-async def test_list_expenses_pagination(db_session: AsyncSession) -> None:
+async def test_list_expenses_pagination(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """list_expenses returns the correct page and total_count when paginating."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
@@ -210,14 +224,14 @@ async def test_list_expenses_pagination(db_session: AsyncSession) -> None:
             amount_cents=100 + i,
         )
 
-    expenses, total_count = await list_expenses(db_session, family.id, year_month="2026-04", page=2, per_page=50)
+    expenses, total_count = await list_expenses(uow, family.id, year_month="2026-04", page=2, per_page=50)
 
     assert len(expenses) == 25
     assert total_count == 75
 
 
 @pytest.mark.asyncio
-async def test_list_expenses_filters_by_category(db_session: AsyncSession) -> None:
+async def test_list_expenses_filters_by_category(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """list_expenses filters by category_id when provided."""
     family, user = await _make_family(db_session)
     groceries = await create_test_category(db_session, family, name="Groceries")
@@ -228,7 +242,7 @@ async def test_list_expenses_filters_by_category(db_session: AsyncSession) -> No
     for _ in range(2):
         await create_test_expense(db_session, family, user, transport, year_month="2026-04")
 
-    expenses, total_count = await list_expenses(db_session, family.id, year_month="2026-04", category_id=groceries.id)
+    expenses, total_count = await list_expenses(uow, family.id, year_month="2026-04", category_id=groceries.id)
 
     assert len(expenses) == 3
     assert total_count == 3
@@ -241,7 +255,7 @@ async def test_list_expenses_filters_by_category(db_session: AsyncSession) -> No
 
 
 @pytest.mark.asyncio
-async def test_update_expense_partial_fields(db_session: AsyncSession) -> None:
+async def test_update_expense_partial_fields(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_expense changes only the provided fields, leaving others unchanged."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
@@ -250,7 +264,7 @@ async def test_update_expense_partial_fields(db_session: AsyncSession) -> None:
     )
 
     updated = await update_expense(
-        db_session,
+        uow,
         family_id=family.id,
         expense_id=expense.id,
         expected_updated_at=expense.updated_at,
@@ -263,7 +277,7 @@ async def test_update_expense_partial_fields(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_expense_optimistic_locking_409(db_session: AsyncSession) -> None:
+async def test_update_expense_optimistic_locking_409(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_expense raises HTTPException(409) when expected_updated_at does not match."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
@@ -273,7 +287,7 @@ async def test_update_expense_optimistic_locking_409(db_session: AsyncSession) -
 
     with pytest.raises(HTTPException) as exc_info:
         await update_expense(
-            db_session,
+            uow,
             family_id=family.id,
             expense_id=expense.id,
             expected_updated_at=stale_updated_at,
@@ -284,7 +298,7 @@ async def test_update_expense_optimistic_locking_409(db_session: AsyncSession) -
 
 
 @pytest.mark.asyncio
-async def test_update_expense_recomputes_year_month(db_session: AsyncSession) -> None:
+async def test_update_expense_recomputes_year_month(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_expense recomputes year_month when expense_date is changed."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
@@ -293,7 +307,7 @@ async def test_update_expense_recomputes_year_month(db_session: AsyncSession) ->
     )
 
     updated = await update_expense(
-        db_session,
+        uow,
         family_id=family.id,
         expense_id=expense.id,
         expected_updated_at=expense.updated_at,
@@ -309,26 +323,26 @@ async def test_update_expense_recomputes_year_month(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_delete_expense_removes_from_database(db_session: AsyncSession) -> None:
+async def test_delete_expense_removes_from_database(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """delete_expense hard-deletes the expense from the database."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family)
     expense = await create_test_expense(db_session, family, user, category)
     expense_id = expense.id
 
-    await delete_expense(db_session, family_id=family.id, expense_id=expense_id)
+    await delete_expense(uow, family_id=family.id, expense_id=expense_id)
 
     result = await db_session.execute(select(Expense).where(Expense.id == expense_id))
     assert result.scalar_one_or_none() is None
 
 
 @pytest.mark.asyncio
-async def test_delete_expense_raises_404_when_not_found(db_session: AsyncSession) -> None:
+async def test_delete_expense_raises_404_when_not_found(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """delete_expense raises HTTPException(404) for a nonexistent expense id."""
     family, _ = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await delete_expense(db_session, family_id=family.id, expense_id=uuid.uuid4())
+        await delete_expense(uow, family_id=family.id, expense_id=uuid.uuid4())
 
     assert exc_info.value.status_code == 404
 
@@ -339,7 +353,9 @@ async def test_delete_expense_raises_404_when_not_found(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_budget_summary_aggregates_spending_per_category(db_session: AsyncSession) -> None:
+async def test_budget_summary_aggregates_spending_per_category(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """get_budget_summary returns correct spent_cents and status per category."""
     family, user = await _make_family(db_session)
     groceries = await create_test_category(db_session, family, name="Groceries")
@@ -362,7 +378,7 @@ async def test_budget_summary_aggregates_spending_per_category(db_session: Async
     db_session.add(goal)
     await db_session.flush()
 
-    summary = await get_budget_summary(db_session, family_id=family.id, year_month="2026-04")
+    summary = await get_budget_summary(uow, family_id=family.id, year_month="2026-04", is_editable=True)
 
     category_map = {c.category_name: c for c in summary.categories}
 
@@ -382,12 +398,14 @@ async def test_budget_summary_aggregates_spending_per_category(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_budget_summary_zero_for_categories_with_no_expenses(db_session: AsyncSession) -> None:
+async def test_budget_summary_zero_for_categories_with_no_expenses(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """get_budget_summary includes active categories with spent_cents=0 when no expenses exist."""
     family, _ = await _make_family(db_session)
     await create_test_category(db_session, family, name="Entertainment")
 
-    summary = await get_budget_summary(db_session, family_id=family.id, year_month="2026-04")
+    summary = await get_budget_summary(uow, family_id=family.id, year_month="2026-04", is_editable=True)
 
     category_map = {c.category_name: c for c in summary.categories}
     assert "Entertainment" in category_map
@@ -395,18 +413,20 @@ async def test_budget_summary_zero_for_categories_with_no_expenses(db_session: A
 
 
 @pytest.mark.asyncio
-async def test_budget_summary_with_no_expenses_total_is_zero(db_session: AsyncSession) -> None:
+async def test_budget_summary_with_no_expenses_total_is_zero(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """get_budget_summary returns total_spent_cents=0 when there are no expenses."""
     family, _ = await _make_family(db_session)
 
-    summary = await get_budget_summary(db_session, family_id=family.id, year_month="2026-04")
+    summary = await get_budget_summary(uow, family_id=family.id, year_month="2026-04", is_editable=True)
 
     assert summary.total_spent_cents == 0
     assert summary.year_month == "2026-04"
 
 
 @pytest.mark.asyncio
-async def test_budget_summary_with_goals_computes_status(db_session: AsyncSession) -> None:
+async def test_budget_summary_with_goals_computes_status(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """get_budget_summary computes status correctly based on goal threshold."""
     family, user = await _make_family(db_session)
     category = await create_test_category(db_session, family, name="Dining")
@@ -422,37 +442,15 @@ async def test_budget_summary_with_goals_computes_status(db_session: AsyncSessio
     db_session.add(goal)
     await db_session.flush()
 
-    summary = await get_budget_summary(db_session, family_id=family.id, year_month="2026-04")
+    summary = await get_budget_summary(uow, family_id=family.id, year_month="2026-04", is_editable=True)
 
     category_map = {c.category_name: c for c in summary.categories}
     assert category_map["Dining"].status == "yellow"
 
 
 # ---------------------------------------------------------------------------
-# _count_category_expenses
+# Counting a category's expenses moved to ExpenseRepository.count_by_category
+# when the Category aggregate went behind the repository seam. Its coverage now
+# lives in tests/test_sqlalchemy_adapter.py (Postgres) and
+# tests/unit/test_memory_unit_of_work.py (in-memory).
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_count_category_expenses_returns_correct_count(db_session: AsyncSession) -> None:
-    """_count_category_expenses returns the correct count after adding expenses."""
-    family, user = await _make_family(db_session)
-    category = await create_test_category(db_session, family)
-
-    for _ in range(5):
-        await create_test_expense(db_session, family, user, category)
-
-    count = await _count_category_expenses(db_session, category.id)
-
-    assert count == 5
-
-
-@pytest.mark.asyncio
-async def test_count_category_expenses_returns_zero_for_empty_category(db_session: AsyncSession) -> None:
-    """_count_category_expenses returns 0 when no expenses reference the category."""
-    family, _ = await _make_family(db_session)
-    category = await create_test_category(db_session, family)
-
-    count = await _count_category_expenses(db_session, category.id)
-
-    assert count == 0

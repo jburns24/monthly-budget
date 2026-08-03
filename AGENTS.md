@@ -189,3 +189,9 @@ It is **detect-only** — it never destroys anything; `task db:reset` owns the d
 ### Resetting the database
 
 `task db:reset` deletes the postgres StatefulSet and its PVC, then `tilt trigger postgres` + `tilt trigger backend-migrate`. Tilt must be running. Local dev data is intentionally disposable.
+
+**PG16 → PG17 (or any Postgres major-version bump):** Postgres cannot start a new major version against an old version's on-disk data directory — the `postgres` container will crash-loop on an existing PVC initialized by the prior major version. There is no in-place upgrade path for a throwaway dev volume; the fix is to delete the PVC and let migrations re-run from empty:
+
+```bash
+task db:reset
+```

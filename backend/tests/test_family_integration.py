@@ -22,6 +22,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from app.config import settings
 from app.database import get_db
 from app.models.family import Family  # noqa: F401 — registers with Base.metadata
@@ -55,6 +56,17 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
         await session.close()
     await engine.dispose()
+
+
+@pytest.fixture
+def uow(db_session: AsyncSession) -> SqlAlchemyUnitOfWork:
+    """UnitOfWork over the test session.
+
+    ``owns_transaction=False`` keeps the fixture's outer transaction open so
+    teardown can still roll it back; without it a service-level ``commit()``
+    would leak rows between tests.
+    """
+    return SqlAlchemyUnitOfWork(db_session, owns_transaction=False)
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +211,7 @@ async def test_full_family_lifecycle(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_invite_nonexistent_email_same_response(db_session: AsyncSession) -> None:
+async def test_invite_nonexistent_email_same_response(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """Inviting a non-existent email returns the same None response as inviting a real user.
 
     The service must never reveal whether the email matched a registered account.
@@ -209,13 +221,13 @@ async def test_invite_nonexistent_email_same_response(db_session: AsyncSession) 
     family, _ = await create_test_family(db_session, admin)
 
     # Invite a completely non-existent address — must not raise
-    await invite_user(db_session, family.id, "fake@nowhere.invalid", admin)
+    await invite_user(uow, family.id, "fake@nowhere.invalid", admin)
 
     # Invite a real registered user (eligible — not in a family yet)
     real_user = await create_test_user(db_session, email="real@example.com")
 
     # Must also not raise — the response is indistinguishable (both return None)
-    await invite_user(db_session, family.id, real_user.email, admin)
+    await invite_user(uow, family.id, real_user.email, admin)
 
 
 # ---------------------------------------------------------------------------
@@ -224,13 +236,13 @@ async def test_invite_nonexistent_email_same_response(db_session: AsyncSession) 
 
 
 @pytest.mark.asyncio
-async def test_create_second_family_returns_409(db_session: AsyncSession) -> None:
+async def test_create_second_family_returns_409(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """A user already in a family receives HTTPException 409 when creating another family."""
     user = await create_test_user(db_session)
     await create_test_family(db_session, user)
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_family(db_session, user, name="Second Family")
+        await create_family(uow, user, name="Second Family")
 
     assert exc_info.value.status_code == 409
     assert "already belongs to a family" in exc_info.value.detail
@@ -242,7 +254,7 @@ async def test_create_second_family_returns_409(db_session: AsyncSession) -> Non
 
 
 @pytest.mark.asyncio
-async def test_accept_invite_while_in_family_returns_409(db_session: AsyncSession) -> None:
+async def test_accept_invite_while_in_family_returns_409(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """Accepting an invite while already in a different family raises 409.
 
     The invite must also remain in 'pending' status after the failure.
@@ -267,7 +279,7 @@ async def test_accept_invite_while_in_family_returns_409(db_session: AsyncSessio
     invite = await create_test_invite(db_session, family_b, bob, carol)
 
     with pytest.raises(HTTPException) as exc_info:
-        await respond_to_invite(db_session, invite.id, bob, "accept")
+        await respond_to_invite(uow, invite.id, bob, "accept")
 
     assert exc_info.value.status_code == 409
     assert "already belongs to a family" in exc_info.value.detail
@@ -285,20 +297,20 @@ async def test_accept_invite_while_in_family_returns_409(db_session: AsyncSessio
 
 
 @pytest.mark.asyncio
-async def test_owner_cannot_leave(db_session: AsyncSession) -> None:
+async def test_owner_cannot_leave(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """The family owner receives HTTPException 403 when attempting to leave."""
     owner = await create_test_user(db_session, display_name="Owner")
     family, _ = await create_test_family(db_session, owner)
 
     with pytest.raises(HTTPException) as exc_info:
-        await leave_family(db_session, family.id, owner)
+        await leave_family(uow, family.id, owner)
 
     assert exc_info.value.status_code == 403
     assert "owner" in exc_info.value.detail.lower()
 
 
 @pytest.mark.asyncio
-async def test_owner_remains_in_family_after_leave_attempt(db_session: AsyncSession) -> None:
+async def test_owner_remains_in_family_after_leave_attempt(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """After a failed leave attempt, the owner's membership record is still present."""
     from sqlalchemy import select
 
@@ -306,7 +318,7 @@ async def test_owner_remains_in_family_after_leave_attempt(db_session: AsyncSess
     family, _ = await create_test_family(db_session, owner)
 
     with pytest.raises(HTTPException):
-        await leave_family(db_session, family.id, owner)
+        await leave_family(uow, family.id, owner)
 
     # Membership must still exist
     result = await db_session.execute(
@@ -321,7 +333,7 @@ async def test_owner_remains_in_family_after_leave_attempt(db_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_owner_cannot_be_removed(db_session: AsyncSession) -> None:
+async def test_owner_cannot_be_removed(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """An admin trying to remove the family owner receives HTTPException 403."""
     owner = await create_test_user(db_session, display_name="Owner")
     family, _ = await create_test_family(db_session, owner)
@@ -333,14 +345,14 @@ async def test_owner_cannot_be_removed(db_session: AsyncSession) -> None:
     await db_session.flush()
 
     with pytest.raises(HTTPException) as exc_info:
-        await remove_member(db_session, family.id, owner.id, other_admin)
+        await remove_member(uow, family.id, owner.id, other_admin)
 
     assert exc_info.value.status_code == 403
     assert "Cannot remove the family owner" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-async def test_owner_still_member_after_remove_attempt(db_session: AsyncSession) -> None:
+async def test_owner_still_member_after_remove_attempt(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """After a failed removal attempt, the owner's membership is still present."""
     from sqlalchemy import select
 
@@ -353,7 +365,7 @@ async def test_owner_still_member_after_remove_attempt(db_session: AsyncSession)
     await db_session.flush()
 
     with pytest.raises(HTTPException):
-        await remove_member(db_session, family.id, owner.id, other_admin)
+        await remove_member(uow, family.id, owner.id, other_admin)
 
     result = await db_session.execute(
         select(FamilyMember).where(FamilyMember.family_id == family.id, FamilyMember.user_id == owner.id)
@@ -367,7 +379,7 @@ async def test_owner_still_member_after_remove_attempt(db_session: AsyncSession)
 
 
 @pytest.mark.asyncio
-async def test_owner_cannot_be_demoted(db_session: AsyncSession) -> None:
+async def test_owner_cannot_be_demoted(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """An admin trying to demote the owner to member receives HTTPException 403."""
     owner = await create_test_user(db_session, display_name="Owner")
     family, _ = await create_test_family(db_session, owner)
@@ -379,14 +391,14 @@ async def test_owner_cannot_be_demoted(db_session: AsyncSession) -> None:
     await db_session.flush()
 
     with pytest.raises(HTTPException) as exc_info:
-        await change_role(db_session, family.id, owner.id, "member", other_admin)
+        await change_role(uow, family.id, owner.id, "member", other_admin)
 
     assert exc_info.value.status_code == 403
     assert "Cannot demote the family owner" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-async def test_owner_role_unchanged_after_demotion_attempt(db_session: AsyncSession) -> None:
+async def test_owner_role_unchanged_after_demotion_attempt(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """After a failed demotion attempt, the owner's role remains 'admin'."""
     from sqlalchemy import select
 
@@ -399,7 +411,7 @@ async def test_owner_role_unchanged_after_demotion_attempt(db_session: AsyncSess
     await db_session.flush()
 
     with pytest.raises(HTTPException):
-        await change_role(db_session, family.id, owner.id, "member", other_admin)
+        await change_role(uow, family.id, owner.id, "member", other_admin)
 
     result = await db_session.execute(
         select(FamilyMember).where(FamilyMember.family_id == family.id, FamilyMember.user_id == owner.id)
@@ -415,7 +427,7 @@ async def test_owner_role_unchanged_after_demotion_attempt(db_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_demote_last_admin_blocked(db_session: AsyncSession) -> None:
+async def test_demote_last_admin_blocked(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """A family's sole admin cannot demote themselves — raises HTTPException 403.
 
     The test sets up a family where the owner's membership role has been changed to
@@ -448,14 +460,14 @@ async def test_demote_last_admin_blocked(db_session: AsyncSession) -> None:
 
     # Attempt to demote the sole admin — must be blocked
     with pytest.raises(HTTPException) as exc_info:
-        await change_role(db_session, family.id, sole_admin.id, "member", owner)
+        await change_role(uow, family.id, sole_admin.id, "member", owner)
 
     assert exc_info.value.status_code == 403
     assert "Cannot demote the last admin" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-async def test_demote_last_admin_role_unchanged(db_session: AsyncSession) -> None:
+async def test_demote_last_admin_role_unchanged(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """After a failed last-admin demotion, the sole admin's role remains 'admin'."""
     from sqlalchemy import select
 
@@ -472,7 +484,7 @@ async def test_demote_last_admin_role_unchanged(db_session: AsyncSession) -> Non
     await db_session.flush()
 
     with pytest.raises(HTTPException):
-        await change_role(db_session, family.id, sole_admin.id, "member", owner)
+        await change_role(uow, family.id, sole_admin.id, "member", owner)
 
     # Role must not have changed
     result = await db_session.execute(
@@ -489,7 +501,7 @@ async def test_demote_last_admin_role_unchanged(db_session: AsyncSession) -> Non
 
 
 @pytest.mark.asyncio
-async def test_demote_non_last_admin_succeeds(db_session: AsyncSession) -> None:
+async def test_demote_non_last_admin_succeeds(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """When multiple admins exist, demoting one to member is allowed."""
     owner = await create_test_user(db_session, display_name="Owner")
     family, _ = await create_test_family(db_session, owner)
@@ -500,7 +512,7 @@ async def test_demote_non_last_admin_succeeds(db_session: AsyncSession) -> None:
     await db_session.flush()
 
     # There are now 2 admins — demoting one must succeed
-    result = await change_role(db_session, family.id, second_admin.id, "member", owner)
+    result = await change_role(uow, family.id, second_admin.id, "member", owner)
     assert result.role == "member"
 
 
@@ -510,18 +522,18 @@ async def test_demote_non_last_admin_succeeds(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_leave_nonexistent_family_404(db_session: AsyncSession) -> None:
+async def test_leave_nonexistent_family_404(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """leave_family raises 404 when the family_id does not exist."""
     user = await create_test_user(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await leave_family(db_session, uuid.uuid4(), user)
+        await leave_family(uow, uuid.uuid4(), user)
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_remove_nonexistent_member_404(db_session: AsyncSession) -> None:
+async def test_remove_nonexistent_member_404(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """remove_member raises 404 when the target user is not in the family."""
     owner = await create_test_user(db_session, display_name="Owner")
     family, _ = await create_test_family(db_session, owner)
@@ -529,6 +541,6 @@ async def test_remove_nonexistent_member_404(db_session: AsyncSession) -> None:
     ghost = await create_test_user(db_session, display_name="Ghost")
 
     with pytest.raises(HTTPException) as exc_info:
-        await remove_member(db_session, family.id, ghost.id, owner)
+        await remove_member(uow, family.id, ghost.id, owner)
 
     assert exc_info.value.status_code == 404

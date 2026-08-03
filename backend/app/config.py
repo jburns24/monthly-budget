@@ -25,6 +25,16 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/monthly_budget",  # pragma: allowlist secret
         description="Async PostgreSQL connection URL",
     )
+    database_migration_url: str = Field(
+        default="",
+        description=(
+            "Async PostgreSQL connection URL used by Alembic. Falls back to "
+            "database_url when unset. Needed for hosted Supabase: the Supavisor "
+            "transaction pooler (port 6543) rejects the named prepared statements "
+            "Alembic's DDL requires, so migrations must target the session pooler "
+            "(port 5432) or a direct connection instead."
+        ),
+    )
 
     # Redis
     redis_url: str = Field(
@@ -97,6 +107,13 @@ class Settings(BaseSettings):
         default=Path("/data/receipts"),
         description="Filesystem path where uploaded receipt images are stored",
     )
+
+    @model_validator(mode="after")
+    def apply_database_migration_url_fallback(self) -> "Settings":
+        """Default database_migration_url to database_url when unset."""
+        if not self.database_migration_url:
+            self.database_migration_url = self.database_url
+        return self
 
     @model_validator(mode="after")
     def validate_auth_secrets(self) -> "Settings":

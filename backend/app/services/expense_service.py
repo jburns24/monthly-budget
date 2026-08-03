@@ -1,28 +1,37 @@
-"""Expense service: create, list, get, update, and delete expenses."""
+"""Expense service: create, list, get, update, and delete expenses.
+
+Behind the repository/UnitOfWork seam (design doc Step 5). ``Family`` and
+``Receipt`` are not yet ported (Steps 6 and 7), so ``delete_expense`` still
+takes a raw ``AsyncSession`` alongside the ``UnitOfWork`` for the one
+cross-aggregate write (deleting a linked Receipt row) that has no repository
+yet — the same coexistence the design doc describes for half-migrated routers.
+
+Risk (a): every function that hands an ``Expense`` back to a router uses
+``uow.expenses.get_in_family_with_details``, never the bare ``get_in_family``,
+because ``ExpenseResponse`` walks ``.category``, ``.user``, and
+``.receipt``/``receipt_status``.
+"""
 
 import uuid
 from datetime import date, datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import func, outerjoin, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.logging import get_logger
 from app.models.category import Category
 from app.models.expense import Expense
-from app.models.family import Family
-from app.models.monthly_goal import MonthlyGoal
+from app.ports.read_models import CategorySpendRow
+from app.ports.unit_of_work import UnitOfWork
 from app.schemas.expense import BudgetCategorySummary, BudgetSummaryResponse
 from app.services import receipt_storage
-from app.services.grace_period import is_within_grace_period
 
 logger = get_logger(__name__)
 
 
 async def _validate_category(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     category_id: uuid.UUID,
 ) -> Category:
@@ -30,13 +39,7 @@ async def _validate_category(
 
     Raises HTTPException(400) if the category is invalid.
     """
-    result = await db.execute(
-        select(Category).where(
-            Category.id == category_id,
-            Category.family_id == family_id,
-        )
-    )
-    category = result.scalar_one_or_none()
+    category = await uow.categories.get_in_family(category_id, family_id)
     if category is None or not category.is_active:
         raise HTTPException(
             status_code=400,
@@ -46,7 +49,7 @@ async def _validate_category(
 
 
 async def create_expense(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     user_id: uuid.UUID,
     category_id: uuid.UUID,
@@ -62,7 +65,7 @@ async def create_expense(
 
     Raises HTTPException(400) if the category is invalid.
     """
-    await _validate_category(db, family_id, category_id)
+    await _validate_category(uow, family_id, category_id)
 
     year_month = expense_date.strftime("%Y-%m")
     now = datetime.now(tz=timezone.utc)
@@ -78,31 +81,26 @@ async def create_expense(
         created_at=now,
         updated_at=now,
     )
-    db.add(expense)
-    await db.flush()
+    uow.expenses.add(expense)
+    await uow.flush()
 
-    # Reload with eager-loaded relationships via selectinload
-    result = await db.execute(
-        select(Expense)
-        .options(selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
-        .where(Expense.id == expense.id)
-    )
-    expense = result.scalar_one()
+    reloaded = await uow.expenses.get_in_family_with_details(expense.id, family_id)
+    assert reloaded is not None  # just inserted in this same transaction
 
     logger.info(
         "expense_created",
-        expense_id=str(expense.id),
+        expense_id=str(reloaded.id),
         family_id=str(family_id),
         user_id=str(user_id),
         category_id=str(category_id),
         amount_cents=amount_cents,
         year_month=year_month,
     )
-    return expense
+    return reloaded
 
 
 async def list_expenses(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     year_month: str,
     category_id: uuid.UUID | None = None,
@@ -115,32 +113,10 @@ async def list_expenses(
     Orders by expense_date DESC, created_at DESC.
     Returns a tuple of (expenses, total_count).
     """
-    base_filters = [
-        Expense.family_id == family_id,
-        Expense.year_month == year_month,
-    ]
-    if category_id is not None:
-        base_filters.append(Expense.category_id == category_id)
+    total_count = await uow.expenses.count_for_month(family_id, year_month, category_id)
 
-    # Count query
-    count_result = await db.execute(select(func.count()).select_from(Expense).where(*base_filters))
-    total_count = count_result.scalar_one()
-
-    # Data query with eager loading and pagination
     offset = (page - 1) * per_page
-    data_result = await db.execute(
-        select(Expense)
-        .options(
-            selectinload(Expense.category),
-            selectinload(Expense.user),
-            selectinload(Expense.receipt),
-        )
-        .where(*base_filters)
-        .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
-        .offset(offset)
-        .limit(per_page)
-    )
-    expenses = list(data_result.scalars().all())
+    expenses = await uow.expenses.list_for_month(family_id, year_month, category_id, per_page, offset)
 
     logger.info(
         "expenses_listed",
@@ -155,7 +131,7 @@ async def list_expenses(
 
 
 async def get_expense(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     expense_id: uuid.UUID,
 ) -> Expense:
@@ -163,12 +139,7 @@ async def get_expense(
 
     Raises HTTPException(404) if not found or not in the family.
     """
-    result = await db.execute(
-        select(Expense)
-        .options(selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
-        .where(Expense.id == expense_id, Expense.family_id == family_id)
-    )
-    expense = result.scalar_one_or_none()
+    expense = await uow.expenses.get_in_family_with_details(expense_id, family_id)
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
 
@@ -176,7 +147,7 @@ async def get_expense(
 
 
 async def update_expense(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     expense_id: uuid.UUID,
     expected_updated_at: datetime,
@@ -190,8 +161,7 @@ async def update_expense(
     Re-validates category if category_id is changed.
     Re-computes year_month if expense_date is changed.
     """
-    result = await db.execute(select(Expense).where(Expense.id == expense_id, Expense.family_id == family_id))
-    expense = result.scalar_one_or_none()
+    expense = await uow.expenses.get_in_family(expense_id, family_id)
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
 
@@ -216,22 +186,17 @@ async def update_expense(
 
     # Re-validate category if changed
     if fields.get("category_id") is not None:
-        await _validate_category(db, family_id, fields["category_id"])
+        await _validate_category(uow, family_id, fields["category_id"])
 
     # Re-compute year_month if expense_date changed
     if fields.get("expense_date") is not None:
         expense.year_month = fields["expense_date"].strftime("%Y-%m")
 
     expense.updated_at = datetime.now(tz=timezone.utc)
-    await db.flush()
+    await uow.flush()
 
-    # Reload with eager-loaded relationships via selectinload
-    reload_result = await db.execute(
-        select(Expense)
-        .options(selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
-        .where(Expense.id == expense_id)
-    )
-    expense = reload_result.scalar_one()
+    reloaded = await uow.expenses.get_in_family_with_details(expense_id, family_id)
+    assert reloaded is not None  # just updated in this same transaction
 
     logger.info(
         "expense_updated",
@@ -239,11 +204,11 @@ async def update_expense(
         family_id=str(family_id),
         updated_fields=list(fields.keys()),
     )
-    return expense
+    return reloaded
 
 
 async def delete_expense(
-    db: AsyncSession,
+    uow: UnitOfWork,
     family_id: uuid.UUID,
     expense_id: uuid.UUID,
 ) -> None:
@@ -251,14 +216,7 @@ async def delete_expense(
 
     Raises HTTPException(404) if not found or not in the family.
     """
-    from pathlib import Path
-
-    result = await db.execute(
-        select(Expense)
-        .options(selectinload(Expense.receipt))
-        .where(Expense.id == expense_id, Expense.family_id == family_id)
-    )
-    expense = result.scalar_one_or_none()
+    expense = await uow.expenses.get_in_family_with_details(expense_id, family_id)
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found")
 
@@ -266,10 +224,10 @@ async def delete_expense(
         linked_receipt = expense.receipt
         if linked_receipt.image_path:
             await receipt_storage.delete(Path(linked_receipt.image_path))
-        await db.delete(linked_receipt)
+        await uow.receipts.delete(linked_receipt)
 
-    await db.delete(expense)
-    await db.flush()
+    await uow.expenses.delete(expense)
+    await uow.flush()
 
     logger.info(
         "expense_deleted",
@@ -296,105 +254,71 @@ def _compute_status(spent_cents: int, goal_cents: int | None) -> str:
     return "green"
 
 
-async def get_budget_summary(
-    db: AsyncSession,
-    family_id: uuid.UUID,
+def build_budget_summary(
+    rows: list[CategorySpendRow],
     year_month: str,
+    is_editable: bool,
 ) -> BudgetSummaryResponse:
-    """Return budget summary for a family for the given month.
+    """Turn plain spend/goal rows into a BudgetSummaryResponse. Pure — no I/O.
 
-    Executes a single aggregation query joining categories with expenses and
-    monthly_goals for the given family and year_month. Only includes active
-    categories belonging to the family.
-
-    Returns per-category data (spent, goal, percentage, status), total_spent_cents,
-    and is_editable (whether the month is still within the grace period).
+    Design doc Step 5: this is the percentage/status/total math that used to be
+    computed inline against the SQL aggregate's rows. Split out, it is
+    unit-tested with literal :class:`~app.ports.read_models.CategorySpendRow`
+    data (``tests/unit/test_budget_summary.py``); the SQL itself lives in
+    ``BudgetQuery.category_spend_and_goals`` and is Postgres-tier only
+    (``tests/test_sqlalchemy_adapter.py``).
     """
-    # Build a scalar subquery for goal_cents per category
-    goal_subq = (
-        select(MonthlyGoal.category_id, MonthlyGoal.amount_cents)
-        .where(
-            MonthlyGoal.family_id == family_id,
-            MonthlyGoal.year_month == year_month,
-        )
-        .subquery()
-    )
-
-    # Build the aggregation query:
-    # SELECT categories.*, SUM(expenses.amount_cents), goal_subq.amount_cents
-    # FROM categories
-    # LEFT JOIN expenses ON expenses.category_id = categories.id AND ...
-    # LEFT JOIN goal_subq ON goal_subq.category_id = categories.id
-    # WHERE categories.family_id = ? AND categories.is_active = true
-    # GROUP BY categories.id, goal_subq.amount_cents
-    expenses_filtered = outerjoin(
-        Category,
-        Expense,
-        (Expense.category_id == Category.id) & (Expense.family_id == family_id) & (Expense.year_month == year_month),
-    ).outerjoin(
-        goal_subq,
-        goal_subq.c.category_id == Category.id,
-    )
-
-    stmt = (
-        select(
-            Category.id,
-            Category.name,
-            Category.icon,
-            func.coalesce(func.sum(Expense.amount_cents), 0).label("spent_cents"),
-            goal_subq.c.amount_cents.label("goal_cents"),
-        )
-        .select_from(expenses_filtered)
-        .where(
-            Category.family_id == family_id,
-            Category.is_active.is_(True),
-        )
-        .group_by(Category.id, Category.name, Category.icon, goal_subq.c.amount_cents)
-        .order_by(Category.sort_order, Category.name)
-    )
-
-    result = await db.execute(stmt)
-    rows = result.all()
-
     category_summaries: list[BudgetCategorySummary] = []
     total_spent_cents = 0
 
     for row in rows:
-        spent = int(row.spent_cents)
-        goal: int | None = int(row.goal_cents) if row.goal_cents is not None else None
-        percentage = (spent / goal) if goal else 0.0
-        status = _compute_status(spent, goal)
+        percentage = (row.spent_cents / row.goal_cents) if row.goal_cents else 0.0
+        status = _compute_status(row.spent_cents, row.goal_cents)
 
         category_summaries.append(
             BudgetCategorySummary(
-                category_id=row.id,
-                category_name=row.name,
+                category_id=row.category_id,
+                category_name=row.category_name,
                 icon=row.icon,
-                spent_cents=spent,
-                goal_cents=goal,
+                spent_cents=row.spent_cents,
+                goal_cents=row.goal_cents,
                 percentage=round(percentage, 4),
                 status=status,
             )
         )
-        total_spent_cents += spent
-
-    # Compute is_editable via grace period check
-    family_result = await db.execute(select(Family).where(Family.id == family_id))
-    family = family_result.scalar_one()
-    editable = is_within_grace_period(family, year_month)
-
-    logger.info(
-        "budget_summary_fetched",
-        family_id=str(family_id),
-        year_month=year_month,
-        category_count=len(category_summaries),
-        total_spent_cents=total_spent_cents,
-        is_editable=editable,
-    )
+        total_spent_cents += row.spent_cents
 
     return BudgetSummaryResponse(
         year_month=year_month,
         total_spent_cents=total_spent_cents,
         categories=category_summaries,
-        is_editable=editable,
+        is_editable=is_editable,
     )
+
+
+async def get_budget_summary(
+    uow: UnitOfWork,
+    family_id: uuid.UUID,
+    year_month: str,
+    is_editable: bool,
+) -> BudgetSummaryResponse:
+    """Return budget summary for a family for the given month.
+
+    ``is_editable`` is computed by the caller (the router queries ``Family``
+    directly, same as it already does for the grace-period checks in
+    ``update_expense``/``delete_expense`` — ``Family`` has no repository yet,
+    design doc Step 6) and passed straight through to the pure
+    :func:`build_budget_summary`.
+    """
+    rows = await uow.budget.category_spend_and_goals(family_id, year_month)
+    summary = build_budget_summary(rows, year_month, is_editable)
+
+    logger.info(
+        "budget_summary_fetched",
+        family_id=str(family_id),
+        year_month=year_month,
+        category_count=len(summary.categories),
+        total_spent_cents=summary.total_spent_cents,
+        is_editable=is_editable,
+    )
+    return summary

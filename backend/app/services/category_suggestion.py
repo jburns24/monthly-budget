@@ -1,37 +1,35 @@
-"""Category suggestion service using pg_trgm similarity with 90-day usage fallback."""
+"""Category suggestion using pg_trgm similarity with a 90-day usage fallback.
+
+Takes a :class:`~app.ports.repositories.category.CategoryRepository` rather than
+a ``UnitOfWork``: this module only reads categories, and narrowing to the one
+repository it needs is the point of using ``typing.Protocol`` (see
+``docs/data-layer-ports-design.md`` section 1).
+
+Both queries below used to exist twice — once here against ``AsyncSession`` and
+once behind the port — because the Category port was defined in full while its
+only caller, ``receipt_service``, was not migrated until Step 7. Step 7 retired
+the local copies; ``_trgm_match`` is now ``CategoryRepository.find_similar_active``
+and the 90-day fallback is ``most_used_since``. ``first_active_category`` is gone
+entirely: callers use ``uow.categories.first_active`` directly.
+"""
 
 import uuid
 from datetime import date, timedelta
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.logging import get_logger
 from app.models.category import Category
-from app.models.expense import Expense
+from app.ports.repositories.category import CategoryRepository
 
 logger = get_logger(__name__)
 
+# pg_trgm similarity floor. Below this, a "match" is noise.
+SIMILARITY_THRESHOLD = 0.3
 
-async def _trgm_match(db: AsyncSession, family_id: uuid.UUID, term: str) -> Category | None:
-    """Best active category whose name trigram-matches ``term`` above 0.3, else None."""
-    if not term:
-        return None
-    result = await db.execute(
-        select(Category)
-        .where(
-            Category.family_id == family_id,
-            Category.is_active.is_(True),
-            func.similarity(Category.name, term) > 0.3,
-        )
-        .order_by(func.similarity(Category.name, term).desc())
-        .limit(1)
-    )
-    return result.scalar_one_or_none()
+_USAGE_WINDOW = timedelta(days=90)
 
 
 async def suggest_for_store(
-    db: AsyncSession,
+    categories: CategoryRepository,
     family_id: uuid.UUID,
     store_name: str,
     category_hint: str | None = None,
@@ -47,11 +45,14 @@ async def suggest_for_store(
     store name like "Safeway" will never trigram-match a category named
     "Groceries" no matter how well the extraction went. ``store_name`` is still
     tried second, since families do sometimes name a category after a merchant.
+
+    Both paths are Postgres tier, so the in-memory adapter raises
+    ``NotImplementedError`` here rather than approximating trigram scoring.
     """
     for term, source in ((category_hint, "hint"), (store_name, "store_name")):
         if not term:
             continue
-        category = await _trgm_match(db, family_id, term)
+        category = await categories.find_similar_active(family_id, term, SIMILARITY_THRESHOLD)
         if category is not None:
             logger.info(
                 "category_suggestion_trgm_match",
@@ -64,20 +65,7 @@ async def suggest_for_store(
             )
             return category
 
-    cutoff = date.today() - timedelta(days=90)
-    fallback_result = await db.execute(
-        select(Category)
-        .join(Expense, Expense.category_id == Category.id)
-        .where(
-            Expense.family_id == family_id,
-            Category.is_active.is_(True),
-            Expense.expense_date >= cutoff,
-        )
-        .group_by(Category.id)
-        .order_by(func.count().desc())
-        .limit(1)
-    )
-    category = fallback_result.scalar_one_or_none()
+    category = await categories.most_used_since(family_id, date.today() - _USAGE_WINDOW)
     if category is not None:
         logger.info(
             "category_suggestion_fallback",
@@ -93,23 +81,3 @@ async def suggest_for_store(
             store_name=store_name,
         )
     return category
-
-
-async def first_active_category(db: AsyncSession, family_id: uuid.UUID) -> Category | None:
-    """Return the family's first active category, ordered by ``(sort_order, name)``.
-
-    Last-resort fallback for callers that must have *some* category to attach a
-    row to. :func:`suggest_for_store` deliberately returns ``None`` when neither
-    the name-similarity nor the 90-day usage path matches — that is the right
-    answer for "which category best fits this store?", but a receipt upload
-    still has to produce an Expense, so it degrades to this instead of silently
-    creating nothing. Returns ``None`` only when the family has no active
-    categories at all.
-    """
-    result = await db.execute(
-        select(Category)
-        .where(Category.family_id == family_id, Category.is_active.is_(True))
-        .order_by(Category.sort_order, Category.name)
-        .limit(1)
-    )
-    return result.scalar_one_or_none()

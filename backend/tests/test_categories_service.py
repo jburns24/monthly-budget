@@ -1,7 +1,10 @@
-"""Unit tests for the category_service module.
+"""Postgres-tier tests for the category_service module.
 
-Tests exercise all public service functions directly against the database,
-verifying correct return values, error handling, and idempotency.
+Tests exercise all public service functions against a real database through the
+SQLAlchemy UnitOfWork, verifying correct return values, error handling, and
+idempotency. The same service functions are covered without a database, through
+the in-memory adapter, in ``tests/unit/test_category_service.py``; this module is
+what proves the two adapters agree.
 
 Each test uses a local db_session fixture that creates a fresh NullPool
 connection per test to avoid event-loop/pool conflicts with pytest-asyncio's
@@ -18,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from app.config import settings
 from app.models.category import Category
 from app.models.expense import Expense
@@ -60,6 +64,17 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     await engine.dispose()
 
 
+@pytest.fixture
+def uow(db_session: AsyncSession) -> SqlAlchemyUnitOfWork:
+    """UnitOfWork over the test session.
+
+    ``owns_transaction=False`` keeps the fixture's outer transaction open so
+    teardown can still roll it back; without it a service-level ``commit()``
+    would leak rows between tests.
+    """
+    return SqlAlchemyUnitOfWork(db_session, owns_transaction=False)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -100,11 +115,13 @@ async def _insert_category(
 
 
 @pytest.mark.asyncio
-async def test_create_category_returns_orm_with_correct_fields(db_session: AsyncSession) -> None:
+async def test_create_category_returns_orm_with_correct_fields(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """create_category returns a Category ORM with the expected field values."""
     family = await _make_family(db_session)
 
-    cat = await create_category(db_session, family.id, name="Dining", icon="fork", sort_order=3)
+    cat = await create_category(uow, family.id, name="Dining", icon="fork", sort_order=3)
 
     assert isinstance(cat, Category)
     assert cat.family_id == family.id
@@ -117,47 +134,49 @@ async def test_create_category_returns_orm_with_correct_fields(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_create_category_icon_can_be_none(db_session: AsyncSession) -> None:
+async def test_create_category_icon_can_be_none(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_category accepts icon=None and stores NULL."""
     family = await _make_family(db_session)
 
-    cat = await create_category(db_session, family.id, name="Savings", icon=None)
+    cat = await create_category(uow, family.id, name="Savings", icon=None)
 
     assert cat.icon is None
 
 
 @pytest.mark.asyncio
-async def test_create_category_sort_order_defaults_to_zero(db_session: AsyncSession) -> None:
+async def test_create_category_sort_order_defaults_to_zero(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_category uses sort_order=0 when omitted."""
     family = await _make_family(db_session)
 
-    cat = await create_category(db_session, family.id, name="Bills", icon=None)
+    cat = await create_category(uow, family.id, name="Bills", icon=None)
 
     assert cat.sort_order == 0
 
 
 @pytest.mark.asyncio
-async def test_create_category_duplicate_name_raises_409(db_session: AsyncSession) -> None:
+async def test_create_category_duplicate_name_raises_409(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """create_category raises HTTPException(409) when name already exists in the family."""
     family = await _make_family(db_session)
     await _insert_category(db_session, family, name="Groceries")
 
     with pytest.raises(HTTPException) as exc_info:
-        await create_category(db_session, family.id, name="Groceries", icon=None)
+        await create_category(uow, family.id, name="Groceries", icon=None)
 
     assert exc_info.value.status_code == 409
     assert "Groceries" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-async def test_create_category_same_name_different_family_succeeds(db_session: AsyncSession) -> None:
+async def test_create_category_same_name_different_family_succeeds(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """create_category allows the same name in a different family."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
     family2, _ = await create_test_family(db_session, owner)
 
-    cat1 = await create_category(db_session, family1.id, name="Transport", icon=None)
-    cat2 = await create_category(db_session, family2.id, name="Transport", icon=None)
+    cat1 = await create_category(uow, family1.id, name="Transport", icon=None)
+    cat2 = await create_category(uow, family2.id, name="Transport", icon=None)
 
     assert cat1.name == cat2.name
     assert cat1.family_id != cat2.family_id
@@ -169,13 +188,13 @@ async def test_create_category_same_name_different_family_succeeds(db_session: A
 
 
 @pytest.mark.asyncio
-async def test_list_active_categories_returns_only_active(db_session: AsyncSession) -> None:
+async def test_list_active_categories_returns_only_active(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """list_active_categories excludes archived (is_active=False) categories."""
     family = await _make_family(db_session)
     await _insert_category(db_session, family, name="Active One", is_active=True)
     await _insert_category(db_session, family, name="Archived", is_active=False)
 
-    results = await list_active_categories(db_session, family.id)
+    results = await list_active_categories(uow, family.id)
 
     names = [c.name for c in results]
     assert "Active One" in names
@@ -183,30 +202,36 @@ async def test_list_active_categories_returns_only_active(db_session: AsyncSessi
 
 
 @pytest.mark.asyncio
-async def test_list_active_categories_sorted_by_sort_order_then_name(db_session: AsyncSession) -> None:
+async def test_list_active_categories_sorted_by_sort_order_then_name(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """list_active_categories returns categories ordered by sort_order ASC then name ASC."""
     family = await _make_family(db_session)
     await _insert_category(db_session, family, name="Zebra", sort_order=1)
     await _insert_category(db_session, family, name="Apple", sort_order=2)
     await _insert_category(db_session, family, name="Mango", sort_order=1)
 
-    results = await list_active_categories(db_session, family.id)
+    results = await list_active_categories(uow, family.id)
 
     assert [c.name for c in results] == ["Mango", "Zebra", "Apple"]
 
 
 @pytest.mark.asyncio
-async def test_list_active_categories_empty_when_none_exist(db_session: AsyncSession) -> None:
+async def test_list_active_categories_empty_when_none_exist(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """list_active_categories returns an empty list when the family has no active categories."""
     family = await _make_family(db_session)
 
-    results = await list_active_categories(db_session, family.id)
+    results = await list_active_categories(uow, family.id)
 
     assert results == []
 
 
 @pytest.mark.asyncio
-async def test_list_active_categories_excludes_other_families(db_session: AsyncSession) -> None:
+async def test_list_active_categories_excludes_other_families(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """list_active_categories only returns categories belonging to the requested family."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
@@ -215,7 +240,7 @@ async def test_list_active_categories_excludes_other_families(db_session: AsyncS
     await _insert_category(db_session, family1, name="Family1 Cat")
     await _insert_category(db_session, family2, name="Family2 Cat")
 
-    results = await list_active_categories(db_session, family1.id)
+    results = await list_active_categories(uow, family1.id)
 
     names = [c.name for c in results]
     assert "Family1 Cat" in names
@@ -228,12 +253,12 @@ async def test_list_active_categories_excludes_other_families(db_session: AsyncS
 
 
 @pytest.mark.asyncio
-async def test_update_category_name_only(db_session: AsyncSession) -> None:
+async def test_update_category_name_only(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_category with only name updates the name, leaving other fields unchanged."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, name="Old Name", icon="star", sort_order=5)
 
-    updated = await update_category(db_session, family.id, cat.id, name="New Name", icon=None, sort_order=None)
+    updated = await update_category(uow, family.id, cat.id, name="New Name", icon=None, sort_order=None)
 
     assert updated.name == "New Name"
     assert updated.icon == "star"
@@ -241,12 +266,12 @@ async def test_update_category_name_only(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_category_icon_only(db_session: AsyncSession) -> None:
+async def test_update_category_icon_only(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_category with only icon updates the icon, leaving other fields unchanged."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, name="Transport", icon="car", sort_order=2)
 
-    updated = await update_category(db_session, family.id, cat.id, name=None, icon="bus", sort_order=None)
+    updated = await update_category(uow, family.id, cat.id, name=None, icon="bus", sort_order=None)
 
     assert updated.name == "Transport"
     assert updated.icon == "bus"
@@ -254,12 +279,12 @@ async def test_update_category_icon_only(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_category_sort_order_only(db_session: AsyncSession) -> None:
+async def test_update_category_sort_order_only(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_category with only sort_order updates the sort_order, leaving other fields unchanged."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, name="Entertainment", icon="film", sort_order=0)
 
-    updated = await update_category(db_session, family.id, cat.id, name=None, icon=None, sort_order=99)
+    updated = await update_category(uow, family.id, cat.id, name=None, icon=None, sort_order=99)
 
     assert updated.name == "Entertainment"
     assert updated.icon == "film"
@@ -267,18 +292,18 @@ async def test_update_category_sort_order_only(db_session: AsyncSession) -> None
 
 
 @pytest.mark.asyncio
-async def test_update_category_not_found_raises_404(db_session: AsyncSession) -> None:
+async def test_update_category_not_found_raises_404(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_category raises HTTPException(404) when the category does not exist."""
     family = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await update_category(db_session, family.id, uuid.uuid4(), name="X", icon=None, sort_order=None)
+        await update_category(uow, family.id, uuid.uuid4(), name="X", icon=None, sort_order=None)
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_update_category_wrong_family_raises_404(db_session: AsyncSession) -> None:
+async def test_update_category_wrong_family_raises_404(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_category raises HTTPException(404) when category belongs to a different family."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
@@ -286,20 +311,20 @@ async def test_update_category_wrong_family_raises_404(db_session: AsyncSession)
     cat = await _insert_category(db_session, family1, name="MyCategory")
 
     with pytest.raises(HTTPException) as exc_info:
-        await update_category(db_session, family2.id, cat.id, name="Hacked", icon=None, sort_order=None)
+        await update_category(uow, family2.id, cat.id, name="Hacked", icon=None, sort_order=None)
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_update_category_duplicate_name_raises_409(db_session: AsyncSession) -> None:
+async def test_update_category_duplicate_name_raises_409(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """update_category raises HTTPException(409) when the new name conflicts with an existing category."""
     family = await _make_family(db_session)
     await _insert_category(db_session, family, name="Existing")
     cat = await _insert_category(db_session, family, name="Target")
 
     with pytest.raises(HTTPException) as exc_info:
-        await update_category(db_session, family.id, cat.id, name="Existing", icon=None, sort_order=None)
+        await update_category(uow, family.id, cat.id, name="Existing", icon=None, sort_order=None)
 
     assert exc_info.value.status_code == 409
 
@@ -310,13 +335,15 @@ async def test_update_category_duplicate_name_raises_409(db_session: AsyncSessio
 
 
 @pytest.mark.asyncio
-async def test_delete_category_hard_deletes_when_no_expenses(db_session: AsyncSession) -> None:
+async def test_delete_category_hard_deletes_when_no_expenses(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """delete_category returns {'deleted': True} and removes the row when no expenses exist."""
     family = await _make_family(db_session)
     cat = await _insert_category(db_session, family, name="ToDelete")
     cat_id = cat.id
 
-    result = await delete_category(db_session, family.id, cat_id)
+    result = await delete_category(uow, family.id, cat_id)
 
     assert result == {"deleted": True}
     fetched = await db_session.get(Category, cat_id)
@@ -324,18 +351,18 @@ async def test_delete_category_hard_deletes_when_no_expenses(db_session: AsyncSe
 
 
 @pytest.mark.asyncio
-async def test_delete_category_not_found_raises_404(db_session: AsyncSession) -> None:
+async def test_delete_category_not_found_raises_404(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """delete_category raises HTTPException(404) when the category does not exist."""
     family = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await delete_category(db_session, family.id, uuid.uuid4())
+        await delete_category(uow, family.id, uuid.uuid4())
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_delete_category_wrong_family_raises_404(db_session: AsyncSession) -> None:
+async def test_delete_category_wrong_family_raises_404(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """delete_category raises HTTPException(404) when category belongs to a different family."""
     owner = await create_test_user(db_session)
     family1, _ = await create_test_family(db_session, owner)
@@ -343,13 +370,15 @@ async def test_delete_category_wrong_family_raises_404(db_session: AsyncSession)
     cat = await _insert_category(db_session, family1, name="Protected")
 
     with pytest.raises(HTTPException) as exc_info:
-        await delete_category(db_session, family2.id, cat.id)
+        await delete_category(uow, family2.id, cat.id)
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_delete_category_archives_when_expenses_exist(db_session: AsyncSession) -> None:
+async def test_delete_category_archives_when_expenses_exist(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """delete_category returns archived result and sets is_active=False when expenses reference it."""
     family = await _make_family(db_session)
     owner = await create_test_user(db_session)
@@ -368,7 +397,7 @@ async def test_delete_category_archives_when_expenses_exist(db_session: AsyncSes
     db_session.add(expense)
     await db_session.flush()
 
-    result = await delete_category(db_session, family.id, cat.id)
+    result = await delete_category(uow, family.id, cat.id)
 
     assert result == {"deleted": False, "archived": True, "expense_count": 1}
     await db_session.refresh(cat)
@@ -381,20 +410,22 @@ async def test_delete_category_archives_when_expenses_exist(db_session: AsyncSes
 
 
 @pytest.mark.asyncio
-async def test_seed_default_categories_creates_six(db_session: AsyncSession) -> None:
+async def test_seed_default_categories_creates_six(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """seed_default_categories creates exactly 6 categories for a new family."""
     family = await _make_family(db_session)
 
-    created_count = await seed_default_categories(db_session, family.id)
+    created_count = await seed_default_categories(uow, family.id)
 
     assert created_count == 6
 
 
 @pytest.mark.asyncio
-async def test_seed_default_categories_correct_names_and_icons(db_session: AsyncSession) -> None:
+async def test_seed_default_categories_correct_names_and_icons(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """seed_default_categories creates categories with the correct names and icons."""
     family = await _make_family(db_session)
-    await seed_default_categories(db_session, family.id)
+    await seed_default_categories(uow, family.id)
 
     result = await db_session.execute(select(Category).where(Category.family_id == family.id))
     categories = {c.name: c for c in result.scalars().all()}
@@ -408,12 +439,12 @@ async def test_seed_default_categories_correct_names_and_icons(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_seed_default_categories_idempotent(db_session: AsyncSession) -> None:
+async def test_seed_default_categories_idempotent(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """seed_default_categories is idempotent: second call creates 0 new categories."""
     family = await _make_family(db_session)
 
-    first = await seed_default_categories(db_session, family.id)
-    second = await seed_default_categories(db_session, family.id)
+    first = await seed_default_categories(uow, family.id)
+    second = await seed_default_categories(uow, family.id)
 
     assert first == 6
     assert second == 0
@@ -423,22 +454,24 @@ async def test_seed_default_categories_idempotent(db_session: AsyncSession) -> N
 
 
 @pytest.mark.asyncio
-async def test_seed_default_categories_skips_existing_names(db_session: AsyncSession) -> None:
+async def test_seed_default_categories_skips_existing_names(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
     """seed_default_categories skips categories whose names already exist."""
     family = await _make_family(db_session)
     # Pre-create one of the defaults
     await _insert_category(db_session, family, name="Groceries")
 
-    created_count = await seed_default_categories(db_session, family.id)
+    created_count = await seed_default_categories(uow, family.id)
 
     assert created_count == 5
 
 
 @pytest.mark.asyncio
-async def test_seed_default_categories_all_active(db_session: AsyncSession) -> None:
+async def test_seed_default_categories_all_active(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
     """seed_default_categories creates all categories with is_active=True."""
     family = await _make_family(db_session)
-    await seed_default_categories(db_session, family.id)
+    await seed_default_categories(uow, family.id)
 
     result = await db_session.execute(select(Category).where(Category.family_id == family.id))
     categories = result.scalars().all()

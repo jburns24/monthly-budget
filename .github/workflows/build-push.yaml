@@ -80,4 +80,4 @@ jobs:
           cache-from: type=gha,scope=${{ needs.extract-component.outputs.component }}
           cache-to: type=gha,mode=max,scope=${{ needs.extract-component.outputs.component }}
           build-args: |
-            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
+            VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}

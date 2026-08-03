@@ -17,8 +17,12 @@ from app.database import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url with the value from app settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Override sqlalchemy.url with the value from app settings. Use
+# database_migration_url (falls back to database_url when unset) rather than
+# database_url directly: hosted Supabase's Supavisor transaction pooler
+# (port 6543) rejects the named prepared statements Alembic's DDL requires, so
+# migrations must run against the session pooler or a direct connection.
+config.set_main_option("sqlalchemy.url", settings.database_migration_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

@@ -1,7 +1,19 @@
 """API endpoint tests for all receipt router endpoints.
 
-Tests cover every receipt router endpoint using the authenticated_client fixture
-with a NullPool database session override for per-test transaction rollback.
+Tests cover every receipt router endpoint using the ``authenticated_client``
+fixture with a NullPool database session override for per-test transaction
+rollback.
+
+On design doc risk (g): the prediction was that ``owns_transaction=False`` would
+let the module's bespoke NullPool ``db_session`` fixture go away. Only half of
+that held. The commits are handled — ``_uow_over_test_session`` below downgrades
+the request's UnitOfWork so ``receipt_service``'s deliberate mid-request commits
+become flushes, and per-test rollback isolation now actually works here. But the
+NullPool engine stays, because it also solves event-loop isolation, which the
+seam has nothing to do with; the fixture's own docstring has the details.
+
+Three tests genuinely need a real commit and call ``_use_real_commits()`` to opt
+back out — see that helper.
 
 Endpoints tested:
   POST   /api/families/{family_id}/receipts                         — upload (201/413/415/429)
@@ -17,7 +29,7 @@ non_receipt, api_error.
 
 import io
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -29,9 +41,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_anthropic_client
+from app.deps.provider import get_uow
 from app.models.family import Family  # noqa: F401
 from app.models.family_member import FamilyMember
 from app.models.invite import Invite  # noqa: F401
@@ -55,6 +69,30 @@ from tests.conftest import (
 
 @pytest.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Per-test session on a private NullPool engine.
+
+    Design doc risk (g) predicted ``owns_transaction=False`` would retire this
+    fixture in favour of the shared ``db_session`` in ``tests/conftest.py``. It
+    does not, and the reason is worth recording: this engine is load-bearing for
+    **event-loop isolation**, which is a separate problem from the real commits.
+
+    ``tests/conftest.py``'s ``_test_engine`` is a module-level engine with a
+    default QueuePool, while pytest-asyncio gives every test its own event loop.
+    A connection opened on one test's loop and returned to the pool gets handed
+    to the next test on a loop that no longer exists — ``RuntimeError: Event loop
+    is closed``. The root conftest drains ``app.database.engine`` after every
+    test for exactly this reason but cannot drain ``_test_engine``, which its own
+    fixture is still using. This module trips the hazard where others do not
+    because three of its tests really commit and open extra engines against the
+    same database, so its connections churn.
+
+    Switching to the shared fixture was tried and produced 11 event-loop
+    failures. NullPool means every session gets a fresh connection and disposes
+    it, so nothing crosses a loop boundary.
+
+    What ``owns_transaction=False`` *does* retire is the reason this module used
+    to abandon transaction isolation altogether — see ``_uow_over_test_session``.
+    """
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     session = AsyncSession(engine, expire_on_commit=False)
     await session.begin()
@@ -69,6 +107,46 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 # ---------------------------------------------------------------------------
 # Autouse fixtures (apply to all tests in this module)
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _uow_over_test_session(db_session: AsyncSession) -> Iterator[None]:
+    """Give the request a UnitOfWork that flushes instead of committing.
+
+    ``receipt_service`` is the only service in the codebase that calls
+    ``uow.commit()``, and it does so deliberately — ``_mark_failed`` and
+    ``claim_receipt_for_retry`` must outlive the ``HTTPException`` that follows.
+    Against the shared ``db_session`` that would commit the outer transaction the
+    fixture rolls back for isolation, so before the seam this module needed its
+    own NullPool engine to contain the damage (design doc risk (g)).
+
+    ``owns_transaction=False`` is the seam's answer: the same service code runs,
+    but ``commit()`` degrades to ``flush()`` and per-test rollback still works.
+
+    Installing this on ``get_uow`` rather than ``get_db`` is what keeps the
+    override transparent — ``get_uow`` normally derives from ``get_db``, so
+    replacing it wholesale is the only way to change ``owns_transaction``.
+    """
+    from app.main import app
+
+    app.dependency_overrides[get_uow] = lambda: SqlAlchemyUnitOfWork(db_session, owns_transaction=False)
+    yield
+    app.dependency_overrides.pop(get_uow, None)
+
+
+def _use_real_commits() -> None:
+    """Drop the ``owns_transaction=False`` override so ``uow.commit()`` is real.
+
+    For the tests whose whole claim is durability — a row that survives the
+    request's rollback, or a claim visible to a second connection. They pair this
+    with a ``production_like_get_db`` override, and popping the ``get_uow``
+    override restores the production ``get_uow``, which derives from it with
+    ``owns_transaction=True``. Those tests own their own cleanup, because the
+    rows they write really are committed.
+    """
+    from app.main import app
+
+    app.dependency_overrides.pop(get_uow, None)
 
 
 @pytest.fixture(autouse=True)
@@ -399,6 +477,9 @@ async def test_failed_receipt_image_cleaned_up(db_session: AsyncSession, authent
         return _override
 
     app.dependency_overrides[get_db] = production_like_get_db(engine)
+    # Real commits: the durability claim below is the point of this test, so the
+    # module's owns_transaction=False override must not apply here.
+    _use_real_commits()
     try:
         with (
             patch("app.services.receipt_service.receipt_storage.validate_mime", return_value="image/jpeg"),
@@ -785,9 +866,9 @@ async def test_retry_uses_atomic_failed_to_processing_update(
 
     orig_reprocess = _rs.reprocess_receipt
 
-    async def spy_reprocess(db, anth, r):
+    async def spy_reprocess(uow, anth, r):
         captured_status_when_reprocess_called["status"] = r.status
-        return await orig_reprocess(db, anth, r)
+        return await orig_reprocess(uow, anth, r)
 
     # Use a production-like get_db so the claim's commit is real.
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
@@ -807,6 +888,8 @@ async def test_retry_uses_atomic_failed_to_processing_update(
         return _override
 
     app.dependency_overrides[get_db] = production_like_get_db(engine)
+    # Real commits: the claim must actually land before reprocess observes it.
+    _use_real_commits()
     try:
         with (
             patch("app.services.receipt_service.reprocess_receipt", side_effect=spy_reprocess),
@@ -867,15 +950,24 @@ async def test_retry_concurrent_only_one_succeeds(
             r_a = (await session_a.execute(select(Receipt).where(Receipt.id == receipt.id))).scalar_one()
             r_b = (await session_b.execute(select(Receipt).where(Receipt.id == receipt.id))).scalar_one()
 
+            # owns_transaction=True on both: the first claim's commit is what
+            # makes 'processing' visible to the second connection. Downgrading
+            # either one to a flush would leave the claim invisible outside its
+            # own transaction and the race would go undetected — which is
+            # exactly why ReceiptRepository.claim_for_retry is Postgres tier and
+            # has no in-memory fake.
+            uow_a = SqlAlchemyUnitOfWork(session_a, owns_transaction=True)
+            uow_b = SqlAlchemyUnitOfWork(session_b, owns_transaction=True)
+
             # First claim wins.
-            await _rs.claim_receipt_for_retry(session_a, r_a)
+            await _rs.claim_receipt_for_retry(uow_a, r_a)
             assert r_a.status == "processing"
 
             # Second claim observes status='processing' and must 409.
             from fastapi import HTTPException as _HTTPExc
 
             with pytest.raises(_HTTPExc) as excinfo:
-                await _rs.claim_receipt_for_retry(session_b, r_b)
+                await _rs.claim_receipt_for_retry(uow_b, r_b)
             assert excinfo.value.status_code == 409
             assert "processing" in excinfo.value.detail
         finally:

@@ -2,6 +2,33 @@
 
 These endpoints are only registered when ``settings.environment`` is
 ``"development"`` or ``"test"``.  They MUST NOT be reachable in production.
+
+Why this module still takes ``Depends(get_db)``
+-----------------------------------------------
+It is the **only** router that does, and that is deliberate and permanent — not
+a leftover from the repository-ports migration (see
+``docs/data-layer-ports-design.md``).  Do not "finish the job" by putting these
+handlers on ``UnitOfWork``:
+
+- ``test_reset`` is a raw cross-aggregate ``TRUNCATE`` in FK order, including
+  two tables (``expenses``, ``monthly_goals``) it clears with literal SQL.  A
+  port that exposed "delete every row of everything" would be a hole punched
+  through every repository boundary the migration exists to draw, and it would
+  have to be implemented on the in-memory adapter too, where it means nothing.
+- ``dev_login`` and ``create_test_monthly_goal`` seed rows on purpose without
+  the validation, ownership checks, and invariants the real services enforce.
+  Routing them through ports would either drag those rules in — defeating the
+  point of a test seam — or force the ports to grow bypass methods that
+  production code must never call.
+- Nothing here runs in production, so none of it is protected by the ports'
+  real payoff: swapping the backing store and unit-testing services without a
+  database.  These endpoints are *defined* by needing a real Postgres.
+
+The cost of the exception is contained: ``get_db`` stays exported for exactly
+one importer, and a grep for it in ``app/`` should return this module,
+``app/deps/provider.py`` (where ``get_uow`` layers over it), and its definition
+in ``app/database.py`` — nothing else.  If a fourth appears, that is the
+regression, not this file.
 """
 
 import uuid

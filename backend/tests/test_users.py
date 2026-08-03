@@ -7,8 +7,10 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.memory.unit_of_work import MemoryUnitOfWork
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.deps.provider import get_uow
 from app.models.user import User
 
 # ---------------------------------------------------------------------------
@@ -162,6 +164,40 @@ async def test_me_update_both_fields() -> None:
     body = resp.json()
     assert body["display_name"] == "New"
     assert body["timezone"] == "Europe/London"
+
+
+@pytest.mark.asyncio
+async def test_me_update_persists_the_change_through_the_repository() -> None:
+    """Regression test for docs/data-layer-ports-design.md risk (b).
+
+    ``update_me`` must persist via ``uow.users.add`` + ``uow.flush``, not rely
+    on the session identity map plus ``get_db``'s teardown commit. ``user`` here
+    is never added to ``uow``'s store — exactly like every other test in this
+    file's ``_make_user()`` override — standing in for "a repository handed
+    back an object this UnitOfWork doesn't have resident." Under the buggy
+    implementation this is a silent no-op: the HTTP response reflects the
+    mutated Python object, but nothing reaches the repository.
+    """
+    from app.main import app
+
+    user = _make_user(display_name="Old Name")
+    uow = MemoryUnitOfWork()
+
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_uow] = lambda: uow
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.put("/api/me", json={"display_name": "New Name"})
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_uow, None)
+
+    assert resp.status_code == 200
+    assert resp.json()["display_name"] == "New Name"
+
+    persisted = await uow.users.get(user.id)
+    assert persisted is not None, "update_me never called uow.users.add/flush"
+    assert persisted.display_name == "New Name"
 
 
 @pytest.mark.asyncio
