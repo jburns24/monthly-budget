@@ -37,6 +37,24 @@ logger = get_logger(__name__)
 # thrown away over timezone skew.
 _FUTURE_DATE_SLACK = timedelta(days=1)
 
+# The model has no clock and often resolves a missing/ambiguous year against
+# training-data priors, landing this year's purchase under last year. Dates
+# older than this window are treated as a misread year and snapped forward to
+# the most recent occurrence of the same month/day on or before today.
+_STALE_DATE_SLACK = timedelta(days=365)
+
+
+def _most_recent_occurrence(month: int, day: int, today: date) -> date | None:
+    """Return the latest month/day on or before today, or None if none exists."""
+    for year in (today.year, today.year - 1):
+        try:
+            candidate = date(year, month, day)
+        except ValueError:
+            continue
+        if candidate <= today:
+            return candidate
+    return None
+
 
 def _parse_expense_date(date_str: str | None) -> date | None:
     """Parse a trustworthy YYYY-MM-DD from Claude, or None when there isn't one.
@@ -45,13 +63,11 @@ def _parse_expense_date(date_str: str | None) -> date | None:
     substitutes today and leaves ``Receipt.parsed_date`` unset, so "we could not
     read a date" stays distinguishable from "the receipt is dated today".
 
-    The future-date check is a deterministic backstop for the prompt's year
-    resolution. The model has no clock, so an absent or illegible year is
-    resolved against a date we hand it in the system prompt (see
-    claude_client Phase 3) — a soft constraint. A date past today means that
-    resolution went wrong, and unlike a wrong-but-plausible past year it is
-    detectable here, so it is worth catching rather than filing an expense into
-    a month that has not happened.
+    Two deterministic backstops cover soft prompt failures:
+    - A date past today (plus a day of UTC skew slack) is treated as unread.
+    - A date older than ``_STALE_DATE_SLACK`` has its year snapped to the most
+      recent occurrence of the same month/day on or before today — the common
+      prod failure is filing this year's purchase under last year.
     """
     if date_str is None:
         return None
@@ -60,9 +76,19 @@ def _parse_expense_date(date_str: str | None) -> date | None:
     except ValueError:
         logger.warning("receipt_date_parse_error", raw=date_str)
         return None
-    if parsed - date.today() > _FUTURE_DATE_SLACK:
+    today = date.today()
+    if parsed - today > _FUTURE_DATE_SLACK:
         logger.warning("receipt_date_in_future", raw=date_str)
         return None
+    if today - parsed >= _STALE_DATE_SLACK:
+        remapped = _most_recent_occurrence(parsed.month, parsed.day, today)
+        if remapped is not None and remapped != parsed:
+            logger.warning(
+                "receipt_date_stale_year_corrected",
+                raw=date_str,
+                corrected=remapped.isoformat(),
+            )
+            return remapped
     return parsed
 
 
