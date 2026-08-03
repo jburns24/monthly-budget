@@ -50,6 +50,7 @@ const mockUser = {
   display_name: 'Integration User',
   avatar_url: null as string | null,
   timezone: 'America/New_York',
+  family: null,
 }
 
 // ---------------------------------------------------------------------------
@@ -126,15 +127,14 @@ describe('Auth integration: full redirect flow', () => {
   it('unauthenticated user → /login → sign in → callback → / with user profile', async () => {
     vi.mocked(postAuthCallback).mockResolvedValue({ is_new_user: false })
 
-    // gcTime: 0 ensures the ['currentUser'] cache entry is garbage-collected
-    // when ProtectedRoute unmounts (while /login is shown), so the subsequent
-    // mount after callback triggers a fresh /api/me fetch returning the user.
+    // Match production: useAuth sets staleTime 5m, and Header keeps the
+    // currentUser query observed while /login is showing. A successful
+    // callback must refresh that cached null or ProtectedRoute bounces
+    // straight back to /login without refetching.
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {
           retry: false,
-          staleTime: 0,
-          gcTime: 0,
         },
       },
     })
@@ -181,11 +181,10 @@ describe('Auth integration: full redirect flow', () => {
     })
 
     // ── Step 5: Successful callback → navigate to / → /api/me 200 ────────
-    // With gcTime:0 the cached null was GC'd when ProtectedRoute unmounted,
-    // so ProtectedRoute re-mounts with isLoading=true, fetches /api/me (now
-    // returns 200), and renders HomePage.
+    // Must not bounce back to /login from the stale null currentUser cache.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /monthly budget/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /create or join a family/i })).toBeInTheDocument()
     })
+    expect(screen.queryByRole('button', { name: /sign in with google/i })).not.toBeInTheDocument()
   })
 })

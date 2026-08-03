@@ -605,10 +605,43 @@ def test_parse_expense_date_partial_string_returns_none() -> None:
     assert _parse_expense_date("2026-03") is None
 
 
-def test_parse_expense_date_accepts_a_genuinely_old_receipt() -> None:
-    """Years-old dates are legitimate — only the future is impossible."""
-    old = date.today() - timedelta(days=800)
-    assert _parse_expense_date(old.isoformat()) == old
+def test_parse_expense_date_corrects_a_stale_year_to_the_most_recent() -> None:
+    """A year more than ~1 year in the past is almost always a model misread.
+
+    Prod filed this year's purchases under last year; the prompt is a soft
+    constraint, so the parser snaps month/day forward to the most recent year
+    that still lands on or before today. Same calendar day last year (exactly
+    365 days) must still snap — that is the common failure mode.
+    """
+    today = date.today()
+    try:
+        stale = date(today.year - 1, today.month, today.day)
+    except ValueError:
+        # Feb 29 → Feb 28 on a non-leap prior year
+        stale = date(today.year - 1, today.month, today.day - 1)
+    expected = date(today.year, stale.month, stale.day)
+    assert _parse_expense_date(stale.isoformat()) == expected
+
+
+def test_parse_expense_date_corrects_year_off_by_one_earlier_in_the_year() -> None:
+    """Last year's March for a mid-year upload snaps to this year's March."""
+    today = date.today()
+    # Use a fixed month/day that has already occurred this year whenever
+    # today is past March 15; otherwise fall back to a two-year-old date so
+    # the most-recent snap is still observable.
+    if today >= date(today.year, 3, 15):
+        stale = date(today.year - 1, 3, 15)
+        expected = date(today.year, 3, 15)
+    else:
+        stale = date(today.year - 2, 3, 15)
+        expected = date(today.year - 1, 3, 15)
+    assert _parse_expense_date(stale.isoformat()) == expected
+
+
+def test_parse_expense_date_keeps_a_recent_past_date() -> None:
+    """Dates within the last year are left alone — only stale years are snapped."""
+    recent = date.today() - timedelta(days=30)
+    assert _parse_expense_date(recent.isoformat()) == recent
 
 
 def test_parse_expense_date_rejects_future_date() -> None:

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ChakraProvider } from '@chakra-ui/react'
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import AuthCallbackPage from '../pages/AuthCallbackPage'
 import system from '../theme'
 
@@ -12,6 +12,15 @@ vi.mock('../api/auth', () => ({
 }))
 
 import { postAuthCallback } from '../api/auth'
+
+const mockMeUser = {
+  id: 'user-1',
+  email: 'user@example.com',
+  display_name: 'Test User',
+  avatar_url: null,
+  timezone: 'UTC',
+  family: null,
+}
 
 function renderCallback(initialPath: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -31,9 +40,31 @@ function renderCallback(initialPath: string) {
 }
 
 describe('AuthCallbackPage — success flow', () => {
+  let originalFetch: typeof globalThis.fetch
+
   beforeEach(() => {
     sessionStorage.clear()
     vi.clearAllMocks()
+    originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url
+      if (url.includes('/api/me')) {
+        return new Response(JSON.stringify(mockMeUser), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(null, { status: 404 })
+    }) as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
   })
 
   it('navigates to / after successful auth for existing user', async () => {
@@ -93,5 +124,18 @@ describe('AuthCallbackPage — success flow', () => {
       expect(sessionStorage.getItem('oauth_state')).toBeNull()
       expect(sessionStorage.getItem('pkce_code_verifier')).toBeNull()
     })
+  })
+
+  it('refetches the current user before navigating home', async () => {
+    vi.mocked(postAuthCallback).mockResolvedValue({ is_new_user: false })
+    sessionStorage.setItem('oauth_state', 'valid-state')
+    sessionStorage.setItem('pkce_code_verifier', 'valid-verifier')
+
+    renderCallback('/auth/callback?code=auth-code&state=valid-state')
+
+    await waitFor(() => {
+      expect(screen.getByText('Home Page')).toBeInTheDocument()
+    })
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/me', { credentials: 'include' })
   })
 })

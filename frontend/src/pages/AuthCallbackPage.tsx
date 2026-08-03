@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { Container, Spinner, Text, VStack } from '@chakra-ui/react'
 import { postAuthCallback } from '../api/auth'
+import { fetchCurrentUser } from '../hooks/useAuth'
 
 function AuthCallbackPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
 
   // Read sessionStorage once at mount via lazy state initializer
@@ -44,7 +47,11 @@ function AuthCallbackPage() {
     const safeCv = session.codeVerifier
 
     postAuthCallback(safeCode, safeCv)
-      .then(({ is_new_user }) => {
+      .then(async ({ is_new_user }) => {
+        // Header keeps currentUser observed during /login, so the pre-auth
+        // null stays fresh under staleTime. Refetch before navigating or
+        // ProtectedRoute bounces straight back to /login.
+        await queryClient.fetchQuery({ queryKey: ['currentUser'], queryFn: fetchCurrentUser })
         navigate(is_new_user ? '/?new=true' : '/', { replace: true })
       })
       .catch((err: unknown) => {
@@ -52,7 +59,7 @@ function AuthCallbackPage() {
         const msg = err instanceof Error ? err.message : 'Authentication failed. Please try again.'
         setAsyncError(msg)
       })
-  }, [validationError, code, session.codeVerifier, navigate])
+  }, [validationError, code, session.codeVerifier, navigate, queryClient])
 
   const error = validationError ?? asyncError
 

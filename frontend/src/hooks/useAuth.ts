@@ -10,8 +10,8 @@ export interface User {
   family: FamilyBrief | null
 }
 
-async function fetchCurrentUser(): Promise<User | null> {
-  const response = await fetch('/api/me')
+export async function fetchCurrentUser(): Promise<User | null> {
+  const response = await fetch('/api/me', { credentials: 'include' })
   if (response.status === 401) {
     return null
   }

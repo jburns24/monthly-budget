@@ -92,19 +92,22 @@ downstream can detect.
 Phase 3 - Date.
 Today's date is {today.isoformat()}. Use it only to work out which year a receipt belongs \
 to and to sanity-check what you read; never report it as the transaction date.
+The receipt is likely from this month ({today.strftime("%B %Y")}). Prefer the reading that \
+places the purchase in the current month, or as close to today as possible, without going \
+past today.
 Find the transaction date - the date of purchase, not a "valid until", "printed on", or \
 expiry date. Normalize it to YYYY-MM-DD. To disambiguate a numeric format: a leading \
 value above 12 is the day; otherwise, if the receipt shows US cues (dollar amounts, a US \
 address, a state abbreviation) read it as MM/DD/YYYY, and read it as DD/MM/YYYY \
 otherwise.
 Resolve the year in this order:
-  - A legible four-digit year is reported exactly as printed, even if it is years in the \
-past. Never adjust a printed year toward today.
   - Expand a legible two-digit year to 20YY: 24 is 2024, 26 is 2026.
   - If the year is not printed at all, or is illegible, choose the most recent year that \
-places the month and day on or before today's date. Do not default to the year you would \
-otherwise assume - a receipt is almost always recent, and reporting last year's date for \
-this year's purchase files the expense into a month nobody is looking at.
+places the month and day on or before today's date.
+  - If a four-digit year is legible but places the purchase outside this month, re-read \
+the year digits carefully - confusing this year for last year is the common failure, and \
+a receipt from another month is uncommon here. Prefer the most recent year that keeps the \
+month and day on or before today unless the older year is unmistakably printed.
 A purchase cannot have happened in the future. If your reading lands after today's date, \
 you have misread something - re-read the field, and if you still cannot resolve it, omit \
 the date field.
@@ -152,8 +155,9 @@ _TOOL_DEFINITION = {
             "date_reasoning": {
                 "type": ["string", "null"],
                 "description": (
-                    "One sentence: which field you read the date from, and how you "
-                    "resolved its year against today's date"
+                    "One sentence: which field you read the date from, how you "
+                    "resolved its year against today's date, and why the result "
+                    "is in or near this month"
                 ),
             },
             "is_receipt": {"type": "boolean"},

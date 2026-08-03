@@ -218,21 +218,23 @@ def test_system_prompt_date_is_not_frozen_at_import() -> None:
     assert "2031-06-15" in _build_system_prompt(date(2031, 6, 15))
 
 
-def test_system_prompt_bounds_the_year_it_may_invent() -> None:
-    """Phase 3 must scope the recency heuristic to a missing year only.
+def test_system_prompt_biases_years_toward_today() -> None:
+    """Phase 3 must prefer a date close to today when the year is ambiguous.
 
-    A blanket "prefer the most recent year" would rewrite legitimately old
-    receipts, which is the same confidently-wrong failure the total rules guard
-    against — so the printed-year rule has to survive alongside the fallback.
+    Prod keeps filing this year's purchases under last year: the model has no
+    clock and a printed-looking year from training data wins over recency.
+    The prompt has to say the receipt is likely from this month and that a
+    year landing far in the past is a misread to re-check, not a fact to trust.
     """
     from datetime import date
 
     from app.services.claude_client import _build_system_prompt
 
     system = _build_system_prompt(date(2026, 7, 26))
-    assert "Never adjust a printed year toward today" in system
+    assert "likely from this month" in system
     assert "most recent year" in system
     assert "cannot have happened in the future" in system
+    assert "re-read the year" in system
 
 
 @pytest.mark.asyncio
