@@ -1,3 +1,4 @@
+// Release marker: no-op touch to trigger CI publish of a new frontend image.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ChakraProvider } from '@chakra-ui/react'

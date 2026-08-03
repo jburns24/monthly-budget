@@ -1,4 +1,7 @@
-"""FastAPI application entry point for the Monthly Budget API."""
+"""FastAPI application entry point for the Monthly Budget API.
+
+Release marker: no-op touch to trigger CI publish of a new backend image.
+"""
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
