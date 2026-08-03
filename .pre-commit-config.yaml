@@ -1,12 +1,12 @@
 # .pre-commit-config.yaml
 # Single source of truth for all code quality checks.
 # CI runs "pre-commit run --all-files" to guarantee parity with local checks.
+# Playwright e2e is excluded here — it needs the k3d/Tilt stack (`task up`)
+# and belongs in CI / `task e2e`.
 #
 # Usage:
 #   pre-commit install          # register hooks for git commit
 #   pre-commit run --all-files  # run all checks against the entire codebase
-
-default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   # ---------------------------------------------------------------------------
@@ -100,19 +100,6 @@ repos:
         entry: bash -c 'cd frontend && npx tsc --noEmit'
         types_or: [ts, tsx]
         pass_filenames: false
-
-  # ---------------------------------------------------------------------------
-  # E2e: Playwright — runs on pre-push (requires Tilt services to be running)
-  # ---------------------------------------------------------------------------
-  - repo: local
-    hooks:
-      - id: playwright-e2e
-        name: playwright e2e tests
-        language: system
-        entry: bash -c 'cd e2e && npx playwright test'
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
 
   # ---------------------------------------------------------------------------
   # Security: detect-secrets

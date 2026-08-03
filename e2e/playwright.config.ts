@@ -17,8 +17,8 @@ import { defineConfig, devices } from '@playwright/test'
  * unset (it defaults to false), which makes the receipt specs fail in
  * confusing ways. Bring the stack up rather than relying on these commands.
  *
- * Note: no CI job runs this suite — the pre-commit `playwright-e2e` hook is
- * pre-push only, so the `process.env.CI` branches are effectively local-only.
+ * Note: no CI job runs this suite yet — run locally via `task e2e` with the
+ * stack up. The `process.env.CI` branches are ready for when CI owns it.
  */
 export default defineConfig({
   testDir: './tests',
