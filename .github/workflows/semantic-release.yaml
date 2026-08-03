@@ -18,8 +18,8 @@ jobs:
     name: Detect changed components
     runs-on: ubuntu-latest
     outputs:
-      changed-files: ${{ steps.changed-files.outputs.all_changed_files }}
-      any-changed: ${{ steps.changed-files.outputs.any_changed }}
+      changed-files: ${{ steps.set-matrix.outputs.changed-files }}
+      any-changed: ${{ steps.set-matrix.outputs.any-changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,6 +28,9 @@ jobs:
 
       - name: Get changed files
         id: changed-files
+        # workflow_dispatch has no push diff to detect changes from; the
+        # matrix is forced to both components in set-matrix below instead.
+        if: github.event_name != 'workflow_dispatch'
         uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46.0.5
         with:
           files: |
@@ -38,9 +41,20 @@ jobs:
           dir_names_max_depth: 1
           matrix: true
 
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'changed-files=["backend","frontend"]' >> "$GITHUB_OUTPUT"
+            echo "any-changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed-files=${{ steps.changed-files.outputs.all_changed_files }}" >> "$GITHUB_OUTPUT"
+            echo "any-changed=${{ steps.changed-files.outputs.any_changed }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Show changed components
         run: |
-          echo "Changed components: ${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "Changed components: ${{ steps.set-matrix.outputs.changed-files }}"
 
   tag-release:
     name: tag-release (${{ matrix.dir }})
@@ -66,11 +80,31 @@ jobs:
           tag_prefix: ${{ matrix.dir }}/v
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Manual dispatch always forces a patch release off the previous tag,
+      # regardless of what conventional-commit bump calculate_new_version found.
+      - name: Force patch bump on manual dispatch
+        id: force_patch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          previous_version="${{ steps.calculate_new_version.outputs.previous_version }}"
+          previous_version="${previous_version:-0.0.0}"
+          IFS='.' read -r major minor patch <<< "$previous_version"
+          echo "version=${major}.${minor}.$((patch + 1))" >> "$GITHUB_OUTPUT"
+
+      - name: Determine target tag
+        id: target_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ steps.force_patch.outputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ steps.calculate_new_version.outputs.new_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
       # A tag pushed with the default GITHUB_TOKEN will not trigger
       # build-push.yaml, so mint a real token via Octo STS instead.
       - uses: octo-sts/action@6177b4481c00308b3839969c3eca88c96a91775f # v1.0.0
         id: octo-sts
-        if: steps.calculate_new_version.outputs.new_tag != ''
+        if: github.event_name == 'workflow_dispatch' || steps.calculate_new_version.outputs.new_tag != ''
         with:
           # Where to look for the trust policy: <org>/<repo>
           # (Octo STS must be installed on this repo)
@@ -80,10 +114,10 @@ jobs:
 
       - name: Tag release
         id: push_tag
-        if: steps.calculate_new_version.outputs.new_tag != ''
+        if: github.event_name == 'workflow_dispatch' || steps.calculate_new_version.outputs.new_tag != ''
         uses: mathieudutour/github-tag-action@v6.2
         with:
-          custom_tag: ${{ steps.calculate_new_version.outputs.new_version }}
+          custom_tag: ${{ steps.target_tag.outputs.version }}
           github_token: ${{ steps.octo-sts.outputs.token }}
           tag_prefix: ${{ matrix.dir }}/v
 
