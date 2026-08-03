@@ -24,10 +24,17 @@ from app.models.family import Family
 from app.models.family_member import FamilyMember  # noqa: F401 — registers with Base.metadata
 from app.models.invite import Invite  # noqa: F401 — registers with Base.metadata
 from app.models.monthly_goal import MonthlyGoal
-from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401 — registers with Base.metadata
-from app.models.user import User  # noqa: F401 — registers with Base.metadata
+from app.models.receipt import Receipt
+from app.models.refresh_token_blacklist import RefreshTokenBlacklist
+from app.models.user import User
 from app.ports.errors import ForeignKeyViolation, UniqueViolation
-from tests.conftest import create_test_expense, create_test_family, create_test_monthly_goal, create_test_user
+from tests.conftest import (
+    create_test_expense,
+    create_test_family,
+    create_test_monthly_goal,
+    create_test_receipt,
+    create_test_user,
+)
 
 
 @pytest.fixture
@@ -878,6 +885,347 @@ async def test_flush_translates_duplicate_family_member_into_unique_violation(db
         await uow.flush()
 
     assert exc_info.value.constraint == "uq_family_members_family_user"
+
+
+# ---------------------------------------------------------------------------
+# ReceiptRepository
+# ---------------------------------------------------------------------------
+
+
+async def test_receipt_get_in_family_returns_the_receipt(db_session, uow_factory) -> None:
+    """get_in_family finds a receipt owned by the family."""
+    family, owner = await _make_family(db_session)
+    receipt = await create_test_receipt(db_session, family, owner)
+    uow = uow_factory(db_session)
+
+    found = await uow.receipts.get_in_family(receipt.id, family.id)
+
+    assert found is not None
+    assert found.id == receipt.id
+
+
+async def test_receipt_get_in_family_returns_none_for_another_familys_receipt(db_session, uow_factory) -> None:
+    """get_in_family scopes by family_id, so cross-family reads return None."""
+    owner = await create_test_user(db_session)
+    family_one, _ = await create_test_family(db_session, owner)
+    family_two, _ = await create_test_family(db_session, owner)
+    receipt = await create_test_receipt(db_session, family_one, owner)
+    uow = uow_factory(db_session)
+
+    assert await uow.receipts.get_in_family(receipt.id, family_two.id) is None
+
+
+async def test_list_filtered_orders_by_created_at_descending(db_session, uow_factory) -> None:
+    """list_filtered returns the family's receipts, newest created_at first."""
+    family, owner = await _make_family(db_session)
+    now = datetime.now(tz=timezone.utc)
+    oldest = await create_test_receipt(db_session, family, owner, created_at=now - timedelta(minutes=10))
+    middle = await create_test_receipt(db_session, family, owner, created_at=now - timedelta(minutes=5))
+    newest = await create_test_receipt(db_session, family, owner, created_at=now)
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, None, None, None, None, 50, 0)
+
+    assert [r.id for r in results] == [newest.id, middle.id, oldest.id]
+
+
+async def test_list_filtered_by_status_in_isolation(db_session, uow_factory) -> None:
+    """A status filter returns only receipts in that status."""
+    family, owner = await _make_family(db_session)
+    completed = await create_test_receipt(db_session, family, owner, status="completed")
+    await create_test_receipt(db_session, family, owner, status="failed")
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, "completed", None, None, None, 50, 0)
+
+    assert [r.id for r in results] == [completed.id]
+
+
+async def test_list_filtered_by_uploaded_by_in_isolation(db_session, uow_factory) -> None:
+    """An uploaded_by filter returns only that uploader's receipts."""
+    family, owner = await _make_family(db_session)
+    other = await create_test_user(db_session)
+    mine = await create_test_receipt(db_session, family, owner)
+    await create_test_receipt(db_session, family, other)
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, None, owner.id, None, None, 50, 0)
+
+    assert [r.id for r in results] == [mine.id]
+
+
+async def test_list_filtered_by_date_from_in_isolation(db_session, uow_factory) -> None:
+    """A date_from filter excludes receipts parsed before that date."""
+    family, owner = await _make_family(db_session)
+    recent = await create_test_receipt(db_session, family, owner, parsed_date=date(2026, 4, 10))
+    await create_test_receipt(db_session, family, owner, parsed_date=date(2026, 3, 1))
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, None, None, date(2026, 4, 1), None, 50, 0)
+
+    assert [r.id for r in results] == [recent.id]
+
+
+async def test_list_filtered_by_date_to_in_isolation(db_session, uow_factory) -> None:
+    """A date_to filter excludes receipts parsed after that date."""
+    family, owner = await _make_family(db_session)
+    early = await create_test_receipt(db_session, family, owner, parsed_date=date(2026, 3, 1))
+    await create_test_receipt(db_session, family, owner, parsed_date=date(2026, 4, 10))
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, None, None, None, date(2026, 3, 31), 50, 0)
+
+    assert [r.id for r in results] == [early.id]
+
+
+async def test_list_filtered_excludes_null_parsed_date_when_date_from_is_set(db_session, uow_factory) -> None:
+    """A NULL parsed_date (still processing, or failed) never satisfies a date_from filter.
+
+    SQL comparisons against NULL evaluate to unknown, not true, so
+    ``parsed_date >= date_from`` silently drops a still-processing receipt.
+    This is the behaviour the in-memory fake has to mirror, so pinning it
+    against real SQL is the point.
+    """
+    family, owner = await _make_family(db_session)
+    await create_test_receipt(db_session, family, owner, parsed_date=None)
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, None, None, date(2020, 1, 1), None, 50, 0)
+
+    assert results == []
+
+
+async def test_list_filtered_excludes_null_parsed_date_when_date_to_is_set(db_session, uow_factory) -> None:
+    """A NULL parsed_date also fails ``parsed_date <= date_to``, for the same reason."""
+    family, owner = await _make_family(db_session)
+    await create_test_receipt(db_session, family, owner, parsed_date=None)
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, None, None, None, date(2030, 1, 1), 50, 0)
+
+    assert results == []
+
+
+async def test_list_filtered_combines_status_and_uploaded_by(db_session, uow_factory) -> None:
+    """Filters combine with AND, not OR."""
+    family, owner = await _make_family(db_session)
+    other = await create_test_user(db_session)
+    match = await create_test_receipt(db_session, family, owner, status="completed")
+    await create_test_receipt(db_session, family, owner, status="failed")
+    await create_test_receipt(db_session, family, other, status="completed")
+    uow = uow_factory(db_session)
+
+    results = await uow.receipts.list_filtered(family.id, "completed", owner.id, None, None, 50, 0)
+
+    assert [r.id for r in results] == [match.id]
+
+
+async def test_list_filtered_paginates_with_limit_and_offset(db_session, uow_factory) -> None:
+    """limit/offset back the API's page/per_page, honoring created_at DESC order."""
+    family, owner = await _make_family(db_session)
+    now = datetime.now(tz=timezone.utc)
+    receipts = [
+        await create_test_receipt(db_session, family, owner, created_at=now - timedelta(minutes=i)) for i in range(5)
+    ]
+    uow = uow_factory(db_session)
+
+    page = await uow.receipts.list_filtered(family.id, None, None, None, None, 2, 2)
+
+    assert [r.id for r in page] == [receipts[2].id, receipts[3].id]
+
+
+async def test_list_filtered_is_scoped_to_the_family(db_session, uow_factory) -> None:
+    """Receipts from another family never appear."""
+    owner = await create_test_user(db_session)
+    family_one, _ = await create_test_family(db_session, owner)
+    family_two, _ = await create_test_family(db_session, owner)
+    await create_test_receipt(db_session, family_two, owner)
+    uow = uow_factory(db_session)
+
+    assert await uow.receipts.list_filtered(family_one.id, None, None, None, None, 50, 0) == []
+
+
+async def test_get_status_returns_the_status(db_session, uow_factory) -> None:
+    """get_status reads the persisted column directly, not a possibly-stale instance."""
+    family, owner = await _make_family(db_session)
+    receipt = await create_test_receipt(db_session, family, owner, status="completed")
+    uow = uow_factory(db_session)
+
+    assert await uow.receipts.get_status(receipt.id) == "completed"
+
+
+async def test_get_status_returns_none_for_an_unknown_id(db_session, uow_factory) -> None:
+    """A missing id is None, not an error."""
+    uow = uow_factory(db_session)
+
+    assert await uow.receipts.get_status(uuid.uuid4()) is None
+
+
+async def test_receipt_add_then_flush_assigns_id_and_server_side_created_at(db_session, uow_factory) -> None:
+    """add() stages a new receipt; flush() assigns its id and created_at server default."""
+    family, owner = await _make_family(db_session)
+    uow = uow_factory(db_session)
+    receipt = Receipt(family_id=family.id, uploaded_by=owner.id, status="processing")
+
+    uow.receipts.add(receipt)
+    await uow.flush()
+    await db_session.refresh(receipt)
+
+    assert receipt.id is not None
+    assert isinstance(receipt.created_at, datetime)
+    assert receipt.created_at.tzinfo is not None
+
+
+async def test_receipt_delete_removes_the_row(db_session, uow_factory) -> None:
+    """delete followed by flush removes the receipt."""
+    family, owner = await _make_family(db_session)
+    receipt = await create_test_receipt(db_session, family, owner)
+    uow = uow_factory(db_session)
+
+    await uow.receipts.delete(receipt)
+    await uow.flush()
+
+    assert await uow.receipts.get_in_family(receipt.id, family.id) is None
+
+
+# claim_for_retry — the concurrency guarantee (two connections racing the same
+# failed row, exactly one winning) is NOT retested here: it needs two real
+# database connections to exercise Postgres's row locking, which this single
+# session, single-connection db_session fixture cannot provide. That scenario
+# is already covered by tests/test_receipts_api.py::test_retry_concurrent_only_one_succeeds,
+# which has the two-connection machinery for it.
+
+
+async def test_claim_for_retry_moves_a_failed_receipt_to_processing(db_session, uow_factory) -> None:
+    """A failed receipt is claimed: status flips to processing and error_message is cleared."""
+    family, owner = await _make_family(db_session)
+    receipt = await create_test_receipt(db_session, family, owner, status="failed", error_message="Claude timed out")
+    uow = uow_factory(db_session)
+
+    claimed = await uow.receipts.claim_for_retry(receipt.id)
+
+    assert claimed is True
+    await db_session.refresh(receipt)
+    assert receipt.status == "processing"
+    assert receipt.error_message is None
+
+
+async def test_claim_for_retry_does_not_touch_a_completed_receipt(db_session, uow_factory) -> None:
+    """A completed receipt cannot be claimed; nothing about it changes."""
+    family, owner = await _make_family(db_session)
+    receipt = await create_test_receipt(db_session, family, owner, status="completed")
+    uow = uow_factory(db_session)
+
+    claimed = await uow.receipts.claim_for_retry(receipt.id)
+
+    assert claimed is False
+    await db_session.refresh(receipt)
+    assert receipt.status == "completed"
+
+
+async def test_claim_for_retry_does_not_touch_a_processing_receipt(db_session, uow_factory) -> None:
+    """A receipt already processing cannot be claimed again."""
+    family, owner = await _make_family(db_session)
+    receipt = await create_test_receipt(db_session, family, owner, status="processing")
+    uow = uow_factory(db_session)
+
+    claimed = await uow.receipts.claim_for_retry(receipt.id)
+
+    assert claimed is False
+    await db_session.refresh(receipt)
+    assert receipt.status == "processing"
+
+
+async def test_claim_for_retry_returns_false_for_an_unknown_id(db_session, uow_factory) -> None:
+    """A missing id claims nothing and does not raise."""
+    uow = uow_factory(db_session)
+
+    assert await uow.receipts.claim_for_retry(uuid.uuid4()) is False
+
+
+# ---------------------------------------------------------------------------
+# RefreshTokenRepository
+# ---------------------------------------------------------------------------
+
+
+def _blacklist_entry(user: User, jti: str, *, expires_in: timedelta = timedelta(days=7)) -> RefreshTokenBlacklist:
+    now = datetime.now(tz=timezone.utc)
+    return RefreshTokenBlacklist(jti=jti, user_id=user.id, expires_at=now + expires_in, created_at=now)
+
+
+async def test_token_is_blacklisted_is_false_for_an_unknown_jti(db_session, uow_factory) -> None:
+    """A jti nobody revoked is not blacklisted."""
+    uow = uow_factory(db_session)
+
+    assert await uow.tokens.is_blacklisted(uuid.uuid4().hex) is False
+
+
+async def test_token_add_then_flush_makes_the_jti_blacklisted(db_session, uow_factory) -> None:
+    """add() plus flush() is what /api/auth/logout does; /refresh must then reject it."""
+    user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
+    jti = uuid.uuid4().hex
+
+    uow.tokens.add(_blacklist_entry(user, jti))
+    await uow.flush()
+
+    assert await uow.tokens.is_blacklisted(jti) is True
+
+
+async def test_token_add_assigns_an_id_at_flush(db_session, uow_factory) -> None:
+    """id is a Python-side uuid4 default, filled in on flush."""
+    user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
+    entry = _blacklist_entry(user, uuid.uuid4().hex)
+
+    uow.tokens.add(entry)
+    await uow.flush()
+
+    assert isinstance(entry.id, uuid.UUID)
+
+
+async def test_token_is_blacklisted_ignores_expiry(db_session, uow_factory) -> None:
+    """An expired row still blocks the jti — the inline query filtered on jti alone."""
+    user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
+    jti = uuid.uuid4().hex
+
+    uow.tokens.add(_blacklist_entry(user, jti, expires_in=timedelta(days=-30)))
+    await uow.flush()
+
+    assert await uow.tokens.is_blacklisted(jti) is True
+
+
+async def test_flush_translates_duplicate_jti_into_unique_violation(db_session, uow_factory) -> None:
+    """``jti`` is unique; a second revocation of the same token is a UniqueViolation."""
+    user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
+    jti = uuid.uuid4().hex
+
+    uow.tokens.add(_blacklist_entry(user, jti))
+    await uow.flush()
+    uow.tokens.add(_blacklist_entry(user, jti))
+
+    with pytest.raises(UniqueViolation):
+        await uow.flush()
+
+
+async def test_token_add_for_an_unknown_user_is_a_foreign_key_violation(db_session, uow_factory) -> None:
+    """user_id is a FK to users.id, so an orphan revocation is rejected."""
+    uow = uow_factory(db_session)
+    now = datetime.now(tz=timezone.utc)
+
+    uow.tokens.add(
+        RefreshTokenBlacklist(
+            jti=uuid.uuid4().hex,
+            user_id=uuid.uuid4(),
+            expires_at=now + timedelta(days=7),
+            created_at=now,
+        )
+    )
+
+    with pytest.raises(ForeignKeyViolation):
+        await uow.flush()
 
 
 # ---------------------------------------------------------------------------

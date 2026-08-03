@@ -8,15 +8,14 @@ from typing import Annotated
 from anthropic import AsyncAnthropic
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.dependencies import get_anthropic_client, require_family_member
+from app.deps.provider import get_uow
 from app.logging import get_logger
 from app.models.family_member import FamilyMember
 from app.models.receipt import Receipt
 from app.models.user import User
+from app.ports.unit_of_work import UnitOfWork
 from app.schemas.receipt import ReceiptResponse, ReceiptStatus, ReceiptUploadResponse
 from app.services import rate_limiter, receipt_service, receipt_storage
 
@@ -32,9 +31,8 @@ MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 # ---------------------------------------------------------------------------
 
 
-async def _get_receipt_or_404(db: AsyncSession, family_id: uuid.UUID, receipt_id: uuid.UUID) -> Receipt:
-    result = await db.execute(select(Receipt).where(Receipt.id == receipt_id, Receipt.family_id == family_id))
-    receipt = result.scalar_one_or_none()
+async def _get_receipt_or_404(uow: UnitOfWork, family_id: uuid.UUID, receipt_id: uuid.UUID) -> Receipt:
+    receipt = await uow.receipts.get_in_family(receipt_id, family_id)
     if receipt is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receipt not found")
     return receipt
@@ -65,7 +63,7 @@ async def upload_receipt(
     file: UploadFile,
     membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
     anthropic: Annotated[AsyncAnthropic, Depends(get_anthropic_client)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
     _rate_limit: Annotated[None, Depends(_check_rate_limit)],
 ) -> ReceiptUploadResponse:
     """Upload a receipt image and extract expense data via Claude."""
@@ -79,9 +77,8 @@ async def upload_receipt(
         )
 
     receipt, expense, needs_edit = await receipt_service.process_upload(
-        db, anthropic, family_id, current_user.id, raw_bytes
+        uow, anthropic, family_id, current_user.id, raw_bytes
     )
-    await db.commit()
 
     logger.info(
         "receipt_upload_complete",
@@ -107,7 +104,7 @@ async def upload_receipt(
 async def list_receipts(
     family_id: uuid.UUID,
     membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
     receipt_status: ReceiptStatus | None = Query(default=None, alias="status"),
     uploaded_by: uuid.UUID | None = Query(default=None),
     date_from: date | None = Query(default=None),
@@ -116,21 +113,15 @@ async def list_receipts(
     per_page: int = Query(default=20, ge=1, le=100),
 ) -> list[ReceiptResponse]:
     """List receipts for a family with optional filters."""
-    stmt = select(Receipt).where(Receipt.family_id == family_id)
-
-    if receipt_status is not None:
-        stmt = stmt.where(Receipt.status == receipt_status)
-    if uploaded_by is not None:
-        stmt = stmt.where(Receipt.uploaded_by == uploaded_by)
-    if date_from is not None:
-        stmt = stmt.where(Receipt.parsed_date >= date_from)
-    if date_to is not None:
-        stmt = stmt.where(Receipt.parsed_date <= date_to)
-
-    stmt = stmt.order_by(Receipt.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
-
-    result = await db.execute(stmt)
-    receipts = result.scalars().all()
+    receipts = await uow.receipts.list_filtered(
+        family_id,
+        receipt_status,
+        uploaded_by,
+        date_from,
+        date_to,
+        limit=per_page,
+        offset=(page - 1) * per_page,
+    )
     return [ReceiptResponse.model_validate(r) for r in receipts]
 
 
@@ -144,10 +135,10 @@ async def get_receipt(
     family_id: uuid.UUID,
     receipt_id: uuid.UUID,
     membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
 ) -> ReceiptResponse:
     """Get a single receipt by ID."""
-    receipt = await _get_receipt_or_404(db, family_id, receipt_id)
+    receipt = await _get_receipt_or_404(uow, family_id, receipt_id)
     return ReceiptResponse.model_validate(receipt)
 
 
@@ -161,10 +152,10 @@ async def get_receipt_image(
     family_id: uuid.UUID,
     receipt_id: uuid.UUID,
     membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
 ) -> StreamingResponse:
     """Stream the raw image bytes for a receipt. Returns 410 if file is missing."""
-    receipt = await _get_receipt_or_404(db, family_id, receipt_id)
+    receipt = await _get_receipt_or_404(uow, family_id, receipt_id)
 
     if not receipt.image_path:
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Image no longer available.")
@@ -197,7 +188,7 @@ async def retry_receipt(
     receipt_id: uuid.UUID,
     membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
     anthropic: Annotated[AsyncAnthropic, Depends(get_anthropic_client)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
 ) -> ReceiptUploadResponse:
     """Re-run Claude extraction for a failed receipt.
 
@@ -207,13 +198,12 @@ async def retry_receipt(
     caller wins the row-level UPDATE, the other gets 409. See spec Open
     Question #2.
     """
-    receipt = await _get_receipt_or_404(db, family_id, receipt_id)
+    receipt = await _get_receipt_or_404(uow, family_id, receipt_id)
 
     # Atomic failed->processing transition (raises 409 on non-failed rows).
-    receipt = await receipt_service.claim_receipt_for_retry(db, receipt)
+    receipt = await receipt_service.claim_receipt_for_retry(uow, receipt)
 
-    receipt, expense, needs_edit = await receipt_service.reprocess_receipt(db, anthropic, receipt)
-    await db.commit()
+    receipt, expense, needs_edit = await receipt_service.reprocess_receipt(uow, anthropic, receipt)
 
     logger.info(
         "receipt_retry_complete",
@@ -239,11 +229,11 @@ async def delete_receipt(
     family_id: uuid.UUID,
     receipt_id: uuid.UUID,
     membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
 ) -> None:
     """Delete a receipt. Authorized for the uploader or any family admin."""
     current_user, member = membership
-    receipt = await _get_receipt_or_404(db, family_id, receipt_id)
+    receipt = await _get_receipt_or_404(uow, family_id, receipt_id)
 
     if receipt.uploaded_by != current_user.id and member.role != "admin":
         raise HTTPException(
@@ -254,7 +244,6 @@ async def delete_receipt(
     if receipt.image_path:
         await receipt_storage.delete(Path(receipt.image_path))
 
-    await db.delete(receipt)
-    await db.commit()
+    await uow.receipts.delete(receipt)
 
     logger.info("receipt_deleted", receipt_id=str(receipt_id), user_id=str(current_user.id))

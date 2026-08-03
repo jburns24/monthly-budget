@@ -25,6 +25,8 @@ from app.ports.repositories.family import FamilyRepository
 from app.ports.repositories.family_member import FamilyMemberRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
+from app.ports.repositories.receipt import ReceiptRepository
+from app.ports.repositories.refresh_token import RefreshTokenRepository
 from app.ports.repositories.user import UserRepository
 
 
@@ -45,7 +47,9 @@ class UnitOfWork(Protocol):
     ``get_uow`` derives from ``get_db``: a half-migrated router can take both and
     they share one session and one transaction.
 
-    Still to be added: ``families``, ``invites``, ``receipts``, and ``tokens``.
+    The set is complete as of Step 7.5. The only code still reaching for a raw
+    session is ``app/routers/dev_auth.py``, which is deliberately raw and
+    permanently exempt.
     """
 
     categories: CategoryRepository
@@ -55,6 +59,8 @@ class UnitOfWork(Protocol):
     members: FamilyMemberRepository
     invites: InviteRepository
     goals: MonthlyGoalRepository
+    receipts: ReceiptRepository
+    tokens: RefreshTokenRepository
     budget: BudgetQuery
 
     async def flush(self) -> None:

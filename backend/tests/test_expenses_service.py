@@ -330,7 +330,7 @@ async def test_delete_expense_removes_from_database(db_session: AsyncSession, uo
     expense = await create_test_expense(db_session, family, user, category)
     expense_id = expense.id
 
-    await delete_expense(uow, db_session, family_id=family.id, expense_id=expense_id)
+    await delete_expense(uow, family_id=family.id, expense_id=expense_id)
 
     result = await db_session.execute(select(Expense).where(Expense.id == expense_id))
     assert result.scalar_one_or_none() is None
@@ -342,7 +342,7 @@ async def test_delete_expense_raises_404_when_not_found(db_session: AsyncSession
     family, _ = await _make_family(db_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await delete_expense(uow, db_session, family_id=family.id, expense_id=uuid.uuid4())
+        await delete_expense(uow, family_id=family.id, expense_id=uuid.uuid4())
 
     assert exc_info.value.status_code == 404
 

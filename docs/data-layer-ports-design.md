@@ -292,8 +292,20 @@ its own commit.
 `family_service.py`; splitting them leaves the service half-ported.
 
 **Step 7 — Receipt, last.** Highest risk: mid-request commits, savepoints, retry claim.
+Also retires `category_suggestion`'s duplicate queries onto the Category port, and
+`expense_service.delete_expense`'s raw `db` parameter, which existed only because Receipt had
+no repository.
 
-**Step 8 — remove `get_db` from routers,** keeping it exported for `dev_auth`.
+**Step 7.5 — `RefreshTokenRepository`.** Not in the original sequence; Step 7 showed Step 8
+cannot land without it. The inventory above lists the port (`is_blacklisted`, `add`) but no step
+ever built it, and `app/routers/auth.py` needs it — three endpoints query
+`RefreshTokenBlacklist` directly and call `user_service.upsert_user(db=db)`. Until that is
+ported, "remove `get_db` from routers" is not a mechanical change.
+
+**Step 8 — remove `get_db` from routers,** keeping it exported for `dev_auth`. After Step 7 the
+only holdouts are `dev_auth.py` (permanent) and `auth.py` (blocked on Step 7.5). The router
+`commit()` calls this step was meant to delete are already gone — they left with Step 7, since
+the receipts router stopped taking `db` at all.
 
 Coexistence works throughout: `get_uow` derives from `get_db`, and FastAPI caches it per
 request, so a half-migrated router can take both and they share one session and one transaction.
@@ -347,10 +359,24 @@ copy_goals) discards the *whole request*, not just the failed insert. Port it li
 preserve behaviour, but flag it: the correct fix is a savepoint, and that's a behaviour change
 deserving its own PR and tests.
 
-**(g) `tests/test_receipts_api.py`** carries a bespoke NullPool engine solely because
-`receipt_service` really commits. `owns_transaction=False` lets that go away, but its "audit
-row survives the exception" assertions must move to an `owns_transaction=True` fixture or be
-rewritten.
+**(g) `tests/test_receipts_api.py`** carries a bespoke NullPool engine, and this entry used to
+say it was solely because `receipt_service` really commits, so `owns_transaction=False` would
+let it go away. **Step 7 disproved the "solely".** The engine had two jobs:
+
+1. *Containing the real commits* — solved. `owns_transaction=False` turns them into flushes and
+   the module has per-test rollback isolation for the first time.
+2. *Event-loop isolation* — **not** solved, and nothing in this design touches it.
+   pytest-asyncio gives each test a fresh event loop; `conftest.py`'s shared `_test_engine` has
+   a default QueuePool that hands loop-bound connections to the next test. Removing the fixture
+   produced 11 `RuntimeError: Event loop is closed` failures.
+
+The engine stays, with the second reason documented on the fixture. The "audit row survives the
+exception" assertions were preserved verbatim via a `_use_real_commits()` helper that pops the
+module's `get_uow` override, restoring `owns_transaction=True` over a `production_like_get_db`
+session.
+
+Generalisation worth carrying forward: a test fixture that predates the seam may be load-bearing
+for something the seam does not model. Delete one only after a run proves it redundant.
 
 ## Local dev image
 

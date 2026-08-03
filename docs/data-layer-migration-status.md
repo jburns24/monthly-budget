@@ -3,8 +3,9 @@
 Companion to [data-layer-ports-design.md](./data-layer-ports-design.md), which holds the
 design and the scope decisions. This file tracks what is done and what is left.
 
-**Branch:** `feat/migrate-to-supabase` · **Nothing is committed** — all work below is
-uncommitted in the working tree.
+**Branch:** `feat/migrate-to-supabase` · Steps 0–6 are committed through `a541a25`, and
+Steps 7 and 7.5 in the single commit on top of it. The working tree is clean apart from
+`skills.lock.json`, which predates this work and is **not** part of it.
 
 ## Scope, as decided
 
@@ -27,34 +28,39 @@ uncommitted in the working tree.
 | Step 3: `dependencies.py` + `update_me` fix | User + FamilyMember repos; `get_current_user`, `require_family_member`, `require_family_admin` on ports | 598 |
 | Steps 4–5: MonthlyGoal + Expense | `BudgetQuery` + pure `build_budget_summary`; both adapters | 717 |
 | Step 6: Family cluster | `FamilyRepository` + `InviteRepository`; `family_service.py` fully off `get_db` | 736 |
+| Step 7: Receipt | `ReceiptRepository` on both adapters; `receipt_service` + receipts router off `get_db`; `category_suggestion` onto the Category port | — |
+| Step 7.5: RefreshToken | `RefreshTokenRepository` on both adapters; `upsert_user` onto `uow.users`; all three `auth.py` endpoints off `get_db` | 794 |
 
-Each row's suite count was verified by a full foreground run against PG17.
+Each row's suite count through Step 6 was verified by a full foreground run against PG17.
+Steps 7 and 7.5 were verified together by one run — `794 passed in 472.93s`, no failures —
+since 7 was never committed on its own.
 
-Unit tier is now 200 tests, DB-free, in ~0.26s.
+Verified per file after all changes: `test_sqlalchemy_adapter.py` 91, `test_auth.py` 9,
+`test_auth_integration.py` 2, `tests/unit` 232.
+Ruff clean. `uv run mypy app` holds at **32** errors from the 37 baseline, none of them
+in the ports or adapters.
+
+Unit tier is now 232 tests, DB-free.
 
 ## Remaining work
 
-- **Step 7 — Receipt, the riskiest.** `receipt_service` commits mid-request on purpose in
-  `_mark_failed` and `claim_receipt_for_retry` so audit rows survive the `HTTPException` that
-  follows, and uses `begin_nested()` savepoints in three places.
-  `claim_for_retry` is Postgres-tier: its guarantee *is* row-lock serialization, which a
-  single-threaded fake would trivially "pass" and therefore prove nothing.
-  Risk (e): `expire_on_commit=False` is load-bearing.
-  Risk (g): `tests/test_receipts_api.py` carries a bespoke NullPool engine only because
-  `receipt_service` really commits — `owns_transaction=False` should retire it, but the
-  "audit row survives the exception" assertions must move to an `owns_transaction=True`
-  fixture, not be weakened.
-- **Step 8** — remove `get_db` from routers. Keep it exported for `app/routers/dev_auth.py`,
-  which stays raw-SQL permanently for `/api/test/reset`. Also delete the two `await db.commit()`
-  calls in `app/routers/receipts.py` and the one in `delete_receipt`.
+- **Step 8** — the only router still holding a session is `app/routers/dev_auth.py`, and it
+  keeps it permanently. What is left of this step is therefore documentation, not code:
+  say *in `dev_auth.py`* why nobody should "finish the job" later, and confirm nothing else
+  imports `get_db` outside that module and `app/deps/provider.py`.
+  The router commits Step 8 was going to delete are already gone: the two in
+  `app/routers/receipts.py` and the one in `delete_receipt` went with Step 7, because the
+  router had to stop taking `db` at all.
 - **mypy/ruff in CI — an open decision.** The design doc claimed the static conformance
   assertions in `app/adapters/conformance.py` were "checked by the existing mypy config."
   That is false: there is no `[tool.mypy]`, no `mypy.ini`, no `setup.cfg`, and
   `.github/workflows/ci.yml` runs only `uv run pytest`. Mitigated by
   `tests/unit/test_conformance.py`, which checks conformance at runtime and *is* in CI.
-  `uv run mypy app` has **37 pre-existing errors** across 15 files (mostly `name-defined` in
-  `app/models/*.py`), so adding mypy means fixing those or starting with a narrow include list.
-  Ruff is already clean and would be nearly free to add.
+  `uv run mypy app` now has **32 errors across 12 files** (down from 37 — Step 7's rewrites
+  removed several), still mostly `name-defined` in `app/models/*.py`. So adding mypy means
+  fixing those or starting with a narrow include list. `app/ports/` and `app/adapters/` are
+  clean today, and they are exactly the surface the conformance assertions exist to protect,
+  which makes them the obvious first include. Ruff is already clean and would be nearly free.
 
 ## How to work on this
 
@@ -99,3 +105,56 @@ already been done once for the 16→17 bump.
 - Services that call `rollback()` on `IntegrityError` discard the **whole request**, not just
   the failed insert. This was ported literally to stay behaviour-neutral. The correct fix is a
   savepoint, and it deserves its own PR (design doc risk (f)).
+- **Risk (g) was half wrong, and the half that was wrong cost a full suite run.** The design
+  said `owns_transaction=False` would retire the bespoke NullPool engine in
+  `tests/test_receipts_api.py`. It retires the *reason the module abandoned transaction
+  isolation* — `receipt_service`'s real commits are now flushes and per-test rollback works
+  there for the first time. It does **not** retire the engine, because that engine was quietly
+  solving a second, unrelated problem: pytest-asyncio gives every test a fresh event loop, and
+  `conftest.py`'s shared `_test_engine` uses a default QueuePool that hands loop-bound
+  connections across test boundaries. Deleting the fixture produced **11
+  `RuntimeError: Event loop is closed` failures**. It is restored, with that reason recorded in
+  its own docstring so the next person does not re-derive it.
+- **The three durability tests kept their assertions verbatim.** They opt out via a
+  `_use_real_commits()` helper that pops the module's `get_uow` override, which restores the
+  production `get_uow` and therefore `owns_transaction=True` over their `production_like_get_db`
+  session. Nothing was weakened or deleted to reach green.
+- **`test_categories_api.py` still has never been touched.** The invariant holds through Step 7.
+  `test_receipts_api.py` did change, but only in its fixtures — the bespoke engine was in scope
+  for this step by design, and no test body's assertions moved.
+- **A caller can hide from a `module.function(` grep.** `tests/test_category_suggestion.py`
+  imports `suggest_for_store` directly, so it survived the Step 7 survey and only surfaced in
+  the full run, as 13 failures. When changing a service's signature, grep for the bare function
+  name too.
+- **`expense_service.delete_expense` lost its raw `db` parameter.** It only ever had one because
+  Receipt had no repository; its docstring said "design doc Step 7" in as many words.
+- **`test_auth.py` and `test_auth_integration.py` needed zero changes in Step 7.5**, the same
+  invariant `test_categories_api.py` proved in the pilot. Both override `get_db`, and `get_uow`
+  derives from it, so all three rewritten endpoints kept their tests verbatim.
+- **`is_blacklisted` deliberately ignores `expires_at`.** The inline query it replaced selected
+  on `jti` alone, and that is the correct contract, not an oversight to tidy up: the endpoint
+  has already decoded the token, so an expired refresh token was rejected by
+  `jwt.ExpiredSignatureError` several lines earlier. Filtering on expiry here would only open a
+  window in which a revoked-but-expired jti reads as usable. Pinned by a test in both tiers.
+- **`RefreshTokenRepository` is a port with no service behind it.** Two methods, both called
+  straight from `app/routers/auth.py`. It exists to get the last non-`dev_auth` router off
+  `AsyncSession`, not because the blacklist is an aggregate anyone models. Resist adding `get`
+  or an expiry sweep to "round it out" — nothing prunes that table today.
+- **`upsert_user` got its first direct tests** (`tests/unit/test_user_service.py`). Before the
+  port it was reachable only through two `/api/auth/callback` cases that need Postgres, a mocked
+  Google, and a patched JWT secret to assert one boolean; the avatar-clearing and
+  `last_login_at` branches were never asserted at all.
+
+## Operational notes
+
+Steps 7 and 7.5 landed as one commit, not two. Step 7 was implemented but never
+verified on its own, and every file the two steps share — `ports/unit_of_work.py`,
+`adapters/conformance.py`, both UoW adapters, `tests/unit/{conftest,test_conformance}.py`,
+`tests/test_sqlalchemy_adapter.py` — is modified by both, so splitting them would have meant
+hunk-level surgery producing a first commit that could not pass its own tests. The single
+794-test run covers both.
+
+Do not start a manual `kubectl port-forward` alongside: do not start a manual `kubectl port-forward` alongside
+`pg_port_forward.sh`. The script reuses whatever already listens on 5432 and says so, but two
+forwards racing for the bind leaves one dead and can point a run at a different database — a
+symptom that shows up as a spurious unique-violation failure, not as a connection error.

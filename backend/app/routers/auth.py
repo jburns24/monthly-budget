@@ -2,17 +2,16 @@
 
 import uuid
 from datetime import datetime, timezone
+from typing import Annotated
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import get_db
+from app.deps.provider import get_uow
 from app.logging import get_logger
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist
-from app.models.user import User
+from app.ports.unit_of_work import UnitOfWork
 from app.schemas.auth import LoginCallbackRequest, LoginCallbackResponse
 from app.services import google_oauth, user_service
 from app.services.jwt_service import create_access_token, create_refresh_token, decode_token
@@ -55,7 +54,7 @@ def _clear_cookies(response: Response) -> None:
 async def auth_callback(
     body: LoginCallbackRequest,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
 ) -> LoginCallbackResponse:
     """Exchange Google authorization code for JWT session cookies.
 
@@ -73,11 +72,11 @@ async def auth_callback(
         )
 
     user, is_new_user = await user_service.upsert_user(
+        uow,
         google_id=google_user["sub"],
         email=google_user["email"],
         display_name=google_user.get("name", google_user["email"]),
         avatar_url=google_user.get("picture"),
-        db=db,
     )
 
     _set_access_cookie(response, create_access_token(user))
@@ -90,8 +89,8 @@ async def auth_callback(
 @router.post("/refresh", status_code=status.HTTP_200_OK)
 async def auth_refresh(
     response: Response,
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
     refresh_token: str | None = Cookie(default=None),
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Issue a new access token using a valid, non-blacklisted refresh token."""
     if refresh_token is None:
@@ -105,8 +104,7 @@ async def auth_refresh(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     jti: str = payload.get("jti", "")
-    result = await db.execute(select(RefreshTokenBlacklist).where(RefreshTokenBlacklist.jti == jti))
-    if result.scalar_one_or_none() is not None:
+    if await uow.tokens.is_blacklisted(jti):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
 
     user_id_str: str = payload.get("user_id", "")
@@ -115,7 +113,7 @@ async def auth_refresh(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token claims")
 
-    user = await db.get(User, user_id)
+    user = await uow.users.get(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -127,8 +125,8 @@ async def auth_refresh(
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def auth_logout(
     response: Response,
+    uow: Annotated[UnitOfWork, Depends(get_uow)],
     refresh_token: str | None = Cookie(default=None),
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Blacklist the refresh token and clear all auth cookies."""
     if refresh_token is not None:
@@ -148,7 +146,7 @@ async def auth_logout(
                     expires_at=expires_at,
                     created_at=datetime.now(tz=timezone.utc),
                 )
-                db.add(record)
+                uow.tokens.add(record)
                 logger.info("auth_logout_blacklisted", jti=jti, user_id=user_id_str)
         except (jwt.InvalidTokenError, ValueError, Exception) as exc:
             # Log but don't fail logout if token is already invalid/expired

@@ -8,7 +8,7 @@ here needs a connection, it belongs in one of the ``*_service`` /
 
 import uuid
 from collections.abc import Iterator
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -20,6 +20,7 @@ from app.models.family_member import FamilyMember
 from app.models.invite import Invite
 from app.models.monthly_goal import MonthlyGoal
 from app.models.receipt import Receipt
+from app.models.refresh_token_blacklist import RefreshTokenBlacklist
 from app.models.user import User
 
 
@@ -108,6 +109,27 @@ def make_user(*, email: str | None = None, google_id: str | None = None, display
     )
 
 
+def make_refresh_token(
+    user_id: uuid.UUID,
+    *,
+    jti: str | None = None,
+    expires_at: datetime | None = None,
+) -> RefreshTokenBlacklist:
+    """Build an unattached blacklist entry. ``id`` is left to flush().
+
+    ``created_at`` is set the way the logout path sets it: explicitly. The column
+    is nullable with no default, so leaving it off would persist NULL rather than
+    a timestamp.
+    """
+    now = datetime.now(tz=timezone.utc)
+    return RefreshTokenBlacklist(
+        jti=jti or uuid.uuid4().hex,
+        user_id=user_id,
+        expires_at=expires_at or now + timedelta(days=7),
+        created_at=now,
+    )
+
+
 def make_family(created_by: uuid.UUID, *, name: str = "Test Family") -> Family:
     """Build an unattached Family. ``id`` and ``created_at`` are left to flush()."""
     return Family(name=name, created_by=created_by)
@@ -145,8 +167,7 @@ async def seed(uow: MemoryUnitOfWork, *rows: object) -> None:
     anything seeded without one is thrown away by the first duplicate-name test.
 
     Goes through the store rather than a repository so it works uniformly for
-    every model, including ones with no dedicated ``add`` yet (e.g. ``Receipt``,
-    still Step 7).
+    every model, including ones whose repository exposes no ``add``.
     """
     for row in rows:
         uow.store.add(row)

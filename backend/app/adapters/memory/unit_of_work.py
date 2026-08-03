@@ -10,6 +10,8 @@ from app.adapters.memory.family_member_repo import MemoryFamilyMemberRepository
 from app.adapters.memory.family_repo import MemoryFamilyRepository
 from app.adapters.memory.invite_repo import MemoryInviteRepository
 from app.adapters.memory.monthly_goal_repo import MemoryMonthlyGoalRepository
+from app.adapters.memory.receipt_repo import MemoryReceiptRepository
+from app.adapters.memory.refresh_token_repo import MemoryRefreshTokenRepository
 from app.adapters.memory.store import MemoryStore
 from app.adapters.memory.user_repo import MemoryUserRepository
 from app.ports.read_models import BudgetQuery
@@ -19,6 +21,8 @@ from app.ports.repositories.family import FamilyRepository
 from app.ports.repositories.family_member import FamilyMemberRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
+from app.ports.repositories.receipt import ReceiptRepository
+from app.ports.repositories.refresh_token import RefreshTokenRepository
 from app.ports.repositories.user import UserRepository
 
 
@@ -52,6 +56,8 @@ class MemoryUnitOfWork:
     members: FamilyMemberRepository
     invites: InviteRepository
     goals: MonthlyGoalRepository
+    receipts: ReceiptRepository
+    tokens: RefreshTokenRepository
     budget: BudgetQuery
 
     def __init__(self, store: MemoryStore | None = None) -> None:
@@ -63,6 +69,8 @@ class MemoryUnitOfWork:
         self.members = MemoryFamilyMemberRepository(self.store)
         self.invites = MemoryInviteRepository(self.store)
         self.goals = MemoryMonthlyGoalRepository(self.store)
+        self.receipts = MemoryReceiptRepository(self.store)
+        self.tokens = MemoryRefreshTokenRepository(self.store)
         self.budget = MemoryBudgetQuery(self.store)
 
     async def flush(self) -> None:

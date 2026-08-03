@@ -3,9 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.dependencies import require_family_member
 from app.deps.provider import get_uow
 from app.logging import get_logger
@@ -159,7 +157,6 @@ async def delete_expense(
     expense_id: uuid.UUID,
     membership: tuple[User, FamilyMember] = Depends(require_family_member),
     uow: UnitOfWork = Depends(get_uow),
-    db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     """Delete an expense."""
     current_user, _ = membership
@@ -172,7 +169,7 @@ async def delete_expense(
             detail="Grace period expired. Past-month expenses are read-only.",
         )
 
-    await expense_service.delete_expense(uow, db, family_id=family_id, expense_id=expense_id)
+    await expense_service.delete_expense(uow, family_id=family_id, expense_id=expense_id)
     logger.info("expense_deleted_endpoint", expense_id=str(expense_id), user_id=str(current_user.id))
     return {"message": "Expense deleted"}
 

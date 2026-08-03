@@ -24,6 +24,8 @@ from app.adapters.memory.family_member_repo import MemoryFamilyMemberRepository
 from app.adapters.memory.family_repo import MemoryFamilyRepository
 from app.adapters.memory.invite_repo import MemoryInviteRepository
 from app.adapters.memory.monthly_goal_repo import MemoryMonthlyGoalRepository
+from app.adapters.memory.receipt_repo import MemoryReceiptRepository
+from app.adapters.memory.refresh_token_repo import MemoryRefreshTokenRepository
 from app.adapters.memory.store import MemoryStore
 from app.adapters.memory.unit_of_work import MemorySavepoint, MemoryUnitOfWork
 from app.adapters.memory.user_repo import MemoryUserRepository
@@ -34,6 +36,8 @@ from app.adapters.sqlalchemy.family_member_repo import SqlAlchemyFamilyMemberRep
 from app.adapters.sqlalchemy.family_repo import SqlAlchemyFamilyRepository
 from app.adapters.sqlalchemy.invite_repo import SqlAlchemyInviteRepository
 from app.adapters.sqlalchemy.monthly_goal_repo import SqlAlchemyMonthlyGoalRepository
+from app.adapters.sqlalchemy.receipt_repo import SqlAlchemyReceiptRepository
+from app.adapters.sqlalchemy.refresh_token_repo import SqlAlchemyRefreshTokenRepository
 from app.adapters.sqlalchemy.unit_of_work import SqlAlchemySavepoint, SqlAlchemyUnitOfWork
 from app.adapters.sqlalchemy.user_repo import SqlAlchemyUserRepository
 from app.ports.read_models import BudgetQuery
@@ -43,6 +47,8 @@ from app.ports.repositories.family import FamilyRepository
 from app.ports.repositories.family_member import FamilyMemberRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
+from app.ports.repositories.receipt import ReceiptRepository
+from app.ports.repositories.refresh_token import RefreshTokenRepository
 from app.ports.repositories.user import UserRepository
 from app.ports.unit_of_work import Savepoint, UnitOfWork
 
@@ -58,6 +64,8 @@ _sql_families: FamilyRepository = SqlAlchemyFamilyRepository(_NO_SESSION)
 _sql_members: FamilyMemberRepository = SqlAlchemyFamilyMemberRepository(_NO_SESSION)
 _sql_invites: InviteRepository = SqlAlchemyInviteRepository(_NO_SESSION)
 _sql_goals: MonthlyGoalRepository = SqlAlchemyMonthlyGoalRepository(_NO_SESSION)
+_sql_receipts: ReceiptRepository = SqlAlchemyReceiptRepository(_NO_SESSION)
+_sql_tokens: RefreshTokenRepository = SqlAlchemyRefreshTokenRepository(_NO_SESSION)
 _sql_budget: BudgetQuery = SqlAlchemyBudgetQuery(_NO_SESSION)
 _sql_savepoint: Savepoint = SqlAlchemySavepoint(_NO_SESSION)
 _sql_uow: UnitOfWork = SqlAlchemyUnitOfWork(_NO_SESSION)
@@ -71,6 +79,8 @@ _memory_families: FamilyRepository = MemoryFamilyRepository(_NO_STORE)
 _memory_members: FamilyMemberRepository = MemoryFamilyMemberRepository(_NO_STORE)
 _memory_invites: InviteRepository = MemoryInviteRepository(_NO_STORE)
 _memory_goals: MonthlyGoalRepository = MemoryMonthlyGoalRepository(_NO_STORE)
+_memory_receipts: ReceiptRepository = MemoryReceiptRepository(_NO_STORE)
+_memory_tokens: RefreshTokenRepository = MemoryRefreshTokenRepository(_NO_STORE)
 _memory_budget: BudgetQuery = MemoryBudgetQuery(_NO_STORE)
 _memory_savepoint: Savepoint = MemorySavepoint(_NO_STORE, 1)
 _memory_uow: UnitOfWork = MemoryUnitOfWork(_NO_STORE)

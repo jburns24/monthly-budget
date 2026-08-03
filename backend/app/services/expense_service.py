@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging import get_logger
 from app.models.category import Category
@@ -210,16 +209,10 @@ async def update_expense(
 
 async def delete_expense(
     uow: UnitOfWork,
-    db: AsyncSession,
     family_id: uuid.UUID,
     expense_id: uuid.UUID,
 ) -> None:
     """Hard-delete an expense, cascade-deleting any linked Receipt row and on-disk image.
-
-    ``db`` is a raw session used only for the linked Receipt row: ``Receipt``
-    has no repository yet (design doc Step 7), so this one write stays on
-    ``get_db`` per the coexistence model — the same pattern half-migrated
-    routers already use for ``Family``.
 
     Raises HTTPException(404) if not found or not in the family.
     """
@@ -231,7 +224,7 @@ async def delete_expense(
         linked_receipt = expense.receipt
         if linked_receipt.image_path:
             await receipt_storage.delete(Path(linked_receipt.image_path))
-        await db.delete(linked_receipt)
+        await uow.receipts.delete(linked_receipt)
 
     await uow.expenses.delete(expense)
     await uow.flush()
