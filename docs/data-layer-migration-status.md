@@ -3,9 +3,12 @@
 Companion to [data-layer-ports-design.md](./data-layer-ports-design.md), which holds the
 design and the scope decisions. This file tracks what is done and what is left.
 
-**Branch:** `feat/migrate-to-supabase` · Steps 0–6 are committed through `a541a25`, and
-Steps 7 and 7.5 in the single commit on top of it. The working tree is clean apart from
-`skills.lock.json`, which predates this work and is **not** part of it.
+**Branch:** `feat/migrate-to-supabase` · Steps 0–6 are committed through `a541a25`, Steps 7
+and 7.5 in the single commit on top of it, and Step 8 in the commit after that. The working
+tree is clean apart from `skills.lock.json`, which predates this work and is **not** part of it.
+
+Every numbered step in the design doc is now done. What remains is the mypy/ruff-in-CI
+decision below, which was never one of them.
 
 ## Scope, as decided
 
@@ -30,6 +33,7 @@ Steps 7 and 7.5 in the single commit on top of it. The working tree is clean apa
 | Step 6: Family cluster | `FamilyRepository` + `InviteRepository`; `family_service.py` fully off `get_db` | 736 |
 | Step 7: Receipt | `ReceiptRepository` on both adapters; `receipt_service` + receipts router off `get_db`; `category_suggestion` onto the Category port | — |
 | Step 7.5: RefreshToken | `RefreshTokenRepository` on both adapters; `upsert_user` onto `uow.users`; all three `auth.py` endpoints off `get_db` | 794 |
+| Step 8: `get_db` holdout | `dev_auth.py` documents why it keeps the session permanently; survey confirms no other `app/` importer | docs only |
 
 Each row's suite count through Step 6 was verified by a full foreground run against PG17.
 Steps 7 and 7.5 were verified together by one run — `794 passed in 472.93s`, no failures —
@@ -44,13 +48,6 @@ Unit tier is now 232 tests, DB-free.
 
 ## Remaining work
 
-- **Step 8** — the only router still holding a session is `app/routers/dev_auth.py`, and it
-  keeps it permanently. What is left of this step is therefore documentation, not code:
-  say *in `dev_auth.py`* why nobody should "finish the job" later, and confirm nothing else
-  imports `get_db` outside that module and `app/deps/provider.py`.
-  The router commits Step 8 was going to delete are already gone: the two in
-  `app/routers/receipts.py` and the one in `delete_receipt` went with Step 7, because the
-  router had to stop taking `db` at all.
 - **mypy/ruff in CI — an open decision.** The design doc claimed the static conformance
   assertions in `app/adapters/conformance.py` were "checked by the existing mypy config."
   That is false: there is no `[tool.mypy]`, no `mypy.ini`, no `setup.cfg`, and
@@ -144,6 +141,17 @@ already been done once for the 16→17 bump.
   port it was reachable only through two `/api/auth/callback` cases that need Postgres, a mocked
   Google, and a patched JWT secret to assert one boolean; the avatar-clearing and
   `last_login_at` branches were never asserted at all.
+
+- **Step 8 turned out to be a no-op in code, and that is the finding, not a shortcut.** The
+  router `commit()` calls it was written to delete left with Step 7, and `auth.py`'s session
+  left with Step 7.5, so by the time Step 8 came up the only `get_db` importer left in `app/`
+  was `dev_auth.py` — which keeps it forever. The argument for the exception is written *in
+  that module's docstring*, not here, because that is where someone tidying up will be
+  standing. Short version: `test_reset` is a cross-aggregate truncate that no port should ever
+  expose, the seeding endpoints deliberately skip the invariants services enforce, and none of
+  it runs in production, so none of it collects the ports' payoff. The check that keeps the
+  exception honest is a grep: `get_db` in `app/` must return `database.py`, `deps/provider.py`,
+  and `dev_auth.py`, and nothing else.
 
 ## Operational notes
 
