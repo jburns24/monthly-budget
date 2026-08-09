@@ -49,6 +49,25 @@ function getStatusColor(status: string): string {
   }
 }
 
+function EditIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
 interface CategoryCardProps {
   summary: BudgetCategorySummary
   yearMonth: string
@@ -78,7 +97,7 @@ const CategoryCard = memo(function CategoryCard({
 
   return (
     <Box
-      p={{ base: 4, md: 5 }}
+      p={{ base: 3, md: 4 }}
       borderWidth="1px"
       borderRadius="card"
       borderColor="hairline"
@@ -95,12 +114,12 @@ const CategoryCard = memo(function CategoryCard({
       role="button"
       aria-label={`${summary.category_name} category`}
     >
-      <Flex align="center" gap={3} mb={2}>
+      <Flex align="center" gap={3} mb={3}>
         <Flex
           align="center"
           justify="center"
-          w="36px"
-          h="36px"
+          w={{ base: '32px', md: '36px' }}
+          h={{ base: '32px', md: '36px' }}
           borderRadius="10px"
           bg="surface.2"
           borderWidth="1px"
@@ -120,6 +139,29 @@ const CategoryCard = memo(function CategoryCard({
             {summary.goal_cents != null ? ` / ${formatCents(summary.goal_cents)}` : ''}
           </Text>
         </Box>
+
+        {isAdmin && (
+          <Button
+            size="sm"
+            bg="surface.2"
+            color="ink"
+            borderRadius="full"
+            w="36px"
+            h="36px"
+            minW="36px"
+            p={0}
+            aria-label={existingGoal ? 'Edit goal' : 'Set goal'}
+            _hover={{ bg: 'surface.3' }}
+            data-testid={
+              existingGoal
+                ? `edit-goal-btn-${summary.category_id}`
+                : `set-goal-btn-${summary.category_id}`
+            }
+            onClick={handleGoalButtonClick}
+          >
+            <EditIcon />
+          </Button>
+        )}
       </Flex>
 
       {/* Progress bar */}
@@ -139,28 +181,6 @@ const CategoryCard = memo(function CategoryCard({
           />
         )}
       </Box>
-
-      {/* Goal button — admin only */}
-      {isAdmin && (
-        <Flex justify="flex-end" mt={2}>
-          <Button
-            size="xs"
-            bg="surface.2"
-            color="ink"
-            borderRadius="pill"
-            px={3}
-            _hover={{ bg: 'surface.3' }}
-            data-testid={
-              existingGoal
-                ? `edit-goal-btn-${summary.category_id}`
-                : `set-goal-btn-${summary.category_id}`
-            }
-            onClick={handleGoalButtonClick}
-          >
-            {existingGoal ? 'Edit Goal \u270F\uFE0F' : 'Set Goal +'}
-          </Button>
-        </Flex>
-      )}
     </Box>
   )
 })
@@ -291,19 +311,19 @@ function DashboardPage() {
   }
 
   return (
-    <Container maxW="1199px" px={{ base: 4, md: 8 }} py={{ base: 8, md: 16 }}>
+    <Container maxW="1199px" px={{ base: 4, md: 8 }} py={{ base: 5, md: 16 }}>
       {/* FAB for quick expense entry */}
       {familyId && <FAB familyId={familyId} />}
 
       {/* Month selector */}
-      <Box mb={{ base: 8, md: 12 }}>
+      <Box mb={{ base: 6, md: 12 }}>
         <Text
           color="ink.muted"
           fontSize="caption"
           fontWeight="500"
           textTransform="uppercase"
           letterSpacing="0.08em"
-          mb={3}
+          mb={{ base: 2, md: 3 }}
         >
           Monthly overview
         </Text>
@@ -407,9 +427,9 @@ function DashboardPage() {
           <Box
             position="relative"
             overflow="hidden"
-            mb={{ base: 6, md: 8 }}
-            p={{ base: 6, md: 8 }}
-            minH={{ base: '190px', md: '250px' }}
+            mb={{ base: 4, md: 8 }}
+            p={{ base: 5, md: 8 }}
+            minH={{ base: '140px', md: '220px' }}
             borderRadius="spotlight"
             bg="gradient.violet"
             background="radial-gradient(circle at 82% 18%, rgba(255,255,255,0.34), transparent 24%), radial-gradient(circle at 14% 92%, #d44bd3 0, transparent 42%), linear-gradient(135deg, #352073 0%, #7046d9 55%, #a34ec9 100%)"
@@ -423,7 +443,7 @@ function DashboardPage() {
             </Text>
             <Text
               fontFamily="heading"
-              fontSize={{ base: '52px', md: '76px' }}
+              fontSize={{ base: '46px', md: '76px' }}
               lineHeight="0.95"
               letterSpacing={{ base: '-2.6px', md: '-3.8px' }}
               fontWeight="500"

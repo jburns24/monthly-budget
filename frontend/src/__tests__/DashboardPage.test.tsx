@@ -482,7 +482,7 @@ describe('DashboardPage', () => {
   })
 
   // ------------------------------------------------------------------ goal buttons (admin)
-  it('admin sees "Set Goal" buttons on category cards when no goals exist', async () => {
+  it('admin sees accessible goal icon buttons on category cards when no goals exist', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: makeAdminWithFamily(),
       isLoading: false,
@@ -502,12 +502,12 @@ describe('DashboardPage', () => {
       expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
     })
 
-    // Admin should see "Set Goal +" buttons (one per category)
-    const setGoalButtons = screen.getAllByText(/set goal/i)
-    expect(setGoalButtons.length).toBeGreaterThan(0)
+    const setGoalButtons = screen.getAllByRole('button', { name: 'Set goal' })
+    expect(setGoalButtons).toHaveLength(sampleSummaryWithSpending.categories.length)
+    setGoalButtons.forEach((button) => expect(button).toHaveTextContent(''))
   })
 
-  it('admin sees "Edit Goal" button on category card when goal exists', async () => {
+  it('shows the edit-goal icon button before the category progress bar', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: makeAdminWithFamily(),
       isLoading: false,
@@ -538,8 +538,14 @@ describe('DashboardPage', () => {
       expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
     })
 
-    // The cat-1 (Groceries) card should have "Edit Goal" button
-    expect(screen.getByTestId('edit-goal-btn-cat-1')).toBeInTheDocument()
+    const groceriesCard = screen.getByLabelText('Groceries category')
+    const editGoalButton = within(groceriesCard).getByRole('button', { name: 'Edit goal' })
+    const progressBar = within(groceriesCard).getByRole('progressbar')
+
+    expect(editGoalButton).toHaveTextContent('')
+    expect(editGoalButton.compareDocumentPosition(progressBar)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
     // Other categories should still have "Set Goal" buttons
     expect(screen.getByTestId('set-goal-btn-cat-2')).toBeInTheDocument()
   })
