@@ -108,6 +108,46 @@ tasks:
           sleep 0.5
         done
 
+  # Starts tilt detached when needed. Cannot deps on `up` — that runs `tilt up`
+  # in the foreground and never returns to subsequent cmds.
+  tilt:ensure:
+    internal: true
+    desc: Ensure the k3d cluster and Tilt are up, then wait for the app ingress
+    deps: [cluster:up]
+    cmds:
+      - |
+        if lsof -ti :10350 >/dev/null 2>&1; then
+          echo "==> Tilt already running on :10350"
+        else
+          echo "==> Starting tilt up in the background (log: ${TMPDIR:-/tmp}/tilt-monthly-budget.log)"
+          nohup tilt up >"${TMPDIR:-/tmp}/tilt-monthly-budget.log" 2>&1 &
+        fi
+      - |
+        echo "==> Waiting for http://localhost:8080 (backend health + frontend)"
+        for _ in $(seq 1 150); do
+          if curl -sf http://localhost:8080/api/health >/dev/null 2>&1 \
+            && curl -sf -o /dev/null http://localhost:8080/ >/dev/null 2>&1; then
+            echo "==> App is ready at http://localhost:8080"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "ERROR: timed out waiting for http://localhost:8080 (is Tilt healthy? check ${TMPDIR:-/tmp}/tilt-monthly-budget.log)" >&2
+        exit 1
+
+  # --- Local exploratory helpers ----------------------------------------------
+  local:exploratory:
+    desc: Ensure Tilt is up, login as the e2e test user, open / in a headed browser
+    deps: [tilt:ensure]
+    cmds:
+      - ./scripts/dev/exploratory.sh
+
+  local:exploratory-seeded:
+    desc: Same as local:exploratory, plus idempotent demo categories/expenses for the current month
+    deps: [tilt:ensure]
+    cmds:
+      - ./scripts/dev/exploratory.sh --seed
+
   db:reset:
     desc: Wipe the dev Postgres volume and re-run migrations (requires Tilt)
     cmds:

@@ -13,6 +13,8 @@ task down                 # Stop Tilt + delete the cluster
 task lint                 # Run all quality checks (pre-commit)
 task test                 # Run all tests (backend + frontend in parallel) — backend half needs the cluster up
 task clean                # Clean generated files
+task local:exploratory         # Ensure Tilt is up, login as e2e test user, open / in a headed browser
+task local:exploratory-seeded  # Same + idempotent demo categories/expenses for the current month
 ```
 
 **Dev cluster (k3d + kustomize + Tilt):**
@@ -152,6 +154,7 @@ For anything else, run `task skills -- --help`.
 ## Dev environment
 
 - Start: `task up` · pause: `task stop` (keeps data) · destroy: `task down`
+- Exploratory browser (dev-login as `usera@e2e-test.com`): `task local:exploratory` or `task local:exploratory-seeded` (idempotent demo categories + current-month expenses). Requires `task e2e:install` once. Starts Tilt in the background if it is not already running; close the browser window to exit.
 - Cluster `k3d-monthly-budget`, namespace `monthly-budget`, Tilt UI http://localhost:10350
 - **App + API: http://localhost:8080** (Traefik ingress). `/api`, `/docs`, `/redoc`, `/openapi.json`, `/metrics` → backend:8000; `/` catch-all → frontend:5173. App and API share one origin, so the frontend's relative `/api/...` requests are same-origin. The frontend Deployment sets `VITE_HMR_CLIENT_PORT=8080`, so Vite advertises its HMR websocket on :8080 whichever URL you browse.
 - Tilt also port-forwards `5173` (frontend pod) and `8000` (backend pod) for direct/single-service access — the Playwright config targets those.
