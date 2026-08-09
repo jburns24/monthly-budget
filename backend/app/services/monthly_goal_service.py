@@ -455,8 +455,8 @@ async def bulk_upsert_goals(
     - If a goal exists, update its amount and increment its version (count as
       updated).
 
-    Goals currently in the database for ``family_id``/``year_month`` that are
-    **not** represented in ``goals_list`` are deleted (count as deleted).
+    Goals for ``family_id``/``year_month`` that are **not** in ``goals_list``
+    are left unchanged. Removals go through ``delete_goal`` only.
 
     All changes are applied within a single flush so the database either
     accepts all of them or none.
@@ -477,6 +477,7 @@ async def bulk_upsert_goals(
     -------
     dict
         ``{"created": int, "updated": int, "deleted": int}`` counts.
+        ``deleted`` is always ``0`` (kept for response shape compatibility).
 
     Raises
     ------
@@ -490,8 +491,6 @@ async def bulk_upsert_goals(
         await _validate_category(uow, family_id, item["category_id"])
 
     existing_goals = {g.category_id: g for g in await uow.goals.list_for_month(family_id, year_month)}
-
-    incoming_category_ids = {item["category_id"] for item in goals_list}
 
     created = 0
     updated = 0
@@ -515,12 +514,6 @@ async def bulk_upsert_goals(
             uow.goals.add(new_goal)
             created += 1
 
-    # Delete goals not in the incoming list
-    goals_to_delete = [g for cat_id, g in existing_goals.items() if cat_id not in incoming_category_ids]
-    deleted = len(goals_to_delete)
-    for goal in goals_to_delete:
-        await uow.goals.delete(goal)
-
     await uow.flush()
 
     logger.info(
@@ -529,6 +522,6 @@ async def bulk_upsert_goals(
         year_month=year_month,
         created=created,
         updated=updated,
-        deleted=deleted,
+        deleted=0,
     )
-    return {"created": created, "updated": updated, "deleted": deleted}
+    return {"created": created, "updated": updated, "deleted": 0}

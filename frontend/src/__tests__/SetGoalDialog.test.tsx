@@ -24,7 +24,7 @@ vi.mock('../components/ui/toaster', () => ({
   Toaster: vi.fn(() => null),
 }))
 
-import { updateGoal, updateGoalsBulk } from '../api/goals'
+import { updateGoal, updateGoalsBulk, deleteGoal } from '../api/goals'
 import { toaster } from '../components/ui/toaster'
 
 const FAMILY_ID = 'fam-123'
@@ -230,6 +230,57 @@ describe('SetGoalDialog', () => {
           expected_version: 2,
         })
       )
+    })
+
+    await waitFor(() => {
+      expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }))
+    })
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  // ------------------------------------------------------------------ remove goal
+  it('shows Remove when editing an existing goal', async () => {
+    renderSetGoalDialog(true, vi.fn(), makeGoal())
+
+    await waitFor(() => {
+      expect(screen.getByTestId('goal-remove-btn')).toBeInTheDocument()
+    })
+  })
+
+  it('does not show Remove when setting a new goal', async () => {
+    renderSetGoalDialog(true, vi.fn(), null)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('goal-save-btn')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('goal-remove-btn')).not.toBeInTheDocument()
+  })
+
+  it('calls deleteGoal after confirm and closes dialog', async () => {
+    const user = userEvent.setup()
+    const existingGoal = makeGoal()
+    const onOpenChange = vi.fn()
+
+    vi.mocked(deleteGoal).mockResolvedValue(undefined)
+
+    renderSetGoalDialog(true, onOpenChange, existingGoal)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('goal-remove-btn')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByTestId('goal-remove-btn'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('goal-remove-confirm-btn')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByTestId('goal-remove-confirm-btn'))
+
+    await waitFor(() => {
+      expect(deleteGoal).toHaveBeenCalledWith(FAMILY_ID, existingGoal.id)
     })
 
     await waitFor(() => {

@@ -70,7 +70,11 @@ async def bulk_upsert_goals(
     membership: tuple[User, FamilyMember] = Depends(require_family_admin),
     uow: UnitOfWork = Depends(get_uow),
 ) -> BulkGoalsResponse:
-    """Bulk upsert goals for a family month (admin only, all-or-nothing)."""
+    """Bulk upsert goals for a family month (admin only, all-or-nothing).
+
+    Creates or updates the listed category goals. Omitted categories are left
+    unchanged; use DELETE /goals/{goal_id} to remove a goal.
+    """
     current_user, _ = membership
     goals_list = [{"category_id": g.category_id, "amount_cents": g.amount_cents} for g in body.goals]
     counts = await monthly_goal_service.bulk_upsert_goals(

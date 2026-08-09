@@ -11,7 +11,7 @@ import {
   DialogBackdrop,
 } from '@chakra-ui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { updateGoal, updateGoalsBulk } from '../../api/goals'
+import { deleteGoal, updateGoal, updateGoalsBulk } from '../../api/goals'
 import type { MonthlyGoal } from '../../types/goals'
 import { toaster } from '../ui/toaster'
 
@@ -46,6 +46,7 @@ function GoalForm({
   const amountRef = useRef<HTMLInputElement>(null)
   const initialAmount = existingGoal ? (existingGoal.amount_cents / 100).toFixed(2) : ''
   const [amount, setAmount] = useState(initialAmount)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
 
   // Auto-focus the amount input on mount
   useEffect(() => {
@@ -54,6 +55,11 @@ function GoalForm({
     }, 50)
     return () => clearTimeout(id)
   }, [])
+
+  function invalidateGoalQueries() {
+    queryClient.invalidateQueries({ queryKey: ['goals', familyId, yearMonth] })
+    queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId, yearMonth] })
+  }
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -71,8 +77,7 @@ function GoalForm({
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['goals', familyId, yearMonth] })
-      queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId, yearMonth] })
+      invalidateGoalQueries()
       toaster.create({
         title: existingGoal ? 'Goal updated' : 'Goal set',
         description: `Monthly goal for "${categoryName}" has been ${existingGoal ? 'updated' : 'set'}.`,
@@ -91,8 +96,61 @@ function GoalForm({
     },
   })
 
+  const removeMutation = useMutation({
+    mutationFn: () => {
+      if (!existingGoal) {
+        return Promise.reject(new Error('No goal to remove'))
+      }
+      return deleteGoal(familyId, existingGoal.id)
+    },
+    onSuccess: () => {
+      invalidateGoalQueries()
+      toaster.create({
+        title: 'Goal removed',
+        description: `Monthly goal for "${categoryName}" has been removed.`,
+        type: 'success',
+        duration: 4000,
+      })
+      onClose()
+    },
+    onError: () => {
+      toaster.create({
+        title: 'Error',
+        description: 'Failed to remove goal. Please try again.',
+        type: 'error',
+        duration: 4000,
+      })
+    },
+  })
+
   const parsedAmount = parseFloat(amount)
   const isValid = !isNaN(parsedAmount) && parsedAmount > 0
+  const isBusy = mutation.isPending || removeMutation.isPending
+
+  if (confirmingRemove && existingGoal) {
+    return (
+      <>
+        <DialogBody>
+          <Text fontSize="sm">
+            Remove the monthly spending limit for <strong>{categoryName}</strong>?
+          </Text>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setConfirmingRemove(false)} disabled={isBusy}>
+            Cancel
+          </Button>
+          <Button
+            colorPalette="red"
+            data-testid="goal-remove-confirm-btn"
+            onClick={() => removeMutation.mutate()}
+            loading={removeMutation.isPending}
+          >
+            Remove Goal
+          </Button>
+        </DialogFooter>
+      </>
+    )
+  }
 
   return (
     <>
@@ -111,13 +169,25 @@ function GoalForm({
             onChange={(e) => setAmount(e.target.value)}
             min="0.01"
             step="0.01"
-            disabled={mutation.isPending}
+            disabled={isBusy}
             aria-label="Monthly spending limit in dollars"
           />
         </Stack>
       </DialogBody>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>
+        {existingGoal ? (
+          <Button
+            variant="ghost"
+            colorPalette="red"
+            data-testid="goal-remove-btn"
+            onClick={() => setConfirmingRemove(true)}
+            disabled={isBusy}
+            mr="auto"
+          >
+            Remove
+          </Button>
+        ) : null}
+        <Button variant="ghost" onClick={onClose} disabled={isBusy}>
           Cancel
         </Button>
         <Button
@@ -125,7 +195,7 @@ function GoalForm({
           data-testid="goal-save-btn"
           onClick={() => mutation.mutate()}
           loading={mutation.isPending}
-          disabled={!isValid}
+          disabled={!isValid || isBusy}
         >
           Save Goal
         </Button>

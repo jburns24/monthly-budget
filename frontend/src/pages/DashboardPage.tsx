@@ -112,9 +112,6 @@ const CategoryCard = memo(function CategoryCard({
             {summary.goal_cents != null ? ` / ${formatCents(summary.goal_cents)}` : ''}
           </Text>
         </Box>
-        <Text fontSize="sm" fontWeight="semibold" color={statusColor} flexShrink={0}>
-          {summary.goal_cents != null ? `${Math.round(summary.percentage)}%` : '—'}
-        </Text>
       </Flex>
 
       {/* Progress bar */}

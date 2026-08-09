@@ -43,7 +43,10 @@ class BulkGoalsRequest(BaseModel):
 
 
 class BulkGoalsResponse(BaseModel):
-    """Response body for bulk goal upsert operations."""
+    """Response body for bulk goal upsert operations.
+
+    ``deleted`` is always 0; removals use the single-goal DELETE endpoint.
+    """
 
     year_month: str
     created: int

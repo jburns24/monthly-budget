@@ -1,8 +1,9 @@
 /**
  * E2E tests for the monthly goals management workflow.
  *
- * Covers: admin sets goal via SetGoalDialog, progress bar updates after goal
- * is set, admin uses BulkGoalsEditor, rollover prompt appears and copies goals,
+ * Covers: admin sets goal via SetGoalDialog, second category retains the first,
+ * progress bar updates after goal is set, admin removes a goal via Edit Goal,
+ * admin uses BulkGoalsEditor, rollover prompt appears and copies goals,
  * and member does not see goal management buttons.
  *
  * Each test resets state and re-authenticates to ensure isolation.
@@ -365,7 +366,93 @@ test('member sees category cards but not goal management buttons', async ({ page
 })
 
 // ---------------------------------------------------------------------------
-// 7. Goal dialogs are fully visible on desktop with many categories
+// 7. Setting a second category goal retains the first
+// ---------------------------------------------------------------------------
+
+test('setting a goal on a second category retains the first category goal', async ({ page }) => {
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  await createExpenseViaApi(ctx, familyId, groceryCategoryId, 5000, 'Grocery trip', CURRENT_DATE)
+  await createExpenseViaApi(ctx, familyId, transportCategoryId, 2000, 'Bus pass', CURRENT_DATE)
+  await ctx.dispose()
+
+  const dashboard = new DashboardPage(page)
+  await dashboard.goto()
+
+  await expect(dashboard.categoryCard('Groceries')).toBeVisible({ timeout: 10_000 })
+
+  await page.getByTestId(`set-goal-btn-${groceryCategoryId}`).click()
+  await expect(page.getByTestId('goal-amount-input')).toBeVisible({ timeout: 5_000 })
+  await page.getByTestId('goal-amount-input').fill('600.00')
+  await Promise.all([
+    page.waitForResponse(
+      (res) => res.url().includes('/goals') && res.request().method() === 'PUT' && res.status() === 200,
+    ),
+    page.getByTestId('goal-save-btn').click(),
+  ])
+  await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5_000 })
+  await expect(dashboard.categoryCard('Groceries')).toContainText('$600', { timeout: 10_000 })
+
+  await page.getByTestId(`set-goal-btn-${transportCategoryId}`).click()
+  await expect(page.getByTestId('goal-amount-input')).toBeVisible({ timeout: 5_000 })
+  await page.getByTestId('goal-amount-input').fill('150.00')
+  await Promise.all([
+    page.waitForResponse(
+      (res) => res.url().includes('/goals') && res.request().method() === 'PUT' && res.status() === 200,
+    ),
+    page.getByTestId('goal-save-btn').click(),
+  ])
+  await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5_000 })
+
+  await expect(dashboard.categoryCard('Transport')).toContainText('$150', { timeout: 10_000 })
+  await expect(dashboard.categoryCard('Groceries')).toContainText('$600', { timeout: 10_000 })
+  await expect(page.getByTestId(`edit-goal-btn-${groceryCategoryId}`)).toBeVisible()
+  await expect(page.getByTestId(`edit-goal-btn-${transportCategoryId}`)).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// 8. Admin removes a goal via Edit Goal confirm
+// ---------------------------------------------------------------------------
+
+test('admin removes a goal via Edit Goal confirm', async ({ page }) => {
+  const ctx = await playwrightRequest.newContext({ baseURL: API_BASE })
+  await ctx.post('/api/auth/dev-login', {
+    data: { email: 'usera@e2e-test.com', display_name: 'User A' },
+  })
+  await createMonthlyGoalViaApi(ctx, familyId, groceryCategoryId, 60000, CURRENT_MONTH)
+  await createExpenseViaApi(ctx, familyId, groceryCategoryId, 15000, 'Grocery run', CURRENT_DATE)
+  await ctx.dispose()
+
+  const dashboard = new DashboardPage(page)
+  await dashboard.goto()
+
+  const editGoalBtn = page.getByTestId(`edit-goal-btn-${groceryCategoryId}`)
+  await expect(editGoalBtn).toBeVisible({ timeout: 10_000 })
+  await editGoalBtn.click()
+
+  await expect(page.getByText('Edit Goal — Groceries')).toBeVisible({ timeout: 5_000 })
+  await page.getByTestId('goal-remove-btn').click()
+  await expect(page.getByTestId('goal-remove-confirm-btn')).toBeVisible({ timeout: 5_000 })
+
+  await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.url().includes(`/goals/`) &&
+        res.request().method() === 'DELETE' &&
+        res.status() === 204,
+    ),
+    page.getByTestId('goal-remove-confirm-btn').click(),
+  ])
+
+  await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5_000 })
+  await expect(page.getByTestId(`set-goal-btn-${groceryCategoryId}`)).toBeVisible({ timeout: 10_000 })
+  await expect(dashboard.categoryProgressIndicator('Groceries')).not.toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// 9. Goal dialogs are fully visible on desktop with many categories
 // ---------------------------------------------------------------------------
 
 test('BulkGoalsEditor save button is within viewport on desktop with many categories', async ({ page }) => {

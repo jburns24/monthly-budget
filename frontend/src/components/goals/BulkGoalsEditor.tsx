@@ -112,7 +112,8 @@ function BulkGoalsEditor({
           <DialogBody>
             <Stack gap={3}>
               <Text fontSize="sm" color="gray.500">
-                Set monthly spending limits for each category. Leave blank to remove a goal.
+                Set or update monthly spending limits. Leave a category blank to leave its goal
+                unchanged. To remove a goal, use Edit Goal on that category.
               </Text>
               {categories.map((cat) => (
                 <Flex key={cat.id} align="center" gap={3}>

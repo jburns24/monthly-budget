@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -223,7 +223,7 @@ describe('DashboardPage', () => {
   })
 
   // ------------------------------------------------------------------ progress colors
-  it('green status renders accent color for category under 80%', async () => {
+  it('green status shows progress bar for category under 80%', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: makeUserWithFamily(),
       isLoading: false,
@@ -238,11 +238,10 @@ describe('DashboardPage', () => {
       expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
     })
 
-    // The Groceries card has status=green, percentage=50 → shows 50%
     const groceriesCard = screen.getByLabelText('Groceries category')
     expect(groceriesCard).toBeInTheDocument()
-    // The percentage text is rendered inside the card
-    expect(groceriesCard.textContent).toContain('50%')
+    expect(within(groceriesCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50')
+    expect(groceriesCard.textContent).not.toMatch(/\d+%/)
   })
 
   it('yellow status shown for category between 80-99%', async () => {
@@ -261,8 +260,8 @@ describe('DashboardPage', () => {
     })
 
     const transportCard = screen.getByLabelText('Transport category')
-    // Transport: percentage=91.1, rounded to 91%
-    expect(transportCard.textContent).toContain('91%')
+    expect(within(transportCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '91')
+    expect(transportCard.textContent).not.toMatch(/\d+%/)
   })
 
   it('red status shown for category at or above 100%', async () => {
@@ -281,8 +280,9 @@ describe('DashboardPage', () => {
     })
 
     const diningCard = screen.getByLabelText('Dining category')
-    // Dining: percentage=120 → shows 100% (capped bar) but label shows 120%
-    expect(diningCard.textContent).toContain('120%')
+    // Bar is capped at 100% even when spent exceeds goal
+    expect(within(diningCard).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100')
+    expect(diningCard.textContent).not.toMatch(/\d+%/)
   })
 
   // ------------------------------------------------------------------ month selector

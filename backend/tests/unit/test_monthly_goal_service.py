@@ -2,7 +2,7 @@
 
 The equivalent Postgres-tier coverage lives in ``tests/test_monthly_goals_service.py``
 and ``tests/test_monthly_goals_api.py``. This aggregate has the densest business
-logic in the codebase — rollover, optimistic version, bulk upsert diffing — so it
+logic in the codebase — rollover, optimistic version, bulk upsert — so it
 is the best return on the fake: every branch of ``bulk_upsert_goals`` and the
 duplicate-key race in ``copy_goals_from_previous_month`` are exercised here with
 no connection.
@@ -359,41 +359,43 @@ async def test_bulk_upsert_goals_updates_and_bumps_version(uow, family_id) -> No
     assert persisted.version == 4
 
 
-async def test_bulk_upsert_goals_deletes_omitted_categories(uow, family_id) -> None:
+async def test_bulk_upsert_goals_preserves_omitted_categories(uow, family_id) -> None:
     cat1 = make_category(family_id, "Groceries")
     cat2 = make_category(family_id, "Dining")
     await seed(uow, cat1, cat2)
     kept = make_monthly_goal(family_id, cat1.id, "2026-04", amount_cents=50000)
-    dropped = make_monthly_goal(family_id, cat2.id, "2026-04", amount_cents=30000)
-    await seed(uow, kept, dropped)
+    other = make_monthly_goal(family_id, cat2.id, "2026-04", amount_cents=30000)
+    await seed(uow, kept, other)
 
     result = await bulk_upsert_goals(uow, family_id, "2026-04", [{"category_id": cat1.id, "amount_cents": 50000}])
 
-    assert result == {"created": 0, "updated": 1, "deleted": 1}
+    assert result == {"created": 0, "updated": 1, "deleted": 0}
     remaining = await uow.goals.list_for_month(family_id, "2026-04")
-    assert [g.id for g in remaining] == [kept.id]
+    assert {g.id for g in remaining} == {kept.id, other.id}
 
 
-async def test_bulk_upsert_goals_empty_list_deletes_everything(uow, family_id) -> None:
+async def test_bulk_upsert_goals_empty_list_changes_nothing(uow, family_id) -> None:
     cat = make_category(family_id, "Groceries")
     await seed(uow, cat)
-    await seed(uow, make_monthly_goal(family_id, cat.id, "2026-04"))
+    existing = make_monthly_goal(family_id, cat.id, "2026-04")
+    await seed(uow, existing)
 
     result = await bulk_upsert_goals(uow, family_id, "2026-04", [])
 
-    assert result == {"created": 0, "updated": 0, "deleted": 1}
-    assert await uow.goals.list_for_month(family_id, "2026-04") == []
+    assert result == {"created": 0, "updated": 0, "deleted": 0}
+    remaining = await uow.goals.list_for_month(family_id, "2026-04")
+    assert [g.id for g in remaining] == [existing.id]
 
 
-async def test_bulk_upsert_goals_does_a_single_category_create_update_and_delete_together(uow, family_id) -> None:
-    """One call exercising every branch of the diff at once."""
+async def test_bulk_upsert_goals_creates_and_updates_without_deleting_omitted(uow, family_id) -> None:
+    """One call creating and updating while leaving an omitted goal alone."""
     cat_created = make_category(family_id, "Entertainment")
     cat_updated = make_category(family_id, "Groceries")
-    cat_deleted = make_category(family_id, "Dining")
-    await seed(uow, cat_created, cat_updated, cat_deleted)
+    cat_omitted = make_category(family_id, "Dining")
+    await seed(uow, cat_created, cat_updated, cat_omitted)
     to_update = make_monthly_goal(family_id, cat_updated.id, "2026-04", amount_cents=1000)
-    to_delete = make_monthly_goal(family_id, cat_deleted.id, "2026-04", amount_cents=2000)
-    await seed(uow, to_update, to_delete)
+    to_keep = make_monthly_goal(family_id, cat_omitted.id, "2026-04", amount_cents=2000)
+    await seed(uow, to_update, to_keep)
 
     result = await bulk_upsert_goals(
         uow,
@@ -405,11 +407,12 @@ async def test_bulk_upsert_goals_does_a_single_category_create_update_and_delete
         ],
     )
 
-    assert result == {"created": 1, "updated": 1, "deleted": 1}
+    assert result == {"created": 1, "updated": 1, "deleted": 0}
     by_category = {g.category_id: g for g in await uow.goals.list_for_month(family_id, "2026-04")}
-    assert set(by_category) == {cat_created.id, cat_updated.id}
+    assert set(by_category) == {cat_created.id, cat_updated.id, cat_omitted.id}
     assert by_category[cat_updated.id].amount_cents == 5000
     assert by_category[cat_updated.id].version == 2
+    assert by_category[cat_omitted.id].amount_cents == 2000
 
 
 async def test_bulk_upsert_goals_raises_404_for_an_unknown_category(uow, family_id) -> None:

@@ -690,15 +690,14 @@ async def test_bulk_upsert_goals_updates_existing_goals(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
-    """bulk_upsert_goals deletes goals not present in the incoming list."""
+async def test_bulk_upsert_goals_preserves_omitted_goals(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
+    """bulk_upsert_goals leaves goals not present in the incoming list unchanged."""
     family = await _make_family(db_session)
     cat1 = await _insert_category(db_session, family, "Groceries")
     cat2 = await _insert_category(db_session, family, "Dining")
     goal1 = await _insert_goal(db_session, family, cat1, "2026-04", 50000)
-    await _insert_goal(db_session, family, cat2, "2026-04", 30000)
+    goal2 = await _insert_goal(db_session, family, cat2, "2026-04", 30000)
 
-    # Only keep cat1, delete cat2
     result = await bulk_upsert_goals(
         uow,
         family.id,
@@ -708,7 +707,7 @@ async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession,
 
     assert result["created"] == 0
     assert result["updated"] == 1
-    assert result["deleted"] == 1
+    assert result["deleted"] == 0
 
     goals_result = await db_session.execute(
         select(MonthlyGoal).where(
@@ -717,24 +716,34 @@ async def test_bulk_upsert_goals_deletes_omitted_goals(db_session: AsyncSession,
         )
     )
     remaining_goals = list(goals_result.scalars().all())
-    assert len(remaining_goals) == 1
-    assert remaining_goals[0].id == goal1.id
+    assert {g.id for g in remaining_goals} == {goal1.id, goal2.id}
 
 
 @pytest.mark.asyncio
-async def test_bulk_upsert_goals_empty_list_deletes_all(db_session: AsyncSession, uow: SqlAlchemyUnitOfWork) -> None:
-    """bulk_upsert_goals with empty list deletes all existing goals for the month."""
+async def test_bulk_upsert_goals_empty_list_changes_nothing(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
+    """bulk_upsert_goals with empty list does not delete existing goals for the month."""
     family = await _make_family(db_session)
     cat1 = await _insert_category(db_session, family, "Groceries")
     cat2 = await _insert_category(db_session, family, "Dining")
-    await _insert_goal(db_session, family, cat1, "2026-04", 50000)
-    await _insert_goal(db_session, family, cat2, "2026-04", 30000)
+    goal1 = await _insert_goal(db_session, family, cat1, "2026-04", 50000)
+    goal2 = await _insert_goal(db_session, family, cat2, "2026-04", 30000)
 
     result = await bulk_upsert_goals(uow, family.id, "2026-04", [])
 
     assert result["created"] == 0
     assert result["updated"] == 0
-    assert result["deleted"] == 2
+    assert result["deleted"] == 0
+
+    goals_result = await db_session.execute(
+        select(MonthlyGoal).where(
+            MonthlyGoal.family_id == family.id,
+            MonthlyGoal.year_month == "2026-04",
+        )
+    )
+    remaining_goals = list(goals_result.scalars().all())
+    assert {g.id for g in remaining_goals} == {goal1.id, goal2.id}
 
 
 @pytest.mark.asyncio
