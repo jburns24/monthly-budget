@@ -51,11 +51,43 @@ function CategoriesPage() {
   })
 
   return (
-    <Container maxW="container.md" py={8}>
-      <Flex align="center" justify="space-between" mb={6}>
-        <Heading size="lg">Categories</Heading>
+    <Container maxW="1199px" px={{ base: 4, md: 8 }} py={{ base: 8, md: 16 }}>
+      <Flex
+        align={{ base: 'flex-end', md: 'center' }}
+        justify="space-between"
+        mb={{ base: 8, md: 12 }}
+      >
+        <Box>
+          <Text
+            color="ink.muted"
+            fontSize="13px"
+            fontWeight="500"
+            textTransform="uppercase"
+            letterSpacing="0.08em"
+            mb={3}
+          >
+            Budget structure
+          </Text>
+          <Heading
+            as="h1"
+            fontFamily="heading"
+            fontSize={{ base: '48px', md: '85px' }}
+            fontWeight="500"
+            lineHeight="0.95"
+            letterSpacing={{ base: '-2.4px', md: '-4.25px' }}
+            color="ink"
+          >
+            Categories
+          </Heading>
+        </Box>
         {isAdmin && (
-          <Button colorPalette="brand" size="sm" onClick={() => setCreateOpen(true)}>
+          <Button
+            colorPalette="brand"
+            borderRadius="pill"
+            minH="44px"
+            px={{ base: 4, md: 5 }}
+            onClick={() => setCreateOpen(true)}
+          >
             Add Category
           </Button>
         )}
@@ -78,8 +110,9 @@ function CategoriesPage() {
           {isAdmin && categories.length === 0 && (
             <Box mb={4} textAlign="center">
               <Button
-                variant="outline"
-                colorPalette="brand"
+                bg="surface.1"
+                color="ink"
+                borderRadius="pill"
                 size="sm"
                 onClick={() => seedMutation.mutate()}
                 loading={seedMutation.isPending}

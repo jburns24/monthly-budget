@@ -33,13 +33,14 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
         <Flex
           key={expense.id}
           align="center"
-          p={4}
+          p={{ base: 4, md: 5 }}
           borderWidth="1px"
-          borderRadius="md"
-          borderColor="gray.200"
+          borderRadius="card"
+          borderColor="hairline"
+          bg="surface.1"
           gap={3}
-          _hover={{ borderColor: 'brand.300', bg: 'gray.50' }}
-          transition="border-color 0.15s, background-color 0.15s"
+          _hover={{ borderColor: 'surface.3', bg: 'surface.2', transform: 'translateY(-2px)' }}
+          transition="border-color 0.15s, background-color 0.15s, transform 0.15s"
           data-testid={`expense-card-${expense.id}`}
         >
           {/* Category icon with optional receipt badge overlay */}
@@ -49,8 +50,10 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
               justify="center"
               w="40px"
               h="40px"
-              borderRadius="md"
-              bg="brand.50"
+              borderRadius="10px"
+              bg="surface.2"
+              borderWidth="1px"
+              borderColor="hairline"
               fontSize="xl"
               aria-hidden="true"
               data-testid={`expense-category-icon-${expense.id}`}
@@ -76,7 +79,12 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
           {/* Description and meta */}
           <Box flex={1} minW={0}>
             <Flex align="center" gap={2} flexWrap="wrap">
-              <Text fontWeight="medium" truncate data-testid={`expense-description-${expense.id}`}>
+              <Text
+                fontWeight="500"
+                color="ink"
+                truncate
+                data-testid={`expense-description-${expense.id}`}
+              >
                 {expense.description || '(no description)'}
               </Text>
               {expense.receipt_status === 'completed' && expense.amount_cents === 0 && (
@@ -93,22 +101,22 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
             <Flex gap={2} align="center" flexWrap="wrap">
               <Text
                 fontSize="xs"
-                color="gray.500"
+                color="ink.muted"
                 data-testid={`expense-category-name-${expense.id}`}
               >
                 {expense.category.icon ? `${expense.category.icon} ` : ''}
                 {expense.category.name}
               </Text>
-              <Text fontSize="xs" color="gray.400" aria-hidden="true">
+              <Text fontSize="xs" color="ink.muted" aria-hidden="true">
                 ·
               </Text>
-              <Text fontSize="xs" color="gray.500" data-testid={`expense-user-${expense.id}`}>
+              <Text fontSize="xs" color="ink.muted" data-testid={`expense-user-${expense.id}`}>
                 {expense.created_by_user.display_name}
               </Text>
-              <Text fontSize="xs" color="gray.400" aria-hidden="true">
+              <Text fontSize="xs" color="ink.muted" aria-hidden="true">
                 ·
               </Text>
-              <Text fontSize="xs" color="gray.500" data-testid={`expense-date-${expense.id}`}>
+              <Text fontSize="xs" color="ink.muted" data-testid={`expense-date-${expense.id}`}>
                 {formatDate(expense.expense_date)}
               </Text>
             </Flex>
@@ -116,9 +124,10 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
 
           {/* Amount */}
           <Text
-            fontWeight="semibold"
-            fontSize="md"
-            color="gray.800"
+            fontWeight="500"
+            fontSize={{ base: 'sm', md: 'md' }}
+            color="ink"
+            fontVariantNumeric="tabular-nums"
             flexShrink={0}
             data-testid={`expense-amount-${expense.id}`}
           >
@@ -129,8 +138,10 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
           <Flex gap={2} flexShrink={0}>
             <Button
               size="xs"
-              variant="ghost"
-              colorPalette="brand"
+              bg="surface.2"
+              color="ink"
+              borderRadius="full"
+              _hover={{ bg: 'surface.3' }}
               onClick={() => onEdit(expense)}
               aria-label={`Edit expense ${expense.description || expense.id}`}
               data-testid={`expense-edit-btn-${expense.id}`}

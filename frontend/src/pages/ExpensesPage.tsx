@@ -139,17 +139,51 @@ function ExpensesPage() {
   const showPagination = totalCount > PER_PAGE
 
   return (
-    <Container maxW="container.md" py={6} data-testid="expenses-page">
+    <Container
+      maxW="1199px"
+      px={{ base: 4, md: 8 }}
+      py={{ base: 8, md: 16 }}
+      data-testid="expenses-page"
+    >
       {/* FAB for quick expense entry */}
       {familyId && <FAB familyId={familyId} />}
 
       {/* Header */}
-      <Flex align="center" justify="space-between" mb={4}>
-        <Heading size="lg">Expenses</Heading>
+      <Flex
+        align={{ base: 'flex-end', md: 'center' }}
+        justify="space-between"
+        mb={{ base: 8, md: 12 }}
+      >
+        <Box>
+          <Text
+            color="ink.muted"
+            fontSize="13px"
+            fontWeight="500"
+            textTransform="uppercase"
+            letterSpacing="0.08em"
+            mb={3}
+          >
+            Activity
+          </Text>
+          <Heading
+            as="h1"
+            fontFamily="heading"
+            fontSize={{ base: '52px', md: '85px' }}
+            fontWeight="500"
+            lineHeight="0.95"
+            letterSpacing={{ base: '-2.6px', md: '-4.25px' }}
+            color="ink"
+          >
+            Expenses
+          </Heading>
+        </Box>
         {familyId && (
           <Button
             colorPalette="brand"
-            size="sm"
+            borderRadius="pill"
+            minH="44px"
+            px={{ base: 4, md: 5 }}
+            _active={{ transform: 'scale(0.97)' }}
             onClick={() => setCreateOpen(true)}
             data-testid="add-expense-btn"
           >
@@ -159,26 +193,48 @@ function ExpensesPage() {
       </Flex>
 
       {/* Month selector */}
-      <Flex align="center" justify="space-between" mb={4}>
+      <Flex
+        align="center"
+        justify="space-between"
+        mb={4}
+        p={2}
+        bg="surface.1"
+        borderRadius="pill"
+        borderWidth="1px"
+        borderColor="hairline"
+      >
         <Button
-          variant="ghost"
-          size="sm"
+          bg="surface.2"
+          color="ink"
+          borderRadius="full"
+          w="40px"
+          h="40px"
+          minW="40px"
           onClick={handlePrevMonth}
           aria-label="Previous month"
-          px={2}
+          _hover={{ bg: 'surface.3' }}
           data-testid="prev-month-btn"
         >
           <PrevIcon />
         </Button>
-        <Text fontWeight="semibold" data-testid="month-display">
+        <Text
+          fontWeight="500"
+          fontSize={{ base: 'sm', md: 'md' }}
+          fontVariantNumeric="tabular-nums"
+          data-testid="month-display"
+        >
           {getMonthLabel(yearMonth)}
         </Text>
         <Button
-          variant="ghost"
-          size="sm"
+          bg="surface.2"
+          color="ink"
+          borderRadius="full"
+          w="40px"
+          h="40px"
+          minW="40px"
           onClick={handleNextMonth}
           aria-label="Next month"
-          px={2}
+          _hover={{ bg: 'surface.3' }}
           data-testid="next-month-btn"
         >
           <NextIcon />
@@ -187,9 +243,14 @@ function ExpensesPage() {
 
       {/* Category filter */}
       {familyId && categories.length > 0 && (
-        <Box mb={4}>
+        <Box mb={6}>
           <NativeSelectRoot size="sm">
             <NativeSelectField
+              bg="surface.1"
+              borderColor="hairline"
+              borderRadius="10px"
+              minH="44px"
+              color="ink"
               value={categoryId}
               onChange={(e) => handleCategoryChange(e.target.value)}
               aria-label="Filter by category"
@@ -231,7 +292,7 @@ function ExpensesPage() {
       {/* Expense list */}
       {familyId && expenseData && (
         <>
-          <Text fontSize="sm" color="gray.500" mb={3} data-testid="expenses-month-label">
+          <Text fontSize="sm" color="ink.muted" mb={3} data-testid="expenses-month-label">
             {getMonthLabel(yearMonth)}
             {totalCount > 0 && ` — ${totalCount} expense${totalCount !== 1 ? 's' : ''}`}
           </Text>
@@ -245,7 +306,9 @@ function ExpensesPage() {
           {showPagination && (
             <Flex justify="center" align="center" gap={4} mt={6} data-testid="pagination-controls">
               <Button
-                variant="outline"
+                bg="surface.1"
+                color="ink"
+                borderRadius="pill"
                 size="sm"
                 onClick={() => setPage((p) => p - 1)}
                 disabled={page <= 1}
@@ -254,11 +317,13 @@ function ExpensesPage() {
               >
                 Previous
               </Button>
-              <Text fontSize="sm" color="gray.600" data-testid="page-indicator">
+              <Text fontSize="sm" color="ink.muted" data-testid="page-indicator">
                 Page {page} of {totalPages}
               </Text>
               <Button
-                variant="outline"
+                bg="surface.1"
+                color="ink"
+                borderRadius="pill"
                 size="sm"
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= totalPages}

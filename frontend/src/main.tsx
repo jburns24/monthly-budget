@@ -7,6 +7,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import { Toaster } from './components/ui/toaster.tsx'
 import system from './theme.ts'
+import './index.css'
 
 const queryClient = new QueryClient()
 

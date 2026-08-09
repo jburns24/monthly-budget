@@ -67,9 +67,9 @@ function RolloverPrompt({
     <Box
       data-testid="rollover-prompt"
       borderWidth="1px"
-      borderColor="blue.200"
-      borderRadius="md"
-      bg="blue.50"
+      borderColor="hairline"
+      borderRadius="card"
+      bg="surface.1"
       p={4}
     >
       <Flex align="center" gap={3} wrap="wrap">
@@ -79,7 +79,8 @@ function RolloverPrompt({
         <Button
           data-testid="rollover-copy-btn"
           size="sm"
-          colorPalette="blue"
+          colorPalette="brand"
+          borderRadius="pill"
           onClick={() => mutation.mutate()}
           loading={mutation.isPending}
           disabled={mutation.isPending}

@@ -39,13 +39,13 @@ function addMonths(yearMonth: string, delta: number): string {
 function getStatusColor(status: string): string {
   switch (status) {
     case 'green':
-      return 'accent.500'
+      return 'white'
     case 'yellow':
-      return 'orange.400'
+      return 'gradient.orange'
     case 'red':
-      return 'red.500'
+      return 'gradient.coral'
     default:
-      return 'gray.400'
+      return 'ink.muted'
   }
 }
 
@@ -78,13 +78,19 @@ const CategoryCard = memo(function CategoryCard({
 
   return (
     <Box
-      p={4}
+      p={{ base: 4, md: 5 }}
       borderWidth="1px"
-      borderRadius="md"
-      borderColor="gray.200"
+      borderRadius="card"
+      borderColor="hairline"
+      bg="surface.1"
       cursor="pointer"
-      _hover={{ borderColor: 'brand.300', bg: 'gray.50' }}
-      transition="border-color 0.15s, background-color 0.15s"
+      _hover={{
+        borderColor: 'surface.3',
+        bg: 'surface.2',
+        transform: 'translateY(-2px)',
+      }}
+      _active={{ transform: 'scale(0.99)' }}
+      transition="border-color 0.15s, background-color 0.15s, transform 0.15s"
       onClick={() => onClick(summary.category_id, yearMonth)}
       role="button"
       aria-label={`${summary.category_name} category`}
@@ -95,8 +101,10 @@ const CategoryCard = memo(function CategoryCard({
           justify="center"
           w="36px"
           h="36px"
-          borderRadius="md"
-          bg="brand.50"
+          borderRadius="10px"
+          bg="surface.2"
+          borderWidth="1px"
+          borderColor="hairline"
           flexShrink={0}
           fontSize="lg"
           aria-hidden="true"
@@ -104,10 +112,10 @@ const CategoryCard = memo(function CategoryCard({
           {summary.icon ?? '📁'}
         </Flex>
         <Box flex={1} minW={0}>
-          <Text fontWeight="medium" truncate>
+          <Text fontWeight="500" color="ink" letterSpacing="-0.15px" truncate>
             {summary.category_name}
           </Text>
-          <Text fontSize="sm" color="gray.500">
+          <Text fontSize="sm" color="ink.muted" fontVariantNumeric="tabular-nums">
             {formatCents(summary.spent_cents)}
             {summary.goal_cents != null ? ` / ${formatCents(summary.goal_cents)}` : ''}
           </Text>
@@ -115,7 +123,7 @@ const CategoryCard = memo(function CategoryCard({
       </Flex>
 
       {/* Progress bar */}
-      <Box h="4px" borderRadius="full" bg="gray.100" overflow="hidden">
+      <Box h="4px" borderRadius="full" bg="surface.3" overflow="hidden">
         {summary.goal_cents != null && (
           <Box
             h="100%"
@@ -137,8 +145,11 @@ const CategoryCard = memo(function CategoryCard({
         <Flex justify="flex-end" mt={2}>
           <Button
             size="xs"
-            variant="ghost"
-            colorPalette="brand"
+            bg="surface.2"
+            color="ink"
+            borderRadius="pill"
+            px={3}
+            _hover={{ bg: 'surface.3' }}
             data-testid={
               existingGoal
                 ? `edit-goal-btn-${summary.category_id}`
@@ -280,28 +291,66 @@ function DashboardPage() {
   }
 
   return (
-    <Container maxW="container.md" py={6}>
+    <Container maxW="1199px" px={{ base: 4, md: 8 }} py={{ base: 8, md: 16 }}>
       {/* FAB for quick expense entry */}
       {familyId && <FAB familyId={familyId} />}
 
       {/* Month selector */}
-      <Flex align="center" justify="space-between" mb={4}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handlePrevMonth}
-          aria-label="Previous month"
-          px={2}
+      <Box mb={{ base: 8, md: 12 }}>
+        <Text
+          color="ink.muted"
+          fontSize="caption"
+          fontWeight="500"
+          textTransform="uppercase"
+          letterSpacing="0.08em"
+          mb={3}
         >
-          <PrevIcon />
-        </Button>
-        <Heading size="md" textAlign="center">
-          {getMonthLabel(currentMonth)}
-        </Heading>
-        <Button variant="ghost" size="sm" onClick={handleNextMonth} aria-label="Next month" px={2}>
-          <NextIcon />
-        </Button>
-      </Flex>
+          Monthly overview
+        </Text>
+        <Flex align="center" gap={{ base: 2, md: 4 }}>
+          <Button
+            bg="surface.1"
+            color="ink"
+            borderRadius="full"
+            w={{ base: '44px', md: '48px' }}
+            h={{ base: '44px', md: '48px' }}
+            minW={{ base: '44px', md: '48px' }}
+            onClick={handlePrevMonth}
+            aria-label="Previous month"
+            _hover={{ bg: 'surface.2' }}
+            _active={{ transform: 'scale(0.95)' }}
+          >
+            <PrevIcon />
+          </Button>
+          <Heading
+            as="h1"
+            flex={1}
+            fontFamily="heading"
+            fontSize={{ base: '42px', md: '72px', lg: '85px' }}
+            fontWeight="500"
+            lineHeight="0.95"
+            letterSpacing={{ base: '-2.1px', md: '-3.6px', lg: '-4.25px' }}
+            color="ink"
+            textAlign="center"
+          >
+            {getMonthLabel(currentMonth)}
+          </Heading>
+          <Button
+            bg="surface.1"
+            color="ink"
+            borderRadius="full"
+            w={{ base: '44px', md: '48px' }}
+            h={{ base: '44px', md: '48px' }}
+            minW={{ base: '44px', md: '48px' }}
+            onClick={handleNextMonth}
+            aria-label="Next month"
+            _hover={{ bg: 'surface.2' }}
+            _active={{ transform: 'scale(0.95)' }}
+          >
+            <NextIcon />
+          </Button>
+        </Flex>
+      </Box>
 
       {/* No family state */}
       {!familyId && (
@@ -311,7 +360,13 @@ function DashboardPage() {
             <Text color="gray.500" mb={4}>
               Create or join a family to start tracking your budget.
             </Text>
-            <Button colorPalette="brand" onClick={() => navigate('/family')}>
+            <Button
+              colorPalette="brand"
+              borderRadius="pill"
+              minH="44px"
+              px={5}
+              onClick={() => navigate('/family')}
+            >
               Create or join a family
             </Button>
           </Box>
@@ -350,17 +405,32 @@ function DashboardPage() {
         <>
           {/* Total spent */}
           <Box
-            mb={4}
-            p={4}
-            borderWidth="1px"
-            borderRadius="md"
-            borderColor="gray.200"
-            bg="brand.50"
+            position="relative"
+            overflow="hidden"
+            mb={{ base: 6, md: 8 }}
+            p={{ base: 6, md: 8 }}
+            minH={{ base: '190px', md: '250px' }}
+            borderRadius="spotlight"
+            bg="gradient.violet"
+            background="radial-gradient(circle at 82% 18%, rgba(255,255,255,0.34), transparent 24%), radial-gradient(circle at 14% 92%, #d44bd3 0, transparent 42%), linear-gradient(135deg, #352073 0%, #7046d9 55%, #a34ec9 100%)"
+            display="flex"
+            flexDirection="column"
+            justifyContent="space-between"
+            boxShadow="inset 0 1px 0 rgba(255,255,255,0.18), 0 24px 60px rgba(51, 28, 110, 0.28)"
           >
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color="rgba(255,255,255,0.72)" fontWeight="500">
               Total Spent
             </Text>
-            <Text fontSize="2xl" fontWeight="bold" color="brand.500" data-testid="total-spent">
+            <Text
+              fontFamily="heading"
+              fontSize={{ base: '52px', md: '76px' }}
+              lineHeight="0.95"
+              letterSpacing={{ base: '-2.6px', md: '-3.8px' }}
+              fontWeight="500"
+              color="white"
+              fontVariantNumeric="tabular-nums"
+              data-testid="total-spent"
+            >
               {formatCents(summary.total_spent_cents)}
             </Text>
           </Box>
@@ -379,7 +449,11 @@ function DashboardPage() {
 
           {/* Category cards — always show all categories */}
           {summary.categories.length > 0 && (
-            <Flex direction="column" gap={3}>
+            <Box
+              display="grid"
+              gridTemplateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}
+              gap={3}
+            >
               {summary.categories.map((cat) => (
                 <CategoryCard
                   key={cat.category_id}
@@ -391,16 +465,20 @@ function DashboardPage() {
                   onGoalClick={handleGoalClick}
                 />
               ))}
-            </Flex>
+            </Box>
           )}
 
           {/* Manage All Goals button — admin only */}
           {isAdmin && summary.categories.length > 0 && (
-            <Flex justify="flex-start" mt={4}>
+            <Flex justify="flex-start" mt={5}>
               <Button
-                variant="outline"
+                bg="surface.1"
+                color="ink"
                 size="sm"
-                colorPalette="brand"
+                borderRadius="pill"
+                minH="44px"
+                px={5}
+                _hover={{ bg: 'surface.2' }}
                 data-testid="manage-goals-btn"
                 onClick={() => setBulkEditorOpen(true)}
               >

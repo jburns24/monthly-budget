@@ -120,18 +120,20 @@ function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
         aria-label={`${label} (coming soon)`}
       >
         <Flex
-          direction="column"
+          direction={{ base: 'column', md: 'row' }}
           align="center"
           justify="center"
           flex={1}
-          py={2}
-          color="gray.400"
+          minH={{ base: '58px', md: '40px' }}
+          px={{ base: 1, md: 3 }}
+          color="ink.muted"
           cursor="not-allowed"
           aria-disabled="true"
-          gap={1}
+          gap={{ base: 1, md: 2 }}
+          opacity={0.45}
         >
           {icon}
-          <Text fontSize="xs" fontWeight="medium">
+          <Text fontSize="xs" fontWeight="medium" whiteSpace="nowrap">
             {label}
           </Text>
         </Flex>
@@ -147,17 +149,22 @@ function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
     >
       {({ isActive }: { isActive: boolean }) => (
         <Flex
-          direction="column"
+          direction={{ base: 'column', md: 'row' }}
           align="center"
           justify="center"
           flex={1}
-          py={2}
-          color={isActive ? 'brand.500' : 'gray.500'}
-          _hover={{ color: isActive ? 'brand.500' : 'teal.600' }}
-          gap={1}
+          minH={{ base: '58px', md: '40px' }}
+          px={{ base: 1, md: 3 }}
+          borderRadius={{ base: '14px', md: 'pill' }}
+          bg={isActive ? 'surface.2' : 'transparent'}
+          color={isActive ? 'ink' : 'ink.muted'}
+          _hover={{ color: 'ink', bg: isActive ? 'surface.2' : 'surface.1' }}
+          _active={{ transform: 'scale(0.97)' }}
+          transition="color 0.15s, background-color 0.15s, transform 0.1s"
+          gap={{ base: 1, md: 2 }}
         >
           {icon}
-          <Text fontSize="xs" fontWeight={isActive ? 'semibold' : 'medium'}>
+          <Text fontSize="xs" fontWeight="medium" whiteSpace="nowrap">
             {label}
           </Text>
         </Flex>
@@ -171,16 +178,23 @@ function BottomNavigation() {
     <Box
       as="nav"
       position="fixed"
-      bottom={0}
-      left={0}
-      right={0}
+      top={{ base: 'auto', md: '10px' }}
+      bottom={{ base: 0, md: 'auto' }}
+      left={{ base: 0, md: '50%' }}
+      right={{ base: 0, md: 'auto' }}
+      transform={{ base: 'none', md: 'translateX(-50%)' }}
       zIndex="sticky"
-      bg="white"
-      borderTopWidth="1px"
-      borderColor="gray.200"
+      bg={{ base: 'rgba(18, 18, 18, 0.94)', md: 'surface.1' }}
+      borderWidth="1px"
+      borderColor="hairline"
+      borderRadius={{ base: '20px 20px 0 0', md: 'pill' }}
+      boxShadow={{ base: '0 -8px 30px rgba(0,0,0,0.35)', md: '0 12px 35px rgba(0,0,0,0.35)' }}
+      backdropFilter="blur(18px)"
+      p={{ base: 1, md: 1 }}
+      w={{ base: '100%', md: 'auto' }}
       aria-label="Bottom navigation"
     >
-      <Flex>
+      <Flex minW={{ base: 0, md: '540px' }}>
         <NavItem to="/" icon={<DashboardIcon />} label="Dashboard" />
         <NavItem to="/expenses" icon={<ExpensesIcon />} label="Expenses" />
         <NavItem to="/categories" icon={<CategoriesIcon />} label="Categories" />

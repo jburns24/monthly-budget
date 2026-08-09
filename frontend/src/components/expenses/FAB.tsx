@@ -62,11 +62,13 @@ function FAB({ familyId }: FABProps) {
 
   const sharedFABStyles = {
     borderRadius: 'full' as const,
-    color: 'white',
+    color: 'ink',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: 'lg',
+    borderWidth: '1px',
+    borderColor: 'hairline',
+    boxShadow: '0 14px 35px rgba(0,0,0,0.42)',
     cursor: 'pointer',
     transition: 'background-color 0.15s, box-shadow 0.15s, transform 0.1s',
   } as const
@@ -90,12 +92,13 @@ function FAB({ familyId }: FABProps) {
               minW="40px"
               minH="40px"
               {...sharedFABStyles}
-              bg={isOnline ? 'brand.400' : 'gray.400'}
-              _hover={isOnline ? { bg: 'brand.500', boxShadow: 'xl' } : undefined}
-              _active={isOnline ? { bg: 'brand.600', transform: 'scale(0.95)' } : undefined}
+              bg={isOnline ? 'surface.2' : 'surface.1'}
+              color={isOnline ? 'ink' : 'ink.muted'}
+              _hover={isOnline ? { bg: 'surface.3' } : undefined}
+              _active={isOnline ? { transform: 'scale(0.95)' } : undefined}
               _focusVisible={{
                 outline: '2px solid',
-                outlineColor: 'brand.500',
+                outlineColor: 'accent.500',
                 outlineOffset: '2px',
               }}
               disabled={!isOnline}
@@ -125,12 +128,13 @@ function FAB({ familyId }: FABProps) {
         minW="48px"
         minH="48px"
         {...sharedFABStyles}
-        bg="brand.500"
-        _hover={{ bg: 'brand.600', boxShadow: 'xl' }}
+        bg="white"
+        color="canvas"
+        _hover={{ bg: 'brand.600', transform: 'translateY(-2px)' }}
         _active={{ bg: 'brand.700', transform: 'scale(0.95)' }}
         _focusVisible={{
           outline: '2px solid',
-          outlineColor: 'brand.500',
+          outlineColor: 'accent.500',
           outlineOffset: '2px',
         }}
         onClick={() => setCreateOpen(true)}

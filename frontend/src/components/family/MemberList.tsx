@@ -26,8 +26,15 @@ function MemberList({ members, currentUserId, familyId, isAdmin, ownerId }: Memb
   const [removeTarget, setRemoveTarget] = useState<FamilyMember | null>(null)
 
   return (
-    <Box>
-      <Heading as="h3" size="md" mb={3}>
+    <Box maxW="760px">
+      <Heading
+        as="h2"
+        fontFamily="heading"
+        fontSize={{ base: '28px', md: '32px' }}
+        fontWeight="500"
+        letterSpacing="-1px"
+        mb={4}
+      >
         Members
       </Heading>
       <Flex direction="column" gap={3}>
@@ -40,10 +47,11 @@ function MemberList({ members, currentUserId, familyId, isAdmin, ownerId }: Memb
             <Flex
               key={member.user_id}
               align="center"
-              p={3}
+              p={{ base: 3, md: 4 }}
               borderWidth="1px"
-              borderRadius="md"
-              borderColor="gray.200"
+              borderRadius="card"
+              borderColor="hairline"
+              bg="surface.1"
               gap={3}
             >
               <Flex
@@ -52,9 +60,11 @@ function MemberList({ members, currentUserId, familyId, isAdmin, ownerId }: Memb
                 w="40px"
                 h="40px"
                 borderRadius="full"
-                bg="teal.500"
-                color="white"
-                fontWeight="bold"
+                bg="surface.2"
+                borderWidth="1px"
+                borderColor="hairline"
+                color="ink"
+                fontWeight="500"
                 fontSize="sm"
                 flexShrink={0}
               >
@@ -72,11 +82,11 @@ function MemberList({ members, currentUserId, familyId, isAdmin, ownerId }: Memb
                 )}
               </Flex>
               <Box flex={1} minW={0}>
-                <Text fontWeight="medium" truncate>
+                <Text fontWeight="500" color="ink" truncate>
                   {member.display_name}
                   {isSelf && ' (you)'}
                 </Text>
-                <Text fontSize="sm" color="gray.500" truncate>
+                <Text fontSize="sm" color="ink.muted" truncate>
                   {member.email}
                 </Text>
               </Box>
