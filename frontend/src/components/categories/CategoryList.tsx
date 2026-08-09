@@ -21,18 +21,23 @@ function CategoryList({ categories, onEdit, onDelete }: CategoryListProps) {
   }
 
   return (
-    <Flex direction="column" gap={3}>
+    <Box
+      display="grid"
+      gridTemplateColumns={{ base: '1fr', md: 'repeat(2, minmax(0, 1fr))' }}
+      gap={3}
+    >
       {categories.map((category) => (
         <Flex
           key={category.id}
           align="center"
-          p={4}
+          p={{ base: 4, md: 5 }}
           borderWidth="1px"
-          borderRadius="md"
-          borderColor="gray.200"
+          borderRadius="card"
+          borderColor="hairline"
+          bg="surface.1"
           gap={3}
-          _hover={{ borderColor: 'brand.300', bg: 'gray.50' }}
-          transition="border-color 0.15s, background-color 0.15s"
+          _hover={{ borderColor: 'surface.3', bg: 'surface.2', transform: 'translateY(-2px)' }}
+          transition="border-color 0.15s, background-color 0.15s, transform 0.15s"
         >
           {/* Emoji icon */}
           <Flex
@@ -40,8 +45,10 @@ function CategoryList({ categories, onEdit, onDelete }: CategoryListProps) {
             justify="center"
             w="40px"
             h="40px"
-            borderRadius="md"
-            bg="brand.50"
+            borderRadius="10px"
+            bg="surface.2"
+            borderWidth="1px"
+            borderColor="hairline"
             flexShrink={0}
             fontSize="xl"
             aria-hidden="true"
@@ -51,10 +58,10 @@ function CategoryList({ categories, onEdit, onDelete }: CategoryListProps) {
 
           {/* Name */}
           <Box flex={1} minW={0}>
-            <Text fontWeight="medium" truncate>
+            <Text fontWeight="500" color="ink" truncate>
               {category.name}
             </Text>
-            <Text fontSize="xs" color="gray.400">
+            <Text fontSize="xs" color="ink.muted">
               Order: {category.sort_order}
             </Text>
           </Box>
@@ -64,8 +71,10 @@ function CategoryList({ categories, onEdit, onDelete }: CategoryListProps) {
             px={2}
             py={0.5}
             borderRadius="full"
-            bg={category.is_active ? 'green.100' : 'gray.100'}
-            color={category.is_active ? 'green.700' : 'gray.500'}
+            bg="surface.2"
+            color={category.is_active ? 'ink' : 'ink.muted'}
+            borderWidth="1px"
+            borderColor="hairline"
             fontSize="xs"
             fontWeight="medium"
           >
@@ -77,8 +86,9 @@ function CategoryList({ categories, onEdit, onDelete }: CategoryListProps) {
             <Flex gap={2} flexShrink={0}>
               <Button
                 size="xs"
-                variant="ghost"
-                colorPalette="brand"
+                color="ink"
+                bg="surface.2"
+                borderRadius="pill"
                 onClick={() => onEdit(category)}
                 aria-label={`Edit ${category.name}`}
               >
@@ -97,7 +107,7 @@ function CategoryList({ categories, onEdit, onDelete }: CategoryListProps) {
           )}
         </Flex>
       ))}
-    </Flex>
+    </Box>
   )
 }
 

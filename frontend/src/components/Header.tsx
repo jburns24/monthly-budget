@@ -18,7 +18,9 @@ function UserAvatar({ user }: { user: User }) {
       h={8}
       borderRadius="full"
       overflow="hidden"
-      bg="teal.500"
+      bg="surface.2"
+      borderWidth="1px"
+      borderColor="hairline"
       display="flex"
       alignItems="center"
       justifyContent="center"
@@ -31,7 +33,7 @@ function UserAvatar({ user }: { user: User }) {
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       ) : (
-        <Text color="white" fontSize="xs" fontWeight="bold" lineHeight={1}>
+        <Text color="ink" fontSize="xs" fontWeight="medium" lineHeight={1}>
           {initials}
         </Text>
       )}
@@ -51,22 +53,47 @@ function Header() {
   if (!user) return null
 
   return (
-    <Box as="header" bg="brand.500" py={3}>
-      <Container maxW="container.xl">
-        <Flex align="center" justify="space-between">
-          <Text fontWeight="bold" fontSize="lg" color="white" letterSpacing="-0.2px">
-            Monthly Budget
+    <Box
+      as="header"
+      position="sticky"
+      top={0}
+      zIndex="sticky"
+      bg="rgba(8, 8, 8, 0.88)"
+      borderBottomWidth="1px"
+      borderColor="hairline.soft"
+      backdropFilter="blur(18px)"
+    >
+      <Container maxW="1200px" px={{ base: 4, md: 8 }}>
+        <Flex align="center" justify="space-between" h="64px">
+          <Text
+            fontFamily="heading"
+            fontWeight="500"
+            fontSize="lg"
+            color="ink"
+            letterSpacing="-0.8px"
+          >
+            Monthly<span style={{ color: '#999' }}>.</span>Budget
           </Text>
-          <Flex align="center" gap={3}>
+          <Flex align="center" gap={{ base: 2, md: 3 }}>
             <UserAvatar user={user} />
-            <Text fontSize="sm" color="whiteAlpha.900">
+            <Text
+              display={{ base: 'none', md: 'block' }}
+              fontSize="sm"
+              color="ink.muted"
+              letterSpacing="-0.14px"
+            >
               {user.display_name}
             </Text>
             <Button
               size="sm"
-              variant="ghost"
-              color="white"
-              _hover={{ bg: 'whiteAlpha.200' }}
+              bg="surface.1"
+              color="ink"
+              borderRadius="pill"
+              px={4}
+              minH="40px"
+              fontWeight="500"
+              _hover={{ bg: 'surface.2' }}
+              _active={{ transform: 'scale(0.97)' }}
               onClick={() => void handleLogout()}
             >
               Sign out

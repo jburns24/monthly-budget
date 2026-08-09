@@ -14,7 +14,9 @@ import { FamilyProvider } from './contexts/FamilyContext'
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
     <FamilyProvider>
-      <Box pb="64px">{children}</Box>
+      <Box minH="calc(100svh - 64px)" pb={{ base: '76px', md: 0 }}>
+        {children}
+      </Box>
       <BottomNavigation />
     </FamilyProvider>
   )

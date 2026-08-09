@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Button, Container, Heading, Text, VStack } from '@chakra-ui/react'
+import { Box, Button, Container, Flex, Heading, Text, VStack } from '@chakra-ui/react'
 import { generateCodeVerifier, generateCodeChallenge, generateState } from '../utils/pkce'
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -47,38 +47,91 @@ function LoginPage() {
   return (
     <Box
       minH="100svh"
-      bgGradient="to-b"
-      gradientFrom="brand.500"
-      gradientTo="teal.500"
+      bg="canvas"
       display="flex"
       alignItems="center"
       justifyContent="center"
-      py={16}
-      px={4}
+      py={{ base: 10, md: 16 }}
     >
-      <Container maxW="sm">
-        <VStack gap={8} align="center">
-          <VStack gap={2} align="center">
-            <Heading as="h1" size="2xl" textAlign="center" color="white" fontWeight="800">
-              Monthly Budget
-            </Heading>
-            <Text fontSize="md" color="whiteAlpha.800" textAlign="center">
-              Sign in to manage your monthly budget
+      <Container maxW="1199px" px={{ base: 5, md: 8 }}>
+        <Flex direction={{ base: 'column', md: 'row' }} align="stretch" gap={{ base: 10, md: 16 }}>
+          <Box flex="1" display="flex" flexDirection="column" justifyContent="space-between">
+            <Text color="ink.muted" fontSize="13px" fontWeight="500" letterSpacing="0.08em">
+              MONTHLY.BUDGET
             </Text>
-          </VStack>
-          <Box w="full" p={8} bg="white" borderRadius="xl" boxShadow="xl">
-            <VStack gap={4}>
+            <Box py={{ base: 10, md: 0 }}>
+              <Heading
+                as="h1"
+                fontFamily="heading"
+                fontSize={{ base: '58px', md: '85px', lg: '110px' }}
+                lineHeight="0.85"
+                letterSpacing={{ base: '-2.9px', md: '-4.25px', lg: '-5.5px' }}
+                color="ink"
+                fontWeight="500"
+                maxW="720px"
+              >
+                Money,
+                <br />
+                made clear.
+              </Heading>
+              <Text color="ink.muted" fontSize="lg" mt={6} maxW="460px">
+                A quieter place to plan, spend, and stay aligned with your household.
+              </Text>
+            </Box>
+            <Text display={{ base: 'none', md: 'block' }} color="ink.muted" fontSize="xs">
+              Plan together. Spend deliberately.
+            </Text>
+          </Box>
+
+          <Box
+            flex="0 1 440px"
+            minH={{ base: 'auto', md: '560px' }}
+            p={{ base: 6, md: 8 }}
+            bg="surface.1"
+            borderRadius="spotlight"
+            borderWidth="1px"
+            borderColor="hairline"
+            boxShadow="inset 0 1px 0 rgba(255,255,255,0.08), 0 30px 80px rgba(0,0,0,0.4)"
+            display="flex"
+            flexDirection="column"
+            justifyContent="space-between"
+          >
+            <Box
+              h="180px"
+              borderRadius="card"
+              background="radial-gradient(circle at 25% 20%, rgba(255,255,255,0.32), transparent 24%), radial-gradient(circle at 75% 80%, #ef6a72 0, transparent 42%), linear-gradient(135deg, #4d277e, #d44bd3 62%, #f47a3b)"
+              boxShadow="inset 0 1px 0 rgba(255,255,255,0.18)"
+              aria-hidden="true"
+            />
+            <VStack gap={6} align="stretch" mt={10}>
+              <Box>
+                <Heading
+                  as="h2"
+                  fontFamily="heading"
+                  fontSize="32px"
+                  fontWeight="500"
+                  lineHeight="1.13"
+                  letterSpacing="-1px"
+                  color="ink"
+                >
+                  Monthly Budget
+                </Heading>
+                <Text fontSize="md" color="ink.muted" mt={2}>
+                  Sign in to continue to your budget.
+                </Text>
+              </Box>
+
               {error !== null && (
                 <Box
                   w="full"
                   p={3}
-                  bg="red.50"
-                  borderRadius="md"
+                  bg="rgba(239, 106, 114, 0.12)"
+                  borderRadius="10px"
                   borderWidth="1px"
-                  borderColor="red.200"
+                  borderColor="rgba(239, 106, 114, 0.35)"
                   role="alert"
                 >
-                  <Text color="red.700" fontSize="sm">
+                  <Text color="white" fontSize="sm">
                     {error}
                   </Text>
                 </Box>
@@ -86,18 +139,23 @@ function LoginPage() {
               <Button
                 onClick={() => void handleSignIn()}
                 disabled={isLoading}
-                variant="outline"
+                bg="white"
+                color="canvas"
                 size="lg"
                 w="full"
-                borderColor="gray.300"
+                minH="48px"
+                borderRadius="pill"
+                fontWeight="500"
                 gap={2}
+                _hover={{ bg: 'brand.600', transform: 'translateY(-1px)' }}
+                _active={{ transform: 'scale(0.98)' }}
               >
                 <GoogleIcon />
                 {isLoading ? 'Redirecting…' : 'Sign in with Google'}
               </Button>
             </VStack>
           </Box>
-        </VStack>
+        </Flex>
       </Container>
     </Box>
   )
