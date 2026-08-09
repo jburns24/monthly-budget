@@ -1,6 +1,6 @@
 {
   "lockfileVersion": 1,
-  "generatedAt": "2026-07-28T03:46:52Z",
+  "generatedAt": "2026-08-09T21:29:55Z",
   "skills": [
     {
       "name": "architecture-patterns",
@@ -252,6 +252,60 @@
         ".codex/skills/webapp-testing",
         ".cursor/skills/webapp-testing",
         ".gemini/skills/webapp-testing"
+      ]
+    },
+    {
+      "name": "grilling",
+      "path": ".agents/skills/grilling",
+      "source": {
+        "registry": "ghcr.io",
+        "repository": "jburns24/skills/grilling",
+        "tag": "0.0.1",
+        "digest": "sha256:4f77140577e8392008912fd6ad1ea706073d64fc20a1fade790b5e7d47c85fb2",
+        "ref": "ghcr.io/jburns24/skills/grilling:0.0.1@sha256:4f77140577e8392008912fd6ad1ea706073d64fc20a1fade790b5e7d47c85fb2"
+      },
+      "installedAt": "2026-08-09T21:29:53Z",
+      "additionalInstalledPaths": [
+        ".claude/skills/grilling",
+        ".codex/skills/grilling",
+        ".cursor/skills/grilling",
+        ".gemini/skills/grilling"
+      ]
+    },
+    {
+      "name": "domain-modeling",
+      "path": ".agents/skills/domain-modeling",
+      "source": {
+        "registry": "ghcr.io",
+        "repository": "jburns24/skills/domain-modeling",
+        "tag": "0.0.1",
+        "digest": "sha256:9990cbda9be673737a131196408e1cbcad1e64454aa28a002f71733fff61371a",
+        "ref": "ghcr.io/jburns24/skills/domain-modeling:0.0.1@sha256:9990cbda9be673737a131196408e1cbcad1e64454aa28a002f71733fff61371a"
+      },
+      "installedAt": "2026-08-09T21:29:54Z",
+      "additionalInstalledPaths": [
+        ".claude/skills/domain-modeling",
+        ".codex/skills/domain-modeling",
+        ".cursor/skills/domain-modeling",
+        ".gemini/skills/domain-modeling"
+      ]
+    },
+    {
+      "name": "grill-with-docs",
+      "path": ".agents/skills/grill-with-docs",
+      "source": {
+        "registry": "ghcr.io",
+        "repository": "jburns24/skills/grill-with-docs",
+        "tag": "0.0.1",
+        "digest": "sha256:2dc57d65069a9d4e6cf398434656ad221848ed617ecf401a2434b84692779705",
+        "ref": "ghcr.io/jburns24/skills/grill-with-docs:0.0.1@sha256:2dc57d65069a9d4e6cf398434656ad221848ed617ecf401a2434b84692779705"
+      },
+      "installedAt": "2026-08-09T21:29:55Z",
+      "additionalInstalledPaths": [
+        ".claude/skills/grill-with-docs",
+        ".codex/skills/grill-with-docs",
+        ".cursor/skills/grill-with-docs",
+        ".gemini/skills/grill-with-docs"
       ]
     }
   ]

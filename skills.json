@@ -153,6 +153,39 @@
         ".cursor/skills",
         ".gemini/skills"
       ]
+    },
+    {
+      "name": "grilling",
+      "source": "ghcr.io/jburns24/skills/grilling",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "domain-modeling",
+      "source": "ghcr.io/jburns24/skills/domain-modeling",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
+    },
+    {
+      "name": "grill-with-docs",
+      "source": "ghcr.io/jburns24/skills/grill-with-docs",
+      "version": "0.0.1",
+      "additionalBasePaths": [
+        ".claude/skills",
+        ".codex/skills",
+        ".cursor/skills",
+        ".gemini/skills"
+      ]
     }
   ]
 }
