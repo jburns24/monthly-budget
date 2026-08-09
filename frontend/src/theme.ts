@@ -119,7 +119,6 @@ const config = defineConfig({
       fontFeatureSettings: '"cv01", "cv05", "cv09", "cv11", "ss03", "ss07", "dlig"',
       letterSpacing: '-0.15px',
       lineHeight: '1.3',
-      WebkitFontSmoothing: 'antialiased',
     },
     '*::selection': {
       bg: 'accent.500',

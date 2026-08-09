@@ -28,7 +28,7 @@ tasks:
   typecheck:
     desc: Run TypeScript type checking
     cmds:
-      - npx tsc --noEmit
+      - npx tsc -b
 
   test:
     desc: Run frontend tests
