@@ -90,14 +90,16 @@ repos:
         pass_filenames: false
 
   # ---------------------------------------------------------------------------
-  # Frontend: tsc --noEmit — uses project-local tsc from node_modules
+  # Frontend: tsc build mode — uses project-local tsc from node_modules
   # ---------------------------------------------------------------------------
   - repo: local
     hooks:
       - id: tsc
-        name: tsc --noEmit (frontend)
+        name: tsc -b (frontend)
         language: system
-        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        # The root tsconfig is a solution config with only project references.
+        # Build mode follows those references; plain `tsc --noEmit` checks no files.
+        entry: bash -c 'cd frontend && npx tsc -b'
         types_or: [ts, tsx]
         pass_filenames: false
 
