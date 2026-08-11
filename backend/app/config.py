@@ -77,6 +77,14 @@ class Settings(BaseSettings):
         default="",
         description="JWT signing secret",
     )
+    jwt_access_token_expire_minutes: int = Field(
+        default=15,
+        description="Access JWT lifetime in minutes (short-lived; refreshed via refresh cookie)",
+    )
+    jwt_refresh_token_expire_days: int = Field(
+        default=7,
+        description="Refresh JWT lifetime in days (bounds the overall signed-in session)",
+    )
     google_client_id: str = Field(
         default="",
         description="Google OAuth 2.0 client ID",

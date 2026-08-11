@@ -5,6 +5,15 @@ interface QueueEntry {
   init: RequestInit | undefined
 }
 
+export interface ApiClientOptions {
+  /**
+   * When true (default), a failed refresh sends the browser to /login.
+   * Auth probes (e.g. fetchCurrentUser on /login) should set false so a
+   * missing session returns null instead of forcing a navigation loop.
+   */
+  redirectOnAuthFailure?: boolean
+}
+
 let isRefreshing = false
 let requestQueue: QueueEntry[] = []
 
@@ -22,7 +31,12 @@ function processQueue(error: Error | null): void {
   })
 }
 
-export async function apiClient(input: string, init?: RequestInit): Promise<Response> {
+export async function apiClient(
+  input: string,
+  init?: RequestInit,
+  options?: ApiClientOptions
+): Promise<Response> {
+  const redirectOnAuthFailure = options?.redirectOnAuthFailure !== false
   const response = await fetch(input, { ...init, credentials: 'include' })
 
   if (response.status !== 401) {
@@ -52,7 +66,9 @@ export async function apiClient(input: string, init?: RequestInit): Promise<Resp
     const error = err instanceof Error ? err : new Error(String(err))
     isRefreshing = false
     processQueue(error)
-    window.location.href = '/login'
+    if (redirectOnAuthFailure) {
+      window.location.href = '/login'
+    }
     throw error
   }
 }
