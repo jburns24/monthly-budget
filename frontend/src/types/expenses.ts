@@ -71,4 +71,6 @@ export interface BudgetSummaryResponse {
   total_income_cents: number
   categories: BudgetCategorySummary[]
   is_editable?: boolean
+  /** Present once Slice B ships; drives the month-start StartingBalancePrompt. */
+  has_starting_balance?: boolean
 }
