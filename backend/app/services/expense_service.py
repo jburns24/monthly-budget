@@ -258,6 +258,9 @@ def build_budget_summary(
     rows: list[CategorySpendRow],
     year_month: str,
     is_editable: bool,
+    *,
+    total_income_cents: int = 0,
+    has_starting_balance: bool = False,
 ) -> BudgetSummaryResponse:
     """Turn plain spend/goal rows into a BudgetSummaryResponse. Pure — no I/O.
 
@@ -267,6 +270,10 @@ def build_budget_summary(
     data (``tests/unit/test_budget_summary.py``); the SQL itself lives in
     ``BudgetQuery.category_spend_and_goals`` and is Postgres-tier only
     (``tests/test_sqlalchemy_adapter.py``).
+
+    ``total_income_cents`` and ``has_starting_balance`` come from
+    ``BudgetQuery.month_totals`` — income has no category, so it is not in
+    ``rows``. Category ``spent_cents`` values are expense-only.
     """
     category_summaries: list[BudgetCategorySummary] = []
     total_spent_cents = 0
@@ -291,6 +298,8 @@ def build_budget_summary(
     return BudgetSummaryResponse(
         year_month=year_month,
         total_spent_cents=total_spent_cents,
+        total_income_cents=total_income_cents,
+        has_starting_balance=has_starting_balance,
         categories=category_summaries,
         is_editable=is_editable,
     )
@@ -311,7 +320,15 @@ async def get_budget_summary(
     :func:`build_budget_summary`.
     """
     rows = await uow.budget.category_spend_and_goals(family_id, year_month)
-    summary = build_budget_summary(rows, year_month, is_editable)
+    total_income_cents, _ = await uow.budget.month_totals(family_id, year_month)
+    has_starting_balance = await uow.budget.has_starting_balance(family_id, year_month)
+    summary = build_budget_summary(
+        rows,
+        year_month,
+        is_editable,
+        total_income_cents=total_income_cents,
+        has_starting_balance=has_starting_balance,
+    )
 
     logger.info(
         "budget_summary_fetched",
@@ -319,6 +336,8 @@ async def get_budget_summary(
         year_month=year_month,
         category_count=len(summary.categories),
         total_spent_cents=summary.total_spent_cents,
+        total_income_cents=summary.total_income_cents,
+        has_starting_balance=summary.has_starting_balance,
         is_editable=is_editable,
     )
     return summary

@@ -395,6 +395,49 @@ async def test_budget_summary_aggregates_spending_per_category(
     assert transport_summary.status == "none"
 
     assert summary.total_spent_cents == 17500
+    assert summary.total_income_cents == 0
+    assert summary.has_starting_balance is False
+
+
+@pytest.mark.asyncio
+async def test_budget_summary_mixed_month_excludes_income_from_spent(
+    db_session: AsyncSession, uow: SqlAlchemyUnitOfWork
+) -> None:
+    """Income rows count toward total_income_cents only; spent stays expense-only."""
+    family, user = await _make_family(db_session)
+    groceries = await create_test_category(db_session, family, name="Groceries")
+    await create_test_expense(db_session, family, user, groceries, amount_cents=15000, year_month="2026-04")
+    await create_test_expense(
+        db_session,
+        family,
+        user,
+        groceries,
+        amount_cents=500000,
+        year_month="2026-04",
+        category_id=None,
+        entry_type="income",
+        description="Paycheck",
+    )
+    await create_test_expense(
+        db_session,
+        family,
+        user,
+        groceries,
+        amount_cents=100000,
+        year_month="2026-04",
+        category_id=None,
+        entry_type="income",
+        is_starting_balance=True,
+        description="Starting balance",
+    )
+
+    summary = await get_budget_summary(uow, family_id=family.id, year_month="2026-04", is_editable=True)
+
+    assert summary.total_spent_cents == 15000
+    assert summary.total_income_cents == 600000
+    assert summary.has_starting_balance is True
+    groceries_summary = next(c for c in summary.categories if c.category_name == "Groceries")
+    assert groceries_summary.spent_cents == 15000
 
 
 @pytest.mark.asyncio
