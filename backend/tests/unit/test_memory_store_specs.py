@@ -43,7 +43,14 @@ def test_server_defaults_get_a_timezone_aware_python_stand_in() -> None:
 def test_every_auto_filled_column_is_covered() -> None:
     """Nothing the database would populate is left as None by flush()."""
     assert set(model_spec(Category).defaults) == {"id", "sort_order", "is_active", "created_at"}
-    assert set(model_spec(Expense).defaults) == {"id", "description", "created_at", "updated_at"}
+    assert set(model_spec(Expense).defaults) == {
+        "id",
+        "description",
+        "entry_type",
+        "is_starting_balance",
+        "created_at",
+        "updated_at",
+    }
 
 
 def test_composite_unique_constraints_are_derived_from_the_table() -> None:
@@ -51,9 +58,15 @@ def test_composite_unique_constraints_are_derived_from_the_table() -> None:
     assert model_spec(Category).unique == (UniqueIndex("uq_categories_family_name", ("family_id", "name")),)
 
 
-def test_a_model_without_unique_constraints_gets_an_empty_tuple() -> None:
-    """Expense has only a CHECK constraint, which the fake does not emulate."""
-    assert model_spec(Expense).unique == ()
+def test_partial_unique_indexes_are_derived_from_the_table() -> None:
+    """A boolean-column postgresql_where becomes UniqueIndex.where_field."""
+    assert model_spec(Expense).unique == (
+        UniqueIndex(
+            "uq_expenses_starting_balance_per_family_month",
+            ("family_id", "year_month"),
+            where_field="is_starting_balance",
+        ),
+    )
 
 
 def test_an_unrecognised_server_default_fails_loudly() -> None:
