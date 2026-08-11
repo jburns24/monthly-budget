@@ -102,6 +102,7 @@ Taskfile as the CLI entry point.
 - Routing: react-router-dom v7
 - Data fetching: TanStack React Query
 - Testing: Vitest + Testing Library + happy-dom/jsdom
+- **UI styling:** follow [DESIGN.md](DESIGN.md) (dark-canvas Framer marketing system — tokens, typography, components, do's/don'ts). Prefer its token names (`colors.*`, `typography.*`, `rounded.*`, `spacing.*`, `components.*`) when implementing or restyling UI.
 
 ### Infrastructure
 - **k3d.yaml** — cluster `monthly-budget` (1 server + 1 agent), Traefik ingress published on host :8080, k3d-managed image registry `monthly-budget-registry` (host :5111 / in-cluster :5000)
