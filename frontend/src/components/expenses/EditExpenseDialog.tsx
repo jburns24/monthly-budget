@@ -13,8 +13,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { updateExpense } from '../../api/expenses'
 import { getCategories } from '../../api/categories'
-import type { Expense } from '../../types/expenses'
+import type { EntryType, Expense, ExpenseUpdate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
+import EntryTypeToggle from './EntryTypeToggle'
 
 interface EditExpenseDialogProps {
   open: boolean
@@ -31,10 +32,12 @@ interface EditFormProps {
 
 function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
   const queryClient = useQueryClient()
+  const [entryType, setEntryType] = useState<EntryType>(expense.entry_type)
   const [amountStr, setAmountStr] = useState(String(expense.amount_cents / 100))
   const [description, setDescription] = useState(expense.description)
   const [categoryId, setCategoryId] = useState(expense.category?.id ?? '')
   const [expenseDate, setExpenseDate] = useState(expense.expense_date)
+  const isIncome = entryType === 'income'
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories', familyId],
@@ -44,19 +47,23 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
   const mutation = useMutation({
     mutationFn: () => {
       const amountCents = Math.round(parseFloat(amountStr) * 100)
-      return updateExpense(familyId, expense.id, {
+      const payload: ExpenseUpdate = {
         amount_cents: amountCents,
         description: description.trim(),
-        category_id: categoryId,
         expense_date: expenseDate,
+        entry_type: entryType,
         expected_updated_at: expense.updated_at,
-      })
+      }
+      if (!isIncome) {
+        payload.category_id = categoryId
+      }
+      return updateExpense(familyId, expense.id, payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
       toaster.create({
-        title: 'Expense updated',
+        title: isIncome ? 'Income updated' : 'Expense updated',
         type: 'success',
         duration: 4000,
       })
@@ -72,7 +79,9 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
       } else {
         toaster.create({
           title: 'Error',
-          description: 'Failed to update expense. Please try again.',
+          description: isIncome
+            ? 'Failed to update income. Please try again.'
+            : 'Failed to update expense. Please try again.',
           type: 'error',
           duration: 4000,
         })
@@ -85,13 +94,26 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
     amountStr.trim().length > 0 &&
     !isNaN(amountCents) &&
     amountCents > 0 &&
-    categoryId.trim().length > 0 &&
-    expenseDate.trim().length > 0
+    expenseDate.trim().length > 0 &&
+    (isIncome || categoryId.trim().length > 0)
 
   return (
     <>
+      <DialogHeader>
+        <DialogTitle>{isIncome ? 'Edit Income' : 'Edit Expense'}</DialogTitle>
+      </DialogHeader>
       <DialogBody>
         <Stack gap={4}>
+          <Stack gap={1}>
+            <Text fontWeight="medium" fontSize="sm">
+              Type
+            </Text>
+            <EntryTypeToggle
+              value={entryType}
+              onChange={setEntryType}
+              disabled={mutation.isPending}
+            />
+          </Stack>
           <Stack gap={1}>
             <Text fontWeight="medium" fontSize="sm">
               Amount{' '}
@@ -113,7 +135,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
               Description
             </Text>
             <Input
-              placeholder="e.g. Weekly shop"
+              placeholder={isIncome ? 'e.g. Paycheck' : 'e.g. Weekly shop'}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={500}
@@ -121,28 +143,30 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
               data-testid="edit-expense-description"
             />
           </Stack>
-          <Stack gap={1}>
-            <Text fontWeight="medium" fontSize="sm">
-              Category{' '}
-              <Text as="span" color="red.500">
-                *
+          {!isIncome && (
+            <Stack gap={1}>
+              <Text fontWeight="medium" fontSize="sm">
+                Category{' '}
+                <Text as="span" color="red.500">
+                  *
+                </Text>
               </Text>
-            </Text>
-            <NativeSelectRoot disabled={mutation.isPending}>
-              <NativeSelectField
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                data-testid="edit-expense-category"
-              >
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.icon ? `${cat.icon} ` : ''}
-                    {cat.name}
-                  </option>
-                ))}
-              </NativeSelectField>
-            </NativeSelectRoot>
-          </Stack>
+              <NativeSelectRoot disabled={mutation.isPending}>
+                <NativeSelectField
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  data-testid="edit-expense-category"
+                >
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon ? `${cat.icon} ` : ''}
+                      {cat.name}
+                    </option>
+                  ))}
+                </NativeSelectField>
+              </NativeSelectRoot>
+            </Stack>
+          )}
           <Stack gap={1}>
             <Text fontWeight="medium" fontSize="sm">
               Date{' '}
@@ -183,16 +207,17 @@ function EditExpenseDialog({ open, onOpenChange, familyId, expense }: EditExpens
       <DialogBackdrop />
       <DialogPositioner>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Expense</DialogTitle>
-          </DialogHeader>
-          {expense && (
+          {expense ? (
             <EditForm
               key={expense.id + expense.updated_at}
               expense={expense}
               familyId={familyId}
               onOpenChange={onOpenChange}
             />
+          ) : (
+            <DialogHeader>
+              <DialogTitle>Edit Expense</DialogTitle>
+            </DialogHeader>
           )}
         </DialogContent>
       </DialogPositioner>

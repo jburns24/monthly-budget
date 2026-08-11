@@ -1,5 +1,6 @@
 import { Badge, Box, Button, Flex, Text } from '@chakra-ui/react'
 import type { Expense } from '../../types/expenses'
+import { formatCents } from '../../utils/format'
 
 interface ExpenseListProps {
   expenses: Expense[]
@@ -7,8 +8,9 @@ interface ExpenseListProps {
   onDelete: (expense: Expense) => void
 }
 
-function formatAmount(amountCents: number): string {
-  return `$${(amountCents / 100).toFixed(2)}`
+function formatSignedAmount(amountCents: number, entryType: Expense['entry_type']): string {
+  const formatted = formatCents(amountCents)
+  return entryType === 'income' ? `+${formatted}` : `−${formatted}`
 }
 
 function formatDate(dateString: string): string {
@@ -29,167 +31,180 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
 
   return (
     <Flex direction="column" gap={3} data-testid="expense-list">
-      {expenses.map((expense) => (
-        <Flex
-          key={expense.id}
-          align="center"
-          p={{ base: 4, md: 5 }}
-          borderWidth="1px"
-          borderRadius="card"
-          borderColor="hairline"
-          bg="surface.1"
-          gap={3}
-          _hover={{ borderColor: 'surface.3', bg: 'surface.2', transform: 'translateY(-2px)' }}
-          transition="border-color 0.15s, background-color 0.15s, transform 0.15s"
-          data-testid={`expense-card-${expense.id}`}
-        >
-          {/* Category icon with optional receipt badge overlay */}
-          <Box position="relative" flexShrink={0}>
-            <Flex
-              align="center"
-              justify="center"
-              w="40px"
-              h="40px"
-              borderRadius="10px"
-              bg="surface.2"
-              borderWidth="1px"
-              borderColor="hairline"
-              fontSize="xl"
-              aria-hidden="true"
-              data-testid={`expense-category-icon-${expense.id}`}
-            >
-              {expense.category?.icon ?? '📁'}
-            </Flex>
-            {expense.receipt_status === 'completed' && (
-              <Box
-                position="absolute"
-                bottom="-4px"
-                right="-4px"
-                fontSize="10px"
-                lineHeight={1}
-                title="Added via receipt"
-                data-testid={`expense-receipt-badge-${expense.id}`}
-                aria-label="Added via receipt"
-              >
-                📄
-              </Box>
-            )}
-          </Box>
-
-          {/* Description and meta */}
-          <Box flex={1} minW={0}>
-            <Flex align="center" gap={2} flexWrap="wrap">
-              <Text
-                fontWeight="500"
-                color="ink"
-                truncate
-                data-testid={`expense-description-${expense.id}`}
-              >
-                {expense.description || '(no description)'}
-              </Text>
-              {expense.receipt_status === 'completed' && expense.amount_cents === 0 && (
-                <Badge
-                  colorPalette="yellow"
-                  variant="subtle"
-                  size="sm"
-                  data-testid={`expense-needs-review-${expense.id}`}
-                >
-                  Needs review
-                </Badge>
-              )}
-            </Flex>
-            <Flex gap={2} align="center" flexWrap="wrap">
-              <Text
-                fontSize="xs"
-                color="ink.muted"
-                data-testid={`expense-category-name-${expense.id}`}
-              >
-                {expense.category?.icon ? `${expense.category.icon} ` : ''}
-                {expense.category?.name ?? 'Uncategorized'}
-              </Text>
-              <Text fontSize="xs" color="ink.muted" aria-hidden="true">
-                ·
-              </Text>
-              <Text fontSize="xs" color="ink.muted" data-testid={`expense-user-${expense.id}`}>
-                {expense.created_by_user.display_name}
-              </Text>
-              <Text fontSize="xs" color="ink.muted" aria-hidden="true">
-                ·
-              </Text>
-              <Text fontSize="xs" color="ink.muted" data-testid={`expense-date-${expense.id}`}>
-                {formatDate(expense.expense_date)}
-              </Text>
-            </Flex>
-          </Box>
-
-          {/* Amount */}
-          <Text
-            fontWeight="500"
-            fontSize={{ base: 'sm', md: 'md' }}
-            color="ink"
-            fontVariantNumeric="tabular-nums"
-            flexShrink={0}
-            data-testid={`expense-amount-${expense.id}`}
+      {expenses.map((expense) => {
+        const isIncome = expense.entry_type === 'income'
+        return (
+          <Flex
+            key={expense.id}
+            align="center"
+            p={{ base: 4, md: 5 }}
+            borderWidth="1px"
+            borderRadius="card"
+            borderColor="hairline"
+            bg="surface.1"
+            gap={3}
+            _hover={{ borderColor: 'surface.3', bg: 'surface.2', transform: 'translateY(-2px)' }}
+            transition="border-color 0.15s, background-color 0.15s, transform 0.15s"
+            data-testid={`expense-card-${expense.id}`}
           >
-            {formatAmount(expense.amount_cents)}
-          </Text>
+            {/* Category icon with optional receipt badge overlay */}
+            <Box position="relative" flexShrink={0}>
+              <Flex
+                align="center"
+                justify="center"
+                w="40px"
+                h="40px"
+                borderRadius="10px"
+                bg="surface.2"
+                borderWidth="1px"
+                borderColor="hairline"
+                fontSize="xl"
+                aria-hidden="true"
+                data-testid={`expense-category-icon-${expense.id}`}
+              >
+                {isIncome ? '💵' : (expense.category?.icon ?? '📁')}
+              </Flex>
+              {expense.receipt_status === 'completed' && (
+                <Box
+                  position="absolute"
+                  bottom="-4px"
+                  right="-4px"
+                  fontSize="10px"
+                  lineHeight={1}
+                  title="Added via receipt"
+                  data-testid={`expense-receipt-badge-${expense.id}`}
+                  aria-label="Added via receipt"
+                >
+                  📄
+                </Box>
+              )}
+            </Box>
 
-          {/* Edit and delete controls */}
-          <Flex gap={2} flexShrink={0}>
-            <Button
-              size="xs"
-              bg="surface.2"
-              color="ink"
-              borderRadius="full"
-              _hover={{ bg: 'surface.3' }}
-              onClick={() => onEdit(expense)}
-              aria-label={`Edit expense ${expense.description || expense.id}`}
-              data-testid={`expense-edit-btn-${expense.id}`}
+            {/* Description and meta */}
+            <Box flex={1} minW={0}>
+              <Flex align="center" gap={2} flexWrap="wrap">
+                <Text
+                  fontWeight="500"
+                  color="ink"
+                  truncate
+                  data-testid={`expense-description-${expense.id}`}
+                >
+                  {expense.description || '(no description)'}
+                </Text>
+                <Badge
+                  size="sm"
+                  variant="subtle"
+                  color={isIncome ? 'income' : 'spend'}
+                  data-testid={`expense-entry-type-${expense.id}`}
+                >
+                  {isIncome ? 'Income' : 'Expense'}
+                </Badge>
+                {expense.receipt_status === 'completed' && expense.amount_cents === 0 && (
+                  <Badge
+                    colorPalette="yellow"
+                    variant="subtle"
+                    size="sm"
+                    data-testid={`expense-needs-review-${expense.id}`}
+                  >
+                    Needs review
+                  </Badge>
+                )}
+              </Flex>
+              <Flex gap={2} align="center" flexWrap="wrap">
+                <Text
+                  fontSize="xs"
+                  color="ink.muted"
+                  data-testid={`expense-category-name-${expense.id}`}
+                >
+                  {isIncome
+                    ? 'Income'
+                    : `${expense.category?.icon ? `${expense.category.icon} ` : ''}${expense.category?.name ?? 'Uncategorized'}`}
+                </Text>
+                <Text fontSize="xs" color="ink.muted" aria-hidden="true">
+                  ·
+                </Text>
+                <Text fontSize="xs" color="ink.muted" data-testid={`expense-user-${expense.id}`}>
+                  {expense.created_by_user.display_name}
+                </Text>
+                <Text fontSize="xs" color="ink.muted" aria-hidden="true">
+                  ·
+                </Text>
+                <Text fontSize="xs" color="ink.muted" data-testid={`expense-date-${expense.id}`}>
+                  {formatDate(expense.expense_date)}
+                </Text>
+              </Flex>
+            </Box>
+
+            {/* Amount — color + sign/label so type is never color-only */}
+            <Text
+              fontWeight="500"
+              fontSize={{ base: 'sm', md: 'md' }}
+              color={isIncome ? 'income' : 'spend'}
+              fontVariantNumeric="tabular-nums"
+              flexShrink={0}
+              data-testid={`expense-amount-${expense.id}`}
+              data-entry-type={expense.entry_type}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+              {formatSignedAmount(expense.amount_cents, expense.entry_type)}
+            </Text>
+
+            {/* Edit and delete controls */}
+            <Flex gap={2} flexShrink={0}>
+              <Button
+                size="xs"
+                bg="surface.2"
+                color="ink"
+                borderRadius="full"
+                _hover={{ bg: 'surface.3' }}
+                onClick={() => onEdit(expense)}
+                aria-label={`Edit ${isIncome ? 'income' : 'expense'} ${expense.description || expense.id}`}
+                data-testid={`expense-edit-btn-${expense.id}`}
               >
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </Button>
-            <Button
-              size="xs"
-              variant="ghost"
-              colorPalette="red"
-              onClick={() => onDelete(expense)}
-              aria-label={`Delete expense ${expense.description || expense.id}`}
-              data-testid={`expense-delete-btn-${expense.id}`}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                colorPalette="red"
+                onClick={() => onDelete(expense)}
+                aria-label={`Delete ${isIncome ? 'income' : 'expense'} ${expense.description || expense.id}`}
+                data-testid={`expense-delete-btn-${expense.id}`}
               >
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6" />
-                <path d="M14 11v6" />
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-              </svg>
-            </Button>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </Button>
+            </Flex>
           </Flex>
-        </Flex>
-      ))}
+        )
+      })}
     </Flex>
   )
 }

@@ -13,7 +13,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createExpense } from '../../api/expenses'
 import { getCategories } from '../../api/categories'
+import type { EntryType, ExpenseCreate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
+import EntryTypeToggle from './EntryTypeToggle'
 
 const LAST_USED_CATEGORY_KEY = 'lastUsedCategoryId'
 
@@ -42,10 +44,12 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   const queryClient = useQueryClient()
   const amountRef = useRef<HTMLInputElement>(null)
 
+  const [entryType, setEntryType] = useState<EntryType>('expense')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [expenseDate, setExpenseDate] = useState(todayString)
+  const isIncome = entryType === 'income'
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories', familyId],
@@ -68,19 +72,25 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   const mutation = useMutation({
     mutationFn: () => {
       const amountCents = Math.round(parseFloat(amount) * 100)
-      return createExpense(familyId, {
+      const payload: ExpenseCreate = {
         amount_cents: amountCents,
         description: description.trim() || undefined,
-        category_id: effectiveCategoryId,
         expense_date: expenseDate,
-      })
+        entry_type: entryType,
+      }
+      if (!isIncome) {
+        payload.category_id = effectiveCategoryId
+      }
+      return createExpense(familyId, payload)
     },
     onSuccess: () => {
-      localStorage.setItem(LAST_USED_CATEGORY_KEY, effectiveCategoryId)
+      if (!isIncome) {
+        localStorage.setItem(LAST_USED_CATEGORY_KEY, effectiveCategoryId)
+      }
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
       toaster.create({
-        title: 'Expense added',
+        title: isIncome ? 'Income added' : 'Expense added',
         description: `$${parseFloat(amount).toFixed(2)} recorded successfully.`,
         type: 'success',
         duration: 4000,
@@ -90,7 +100,9 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
     onError: () => {
       toaster.create({
         title: 'Error',
-        description: 'Failed to add expense. Please try again.',
+        description: isIncome
+          ? 'Failed to add income. Please try again.'
+          : 'Failed to add expense. Please try again.',
         type: 'error',
         duration: 4000,
       })
@@ -98,6 +110,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   })
 
   function handleClose() {
+    setEntryType('expense')
     setAmount('')
     setDescription('')
     setExpenseDate(todayString())
@@ -110,8 +123,8 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
     amount.trim().length > 0 &&
     !isNaN(parsedAmount) &&
     parsedAmount > 0 &&
-    effectiveCategoryId.length > 0 &&
-    expenseDate.length > 0
+    expenseDate.length > 0 &&
+    (isIncome || effectiveCategoryId.length > 0)
 
   return (
     <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()} placement="center">
@@ -119,10 +132,20 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
       <DialogPositioner>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Expense</DialogTitle>
+            <DialogTitle>{isIncome ? 'Add Income' : 'Add Expense'}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <Stack gap={4}>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  Type
+                </Text>
+                <EntryTypeToggle
+                  value={entryType}
+                  onChange={setEntryType}
+                  disabled={mutation.isPending}
+                />
+              </Stack>
               <Stack gap={1}>
                 <Text fontWeight="medium" fontSize="sm">
                   Amount{' '}
@@ -146,7 +169,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
                   Description
                 </Text>
                 <Input
-                  placeholder="e.g. Weekly groceries"
+                  placeholder={isIncome ? 'e.g. Paycheck' : 'e.g. Weekly groceries'}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   maxLength={500}
@@ -154,28 +177,30 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
                   data-testid="expense-description-input"
                 />
               </Stack>
-              <Stack gap={1}>
-                <Text fontWeight="medium" fontSize="sm">
-                  Category{' '}
-                  <Text as="span" color="red.500">
-                    *
+              {!isIncome && (
+                <Stack gap={1}>
+                  <Text fontWeight="medium" fontSize="sm">
+                    Category{' '}
+                    <Text as="span" color="red.500">
+                      *
+                    </Text>
                   </Text>
-                </Text>
-                <NativeSelectRoot disabled={mutation.isPending}>
-                  <NativeSelectField
-                    value={effectiveCategoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    data-testid="expense-category-select"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.icon ? `${cat.icon} ` : ''}
-                        {cat.name}
-                      </option>
-                    ))}
-                  </NativeSelectField>
-                </NativeSelectRoot>
-              </Stack>
+                  <NativeSelectRoot disabled={mutation.isPending}>
+                    <NativeSelectField
+                      value={effectiveCategoryId}
+                      onChange={(e) => setCategoryId(e.target.value)}
+                      data-testid="expense-category-select"
+                    >
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.icon ? `${cat.icon} ` : ''}
+                          {cat.name}
+                        </option>
+                      ))}
+                    </NativeSelectField>
+                  </NativeSelectRoot>
+                </Stack>
+              )}
               <Stack gap={1}>
                 <Text fontWeight="medium" fontSize="sm">
                   Date{' '}
@@ -204,7 +229,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
               disabled={!isValid}
               data-testid="expense-submit-btn"
             >
-              Add Expense
+              {isIncome ? 'Add Income' : 'Add Expense'}
             </Button>
           </DialogFooter>
         </DialogContent>
