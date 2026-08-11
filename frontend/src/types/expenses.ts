@@ -69,6 +69,7 @@ export interface BudgetSummaryResponse {
   year_month: string
   total_spent_cents: number
   total_income_cents: number
+  has_starting_balance: boolean
   categories: BudgetCategorySummary[]
   is_editable?: boolean
 }

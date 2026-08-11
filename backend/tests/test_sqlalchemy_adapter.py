@@ -1291,3 +1291,95 @@ async def test_category_spend_and_goals_is_scoped_to_the_family_and_month(db_ses
 
     assert len(rows) == 1
     assert rows[0].spent_cents == 1000
+
+
+async def test_category_spend_and_goals_excludes_income_rows(db_session, uow_factory) -> None:
+    """Category spend sums only entry_type='expense'; income must not inflate spent."""
+    family, owner = await _make_family(db_session)
+    groceries = await _insert(db_session, family, "Groceries")
+    await create_test_expense(db_session, family, owner, groceries, amount_cents=15000, year_month="2026-04")
+    await create_test_expense(
+        db_session,
+        family,
+        owner,
+        groceries,
+        amount_cents=500000,
+        year_month="2026-04",
+        category_id=None,
+        entry_type="income",
+        description="Paycheck",
+    )
+    uow = uow_factory(db_session)
+
+    rows = await uow.budget.category_spend_and_goals(family.id, "2026-04")
+
+    by_name = {r.category_name: r for r in rows}
+    assert by_name["Groceries"].spent_cents == 15000
+
+
+async def test_month_totals_separates_income_and_expense_spend(db_session, uow_factory) -> None:
+    """month_totals returns (income, spent) with spent excluding income rows."""
+    family, owner = await _make_family(db_session)
+    groceries = await _insert(db_session, family, "Groceries")
+    await create_test_expense(db_session, family, owner, groceries, amount_cents=15000, year_month="2026-04")
+    await create_test_expense(db_session, family, owner, groceries, amount_cents=2500, year_month="2026-04")
+    await create_test_expense(
+        db_session,
+        family,
+        owner,
+        groceries,
+        amount_cents=400000,
+        year_month="2026-04",
+        category_id=None,
+        entry_type="income",
+        description="Paycheck",
+    )
+    await create_test_expense(
+        db_session,
+        family,
+        owner,
+        groceries,
+        amount_cents=100000,
+        year_month="2026-04",
+        category_id=None,
+        entry_type="income",
+        description="Side gig",
+    )
+    uow = uow_factory(db_session)
+
+    income_cents, spent_cents = await uow.budget.month_totals(family.id, "2026-04")
+
+    assert income_cents == 500000
+    assert spent_cents == 17500
+
+
+async def test_month_totals_zero_when_empty(db_session, uow_factory) -> None:
+    family, _ = await _make_family(db_session)
+    uow = uow_factory(db_session)
+
+    assert await uow.budget.month_totals(family.id, "2026-04") == (0, 0)
+
+
+async def test_has_starting_balance_is_true_only_when_flagged_income_exists(db_session, uow_factory) -> None:
+    """Cheap EXISTS for Slice E — true when a starting-balance income row exists that month."""
+    family, owner = await _make_family(db_session)
+    groceries = await _insert(db_session, family, "Groceries")
+    uow = uow_factory(db_session)
+
+    assert await uow.budget.has_starting_balance(family.id, "2026-04") is False
+
+    await create_test_expense(
+        db_session,
+        family,
+        owner,
+        groceries,
+        amount_cents=200000,
+        year_month="2026-04",
+        category_id=None,
+        entry_type="income",
+        is_starting_balance=True,
+        description="Starting balance",
+    )
+
+    assert await uow.budget.has_starting_balance(family.id, "2026-04") is True
+    assert await uow.budget.has_starting_balance(family.id, "2026-03") is False

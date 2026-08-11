@@ -137,6 +137,7 @@ class BudgetSummaryResponse(BaseModel):
 
     year_month: str  # e.g. "2026-04"
     total_spent_cents: int
-    total_income_cents: int = 0  # Populated by Slice B; default 0 until then
+    total_income_cents: int = 0
+    has_starting_balance: bool = False  # Slice E prompt; cheap EXISTS from Slice B
     categories: list[BudgetCategorySummary]
     is_editable: bool = True  # False when grace period has expired for this month
