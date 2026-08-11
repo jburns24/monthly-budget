@@ -22,6 +22,7 @@ from fastapi import HTTPException
 from app.logging import get_logger
 from app.models.category import Category
 from app.models.expense import Expense
+from app.ports.errors import UniqueViolation
 from app.ports.read_models import CategorySpendRow
 from app.ports.unit_of_work import UnitOfWork
 from app.schemas.expense import BudgetCategorySummary, BudgetSummaryResponse
@@ -48,24 +49,51 @@ async def _validate_category(
     return category
 
 
+async def _flush_or_starting_balance_conflict(uow: UnitOfWork) -> None:
+    """Flush, turning a duplicate starting-balance rejection into HTTP 409.
+
+    The rollback discards the whole request, not just the failed write — same
+    risk-(f) behaviour as category/goal create.
+    """
+    try:
+        await uow.flush()
+    except UniqueViolation:
+        await uow.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A starting balance already exists for this family and month",
+        )
+
+
 async def create_expense(
     uow: UnitOfWork,
     family_id: uuid.UUID,
     user_id: uuid.UUID,
-    category_id: uuid.UUID,
+    category_id: uuid.UUID | None,
     amount_cents: int,
     description: str,
     expense_date: date,
+    *,
+    entry_type: str = "expense",
+    is_starting_balance: bool = False,
 ) -> Expense:
-    """Create a new expense for a family.
+    """Create a new expense or income entry for a family.
 
-    Validates the category exists, belongs to the family, and is active.
-    Computes year_month from expense_date.
-    Returns the Expense with eagerly-loaded category and user.
+    Expense rows validate that the category exists, belongs to the family, and
+    is active. Income rows skip category validation and persist with a null
+    ``category_id``. Computes year_month from expense_date. Returns the row with
+    eagerly-loaded category (nullable for income) and user.
 
-    Raises HTTPException(400) if the category is invalid.
+    Raises HTTPException(400) if an expense category is invalid.
+    Raises HTTPException(409) if a second starting balance is created for the
+    same family/month.
     """
-    await _validate_category(uow, family_id, category_id)
+    if entry_type == "expense":
+        if category_id is None:
+            raise HTTPException(status_code=400, detail="expense requires category_id")
+        await _validate_category(uow, family_id, category_id)
+    else:
+        category_id = None
 
     year_month = expense_date.strftime("%Y-%m")
     now = datetime.now(tz=timezone.utc)
@@ -78,11 +106,13 @@ async def create_expense(
         description=description,
         expense_date=expense_date,
         year_month=year_month,
+        entry_type=entry_type,
+        is_starting_balance=is_starting_balance,
         created_at=now,
         updated_at=now,
     )
     uow.expenses.add(expense)
-    await uow.flush()
+    await _flush_or_starting_balance_conflict(uow)
 
     reloaded = await uow.expenses.get_in_family_with_details(expense.id, family_id)
     assert reloaded is not None  # just inserted in this same transaction
@@ -92,7 +122,9 @@ async def create_expense(
         expense_id=str(reloaded.id),
         family_id=str(family_id),
         user_id=str(user_id),
-        category_id=str(category_id),
+        category_id=str(category_id) if category_id else None,
+        entry_type=entry_type,
+        is_starting_balance=is_starting_balance,
         amount_cents=amount_cents,
         year_month=year_month,
     )
@@ -106,23 +138,25 @@ async def list_expenses(
     category_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 50,
+    entry_type: str | None = None,
 ) -> tuple[list[Expense], int]:
     """Return paginated expenses for a family filtered by year_month.
 
-    Optionally filter by category_id.
+    Optionally filter by category_id and/or entry_type.
     Orders by expense_date DESC, created_at DESC.
     Returns a tuple of (expenses, total_count).
     """
-    total_count = await uow.expenses.count_for_month(family_id, year_month, category_id)
+    total_count = await uow.expenses.count_for_month(family_id, year_month, category_id, entry_type)
 
     offset = (page - 1) * per_page
-    expenses = await uow.expenses.list_for_month(family_id, year_month, category_id, per_page, offset)
+    expenses = await uow.expenses.list_for_month(family_id, year_month, category_id, per_page, offset, entry_type)
 
     logger.info(
         "expenses_listed",
         family_id=str(family_id),
         year_month=year_month,
         category_id=str(category_id) if category_id else None,
+        entry_type=entry_type,
         page=page,
         per_page=per_page,
         total_count=total_count,
@@ -184,8 +218,11 @@ async def update_expense(
         if value is not None:
             setattr(expense, field_name, value)
 
-    # Re-validate category if changed
-    if fields.get("category_id") is not None:
+    resulting_entry_type = expense.entry_type
+    if resulting_entry_type == "income":
+        # Income never carries a category; clear any leftover from an expense→income change.
+        expense.category_id = None
+    elif fields.get("category_id") is not None:
         await _validate_category(uow, family_id, fields["category_id"])
 
     # Re-compute year_month if expense_date changed
@@ -193,7 +230,7 @@ async def update_expense(
         expense.year_month = fields["expense_date"].strftime("%Y-%m")
 
     expense.updated_at = datetime.now(tz=timezone.utc)
-    await uow.flush()
+    await _flush_or_starting_balance_conflict(uow)
 
     reloaded = await uow.expenses.get_in_family_with_details(expense_id, family_id)
     assert reloaded is not None  # just updated in this same transaction

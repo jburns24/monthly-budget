@@ -17,6 +17,7 @@ Not emulated, on purpose: ``ON DELETE CASCADE``, CHECK constraints, and any
 relationship loading. Code depending on those is Postgres tier.
 """
 
+import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -28,6 +29,10 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.sql.schema import Column, ColumnDefault
 
 from app.ports.errors import StaleObject, UniqueViolation
+
+# Partial unique indexes whose WHERE is a single boolean column, e.g.
+# ``postgresql_where=text("is_starting_balance")``. Anything richer stays Postgres-tier.
+_SIMPLE_BOOL_WHERE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 T = TypeVar("T")
 
@@ -58,10 +63,15 @@ def _utcnow() -> datetime:
 
 @dataclass(frozen=True, slots=True)
 class UniqueIndex:
-    """A composite unique constraint the store enforces at flush time."""
+    """A composite unique constraint or unique index the store enforces at flush time.
+
+    ``where_field``, when set, limits enforcement to rows where that boolean
+    column is truthy — the in-memory stand-in for a Postgres partial unique index.
+    """
 
     name: str
     fields: tuple[str, ...]
+    where_field: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +79,8 @@ class ModelSpec:
     """What :meth:`MemoryStore.flush` has to do for a given model.
 
     ``defaults`` covers every column the database fills in by itself, keyed by
-    attribute name. ``unique`` covers the composite unique constraints; primary
+    attribute name. ``unique`` covers composite unique constraints *and* unique
+    indexes (including simple boolean ``postgresql_where`` partials); primary
     keys need no entry because the store is keyed by them.
 
     Both are *derived* from the mapper by :func:`model_spec`, never hand-written.
@@ -126,15 +137,37 @@ def _build_spec(model: type[Any]) -> ModelSpec:
         elif column.server_default is not None:
             defaults[attr.key] = _server_default(column, model, attr.key)
 
-    unique = tuple(
+    unique_from_constraints = [
         UniqueIndex(
             str(constraint.name) if constraint.name else f"unnamed unique constraint on {model.__tablename__}",
             tuple(mapper.get_property_by_column(column).key for column in constraint.columns),
         )
         for constraint in model.__table__.constraints
         if isinstance(constraint, UniqueConstraint)
-    )
-    return ModelSpec(defaults=defaults, unique=unique)
+    ]
+    unique_from_indexes: list[UniqueIndex] = []
+    for index in model.__table__.indexes:
+        if not index.unique:
+            continue
+        where = index.dialect_options.get("postgresql", {}).get("where")
+        where_field: str | None = None
+        if where is not None:
+            where_text = str(where)
+            if not _SIMPLE_BOOL_WHERE.match(where_text):
+                raise LookupError(
+                    f"{model.__name__} unique index {index.name!r} has postgresql_where "
+                    f"{where_text!r}, which the in-memory store cannot evaluate; keep "
+                    f"code that needs it as Postgres tier or simplify the predicate"
+                )
+            where_field = where_text
+        unique_from_indexes.append(
+            UniqueIndex(
+                str(index.name) if index.name else f"unnamed unique index on {model.__tablename__}",
+                tuple(mapper.get_property_by_column(column).key for column in index.columns),
+                where_field=where_field,
+            )
+        )
+    return ModelSpec(defaults=defaults, unique=tuple(unique_from_constraints + unique_from_indexes))
 
 
 _SPECS: dict[type[Any], ModelSpec] = {}
@@ -340,6 +373,8 @@ class MemoryStore:
             for index in model_spec(model).unique:
                 seen: set[tuple[Any, ...]] = set()
                 for row in rows.values():
+                    if index.where_field is not None and not getattr(row, index.where_field):
+                        continue
                     key = tuple(getattr(row, name) for name in index.fields)
                     # Postgres treats NULLs as distinct, so a partial key never collides.
                     if any(part is None for part in key):

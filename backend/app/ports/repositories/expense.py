@@ -51,17 +51,25 @@ class ExpenseRepository(Protocol):
         category_id: UUID | None,
         limit: int,
         offset: int,
+        entry_type: str | None = None,
     ) -> list[Expense]:
         """Return a page of expenses for ``family_id`` in ``year_month``, newest first.
 
         Ordered by ``(expense_date DESC, created_at DESC)``. ``category``,
         ``user``, and ``receipt`` are eager-loaded on every row, same as
         :meth:`get_in_family_with_details`. Optionally filtered by
-        ``category_id``.
+        ``category_id`` and/or ``entry_type`` (``'expense'`` / ``'income'``).
+        Income rows may have a null ``category``.
         """
         ...
 
-    async def count_for_month(self, family_id: UUID, year_month: str, category_id: UUID | None) -> int:
+    async def count_for_month(
+        self,
+        family_id: UUID,
+        year_month: str,
+        category_id: UUID | None,
+        entry_type: str | None = None,
+    ) -> int:
         """Return the total count backing :meth:`list_for_month`'s pagination."""
         ...
 

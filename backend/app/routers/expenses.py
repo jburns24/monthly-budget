@@ -49,19 +49,14 @@ async def list_expenses(
     category_id: uuid.UUID | None = Query(default=None),
     entry_type: str | None = Query(
         default=None,
-        description="Optional filter by entry type: 'expense' or 'income' (Slice A).",
+        description="Optional filter by entry type: 'expense' or 'income'.",
     ),
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=50, ge=1, le=200),
     membership: tuple[User, FamilyMember] = Depends(require_family_member),
     uow: UnitOfWork = Depends(get_uow),
 ) -> ExpenseListResponse:
-    """List paginated expenses for a family filtered by year_month.
-
-    ``entry_type`` is accepted for OpenAPI contract completeness; filtering is
-    implemented in Slice A.
-    """
-    _ = entry_type  # Phase 0: declared for OpenAPI; unused until Slice A
+    """List paginated expenses for a family filtered by year_month."""
     expenses, total_count = await expense_service.list_expenses(
         uow,
         family_id=family_id,
@@ -69,6 +64,7 @@ async def list_expenses(
         category_id=category_id,
         page=page,
         per_page=per_page,
+        entry_type=entry_type,
     )
     return ExpenseListResponse(
         expenses=[ExpenseResponse.model_validate(e) for e in expenses],
@@ -89,15 +85,8 @@ async def create_expense(
     membership: tuple[User, FamilyMember] = Depends(require_family_member),
     uow: UnitOfWork = Depends(get_uow),
 ) -> ExpenseResponse:
-    """Create a new expense for a family (any member)."""
+    """Create a new expense or income entry for a family (any member)."""
     current_user, _ = membership
-    # Income / starting-balance writes are Slice A; schema accepts them for the
-    # OpenAPI contract, but persistence still requires a category_id today.
-    if body.entry_type == "income" or body.is_starting_balance or body.category_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Income entries are not yet supported",
-        )
     expense = await expense_service.create_expense(
         uow,
         family_id=family_id,
@@ -106,6 +95,8 @@ async def create_expense(
         amount_cents=body.amount_cents,
         description=body.description,
         expense_date=body.expense_date,
+        entry_type=body.entry_type,
+        is_starting_balance=body.is_starting_balance,
     )
     logger.info("expense_created_endpoint", expense_id=str(expense.id), user_id=str(current_user.id))
     return ExpenseResponse.model_validate(expense)
@@ -159,6 +150,8 @@ async def update_expense(
         description=body.description,
         category_id=body.category_id,
         expense_date=body.expense_date,
+        entry_type=body.entry_type,
+        is_starting_balance=body.is_starting_balance,
     )
     logger.info("expense_updated_endpoint", expense_id=str(expense_id), user_id=str(current_user.id))
     return ExpenseResponse.model_validate(expense)

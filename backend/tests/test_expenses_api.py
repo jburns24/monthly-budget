@@ -122,9 +122,81 @@ async def test_create_expense_returns_201_for_member(db_session: AsyncSession, a
     assert body["category"]["id"] == str(category.id)
     assert body["category"]["name"] == "Groceries"
     assert body["expense_date"] == "2026-04-01"
+    assert body["entry_type"] == "expense"
+    assert body["is_starting_balance"] is False
     assert "id" in body
     assert "created_at" in body
     assert "updated_at" in body
+
+
+@pytest.mark.asyncio
+async def test_create_income_without_category_returns_201(db_session: AsyncSession, authenticated_client) -> None:
+    """POST with entry_type=income and no category_id creates an income entry."""
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        async with authenticated_client(user) as client:
+            resp = await client.post(
+                f"/api/families/{family.id}/expenses",
+                json={
+                    "amount_cents": 250000,
+                    "description": "Paycheck",
+                    "expense_date": "2026-04-01",
+                    "entry_type": "income",
+                },
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["entry_type"] == "income"
+    assert body["is_starting_balance"] is False
+    assert body["category"] is None
+    assert body["amount_cents"] == 250000
+    assert body["description"] == "Paycheck"
+
+
+@pytest.mark.asyncio
+async def test_create_duplicate_starting_balance_returns_409(db_session: AsyncSession, authenticated_client) -> None:
+    """Second starting balance for the same family/month returns 409."""
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        async with authenticated_client(user) as client:
+            first = await client.post(
+                f"/api/families/{family.id}/expenses",
+                json={
+                    "amount_cents": 100000,
+                    "description": "Opening balance",
+                    "expense_date": "2026-04-01",
+                    "is_starting_balance": True,
+                },
+            )
+            second = await client.post(
+                f"/api/families/{family.id}/expenses",
+                json={
+                    "amount_cents": 50000,
+                    "description": "Duplicate opening",
+                    "expense_date": "2026-04-15",
+                    "is_starting_balance": True,
+                },
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert first.status_code == 201
+    assert first.json()["entry_type"] == "income"
+    assert first.json()["is_starting_balance"] is True
+    assert second.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -359,6 +431,50 @@ async def test_list_expenses_filters_by_category(db_session: AsyncSession, authe
     assert body["total_count"] == 1
     assert body["expenses"][0]["amount_cents"] == 1500
     assert body["expenses"][0]["category"]["name"] == "Groceries"
+
+
+@pytest.mark.asyncio
+async def test_list_expenses_filters_by_entry_type(db_session: AsyncSession, authenticated_client) -> None:
+    """GET /api/families/{id}/expenses?entry_type= filters expense vs income rows."""
+    from app.main import app
+
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family, name="Groceries")
+
+    await create_test_expense(
+        db_session, family, user, category, amount_cents=1500, expense_date=date(2026, 4, 5), year_month="2026-04"
+    )
+    await create_test_expense(
+        db_session,
+        family,
+        user,
+        None,
+        amount_cents=250000,
+        expense_date=date(2026, 4, 1),
+        year_month="2026-04",
+        entry_type="income",
+        description="Paycheck",
+    )
+
+    app.dependency_overrides[get_db] = override_get_db(db_session)
+    try:
+        async with authenticated_client(user) as client:
+            income_resp = await client.get(f"/api/families/{family.id}/expenses?year_month=2026-04&entry_type=income")
+            expense_resp = await client.get(f"/api/families/{family.id}/expenses?year_month=2026-04&entry_type=expense")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert income_resp.status_code == 200
+    income_body = income_resp.json()
+    assert income_body["total_count"] == 1
+    assert income_body["expenses"][0]["entry_type"] == "income"
+    assert income_body["expenses"][0]["category"] is None
+
+    assert expense_resp.status_code == 200
+    expense_body = expense_resp.json()
+    assert expense_body["total_count"] == 1
+    assert expense_body["expenses"][0]["entry_type"] == "expense"
 
 
 @pytest.mark.asyncio
