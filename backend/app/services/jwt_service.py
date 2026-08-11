@@ -13,8 +13,6 @@ from app.models.user import User
 logger = get_logger(__name__)
 
 _ALGORITHM = "HS256"
-_ACCESS_TOKEN_EXPIRE_MINUTES = 15
-_REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
 def _build_payload(user: User, expires_in: timedelta) -> dict[str, Any]:
@@ -30,16 +28,22 @@ def _build_payload(user: User, expires_in: timedelta) -> dict[str, Any]:
 
 
 def create_access_token(user: User) -> str:
-    """Return a signed access JWT for *user* (15-minute expiry)."""
-    payload = _build_payload(user, timedelta(minutes=_ACCESS_TOKEN_EXPIRE_MINUTES))
+    """Return a signed access JWT for *user*.
+
+    Lifetime comes from ``settings.jwt_access_token_expire_minutes`` (default 15).
+    """
+    payload = _build_payload(user, timedelta(minutes=settings.jwt_access_token_expire_minutes))
     token = jwt.encode(payload, settings.jwt_secret, algorithm=_ALGORITHM)
     logger.info("access_token_created", user_id=str(user.id), jti=payload["jti"])
     return token
 
 
 def create_refresh_token(user: User) -> str:
-    """Return a signed refresh JWT for *user* (7-day expiry)."""
-    payload = _build_payload(user, timedelta(days=_REFRESH_TOKEN_EXPIRE_DAYS))
+    """Return a signed refresh JWT for *user*.
+
+    Lifetime comes from ``settings.jwt_refresh_token_expire_days`` (default 7).
+    """
+    payload = _build_payload(user, timedelta(days=settings.jwt_refresh_token_expire_days))
     token = jwt.encode(payload, settings.jwt_secret, algorithm=_ALGORITHM)
     logger.info("refresh_token_created", user_id=str(user.id), jti=payload["jti"])
     return token

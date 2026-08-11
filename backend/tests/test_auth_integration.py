@@ -21,7 +21,7 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.database import get_db
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist
-from tests.conftest import _TEST_JWT_SECRET
+from tests.conftest import _TEST_JWT_SECRET, configure_jwt_settings_mock
 
 # ---------------------------------------------------------------------------
 # NullPool db_session fixture — per-test transaction rollback
@@ -79,7 +79,7 @@ async def test_full_auth_flow(db_session: AsyncSession) -> None:
             patch("app.services.google_oauth.verify_id_token", new_callable=AsyncMock, return_value=google_info),
             patch("app.services.jwt_service.settings") as ms,
         ):
-            ms.jwt_secret = _TEST_JWT_SECRET
+            configure_jwt_settings_mock(ms, secret=_TEST_JWT_SECRET)
 
             # https:// (not http://) because app/routers/auth.py marks the auth
             # cookies Secure outside development, and CI runs with
