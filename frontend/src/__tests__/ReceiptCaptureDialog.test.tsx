@@ -101,6 +101,8 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     updated_at: '2026-04-19T10:00:00Z',
     receipt_id: 'rcpt-1',
     receipt_status: 'completed',
+    entry_type: 'expense' as const,
+    is_starting_balance: false,
     ...overrides,
   }
 }

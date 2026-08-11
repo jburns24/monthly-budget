@@ -58,7 +58,7 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
               aria-hidden="true"
               data-testid={`expense-category-icon-${expense.id}`}
             >
-              {expense.category.icon ?? '📁'}
+              {expense.category?.icon ?? '📁'}
             </Flex>
             {expense.receipt_status === 'completed' && (
               <Box
@@ -104,8 +104,8 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
                 color="ink.muted"
                 data-testid={`expense-category-name-${expense.id}`}
               >
-                {expense.category.icon ? `${expense.category.icon} ` : ''}
-                {expense.category.name}
+                {expense.category?.icon ? `${expense.category.icon} ` : ''}
+                {expense.category?.name ?? 'Uncategorized'}
               </Text>
               <Text fontSize="xs" color="ink.muted" aria-hidden="true">
                 ·

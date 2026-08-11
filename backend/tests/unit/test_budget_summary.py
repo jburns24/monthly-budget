@@ -31,6 +31,7 @@ def test_empty_rows_gives_a_zeroed_summary() -> None:
 
     assert summary.year_month == "2026-04"
     assert summary.total_spent_cents == 0
+    assert summary.total_income_cents == 0
     assert summary.categories == []
     assert summary.is_editable is True
 

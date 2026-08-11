@@ -134,6 +134,7 @@ function renderDashboardPage() {
 const sampleSummaryWithSpending = {
   year_month: '2026-04',
   total_spent_cents: 15000,
+  total_income_cents: 0,
   categories: [
     {
       category_id: 'cat-1',
@@ -168,6 +169,7 @@ const sampleSummaryWithSpending = {
 const sampleSummaryEmpty = {
   year_month: '2026-04',
   total_spent_cents: 0,
+  total_income_cents: 0,
   categories: [
     {
       category_id: 'cat-1',

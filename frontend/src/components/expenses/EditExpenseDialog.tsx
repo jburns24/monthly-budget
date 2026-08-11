@@ -33,7 +33,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
   const queryClient = useQueryClient()
   const [amountStr, setAmountStr] = useState(String(expense.amount_cents / 100))
   const [description, setDescription] = useState(expense.description)
-  const [categoryId, setCategoryId] = useState(expense.category.id)
+  const [categoryId, setCategoryId] = useState(expense.category?.id ?? '')
   const [expenseDate, setExpenseDate] = useState(expense.expense_date)
 
   const { data: categories = [] } = useQuery({

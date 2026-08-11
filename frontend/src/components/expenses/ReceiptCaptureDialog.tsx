@@ -160,7 +160,7 @@ export default function ReceiptCaptureDialog({
         patch.expense_date = state.expenseDate
         dirty = true
       }
-      if (state.categoryId && state.categoryId !== expense.category.id) {
+      if (state.categoryId && state.categoryId !== expense.category?.id) {
         patch.category_id = state.categoryId
         dirty = true
       }
@@ -234,7 +234,7 @@ export default function ReceiptCaptureDialog({
   // Default to what was persisted, not to the first category: the upload already
   // picked a suggested category, and defaulting to categories[0] would silently
   // overwrite a good suggestion on Confirm.
-  const effectiveCategoryId = state.categoryId || expense?.category.id || ''
+  const effectiveCategoryId = state.categoryId || expense?.category?.id || ''
   // parsed_date is null when Claude could not read a date; the backend fell back
   // to today, which is what the expense actually holds.
   const effectiveDate = state.expenseDate || expense?.expense_date || receipt?.parsed_date || ''

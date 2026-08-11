@@ -73,6 +73,8 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     updated_at: '2026-04-01T10:00:00Z',
     receipt_id: null,
     receipt_status: null,
+    entry_type: 'expense' as const,
+    is_starting_balance: false,
     ...overrides,
   }
 }

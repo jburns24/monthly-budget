@@ -60,6 +60,10 @@ const config = defineConfig({
           orange: { value: '#f47a3b' },
           coral: { value: '#ef6a72' },
         },
+        income: { value: '#34e39b' },
+        spend: { value: '#a855f7' },
+        overspend: { value: '#f43f5e' },
+        mutedLabel: { value: '#8b8f96' },
       },
       fonts: {
         heading: {
