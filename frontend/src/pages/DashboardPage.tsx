@@ -15,6 +15,7 @@ import SetGoalDialog from '../components/goals/SetGoalDialog'
 import BulkGoalsEditor from '../components/goals/BulkGoalsEditor'
 import RolloverPrompt from '../components/goals/RolloverPrompt'
 import SafeToSpendCard from '../components/dashboard/SafeToSpendCard'
+import StartingBalancePrompt from '../components/expenses/StartingBalancePrompt'
 
 function getMonthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-')
@@ -408,16 +409,25 @@ function DashboardPage() {
         </Box>
       )}
 
-      {/* Rollover prompt — admin only, no goals for month, previous month has goals */}
-      {familyId && showRolloverPrompt && (
-        <Box mb={4}>
-          <RolloverPrompt
-            familyId={familyId}
-            yearMonth={currentMonth}
-            hasPreviousGoals={hasPreviousGoals}
-            previousMonth={previousMonth}
-            onRolloverComplete={handleRolloverComplete}
-          />
+      {/* Month-start prompts — starting balance first, then goal rollover */}
+      {familyId && (summary?.has_starting_balance === false || showRolloverPrompt) && (
+        <Box mb={4} display="flex" flexDirection="column" gap={3}>
+          {summary?.has_starting_balance === false && (
+            <StartingBalancePrompt
+              familyId={familyId}
+              yearMonth={currentMonth}
+              hasStartingBalance={false}
+            />
+          )}
+          {showRolloverPrompt && (
+            <RolloverPrompt
+              familyId={familyId}
+              yearMonth={currentMonth}
+              hasPreviousGoals={hasPreviousGoals}
+              previousMonth={previousMonth}
+              onRolloverComplete={handleRolloverComplete}
+            />
+          )}
         </Box>
       )}
 
