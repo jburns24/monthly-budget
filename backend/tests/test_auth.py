@@ -15,7 +15,7 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.database import get_db
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist
-from tests.conftest import _TEST_JWT_SECRET, _make_jwt, create_test_user
+from tests.conftest import _TEST_JWT_SECRET, _make_jwt, configure_jwt_settings_mock, create_test_user
 
 _JWT_SECRET = _TEST_JWT_SECRET
 
@@ -77,7 +77,7 @@ async def test_callback_success_new_user(db_session: AsyncSession) -> None:
             patch("app.services.google_oauth.verify_id_token", new_callable=AsyncMock, return_value=google_info),
             patch("app.services.jwt_service.settings") as ms,
         ):
-            ms.jwt_secret = _JWT_SECRET
+            configure_jwt_settings_mock(ms, secret=_JWT_SECRET)
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 resp = await client.post(
                     "/api/auth/callback",
@@ -112,7 +112,7 @@ async def test_callback_returning_user(db_session: AsyncSession) -> None:
             patch("app.services.google_oauth.verify_id_token", new_callable=AsyncMock, return_value=google_info),
             patch("app.services.jwt_service.settings") as ms,
         ):
-            ms.jwt_secret = _JWT_SECRET
+            configure_jwt_settings_mock(ms, secret=_JWT_SECRET)
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 resp = await client.post(
                     "/api/auth/callback",
@@ -178,7 +178,7 @@ async def test_refresh_valid_token_returns_new_access_cookie(db_session: AsyncSe
     app.dependency_overrides[get_db] = override_get_db(db_session)
     try:
         with patch("app.services.jwt_service.settings") as ms:
-            ms.jwt_secret = _JWT_SECRET
+            configure_jwt_settings_mock(ms, secret=_JWT_SECRET)
             async with AsyncClient(
                 transport=ASGITransport(app=app),
                 base_url="http://test",

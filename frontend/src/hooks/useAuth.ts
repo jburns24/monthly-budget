@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiClient } from '../api/client'
 import type { FamilyBrief } from '../types/family'
 
 export interface User {
@@ -11,7 +12,16 @@ export interface User {
 }
 
 export async function fetchCurrentUser(): Promise<User | null> {
-  const response = await fetch('/api/me', { credentials: 'include' })
+  // Must go through apiClient so an expired access cookie triggers
+  // /api/auth/refresh. Raw fetch treated that 401 as signed-out.
+  // redirectOnAuthFailure: false — Header mounts on /login too; a hard
+  // redirect here would reload the login page in a loop when there is no session.
+  let response: Response
+  try {
+    response = await apiClient('/api/me', undefined, { redirectOnAuthFailure: false })
+  } catch {
+    return null
+  }
   if (response.status === 401) {
     return null
   }

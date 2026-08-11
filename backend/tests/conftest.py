@@ -31,6 +31,19 @@ _JWT_ALGORITHM = "HS256"
 _raw_jwt_secret: str = getattr(settings, "jwt_secret", "")
 _TEST_JWT_SECRET = _raw_jwt_secret if len(_raw_jwt_secret) >= 32 else "test-secret-key-for-tests-only-32char!!"
 
+
+def configure_jwt_settings_mock(mock_settings: Any, *, secret: str = _TEST_JWT_SECRET) -> None:
+    """Fill a patched ``jwt_service.settings`` mock so create_* can read TTLs.
+
+    Tests often ``patch("app.services.jwt_service.settings")`` and only set
+    ``jwt_secret``. Token minting also reads the expire fields; without real
+    ints, MagicMock values blow up inside ``timedelta``.
+    """
+    mock_settings.jwt_secret = secret
+    mock_settings.jwt_access_token_expire_minutes = 15
+    mock_settings.jwt_refresh_token_expire_days = 7
+
+
 # ---------------------------------------------------------------------------
 # Test database engine (shared across the session; each test rolls back)
 # ---------------------------------------------------------------------------
