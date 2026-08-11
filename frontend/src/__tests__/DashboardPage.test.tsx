@@ -134,7 +134,7 @@ function renderDashboardPage() {
 const sampleSummaryWithSpending = {
   year_month: '2026-04',
   total_spent_cents: 15000,
-  total_income_cents: 0,
+  total_income_cents: 200000,
   has_starting_balance: false,
   categories: [
     {
@@ -206,7 +206,7 @@ describe('DashboardPage', () => {
   })
 
   // ------------------------------------------------------------------ budget summary
-  it('renders total spent and category cards when data loads', async () => {
+  it('renders safe-to-spend hero and category cards when data loads', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: makeUserWithFamily(),
       isLoading: false,
@@ -218,12 +218,60 @@ describe('DashboardPage', () => {
     renderDashboardPage()
 
     await waitFor(() => {
-      expect(screen.getByText(/\$150/)).toBeInTheDocument()
+      expect(screen.getByTestId('safe-to-spend-card')).toBeInTheDocument()
     })
+
+    expect(screen.getByText('Safe to spend')).toBeInTheDocument()
+    expect(screen.getByTestId('safe-to-spend-amount')).toHaveTextContent('$1,850')
+    expect(screen.getByTestId('safe-to-spend-income')).toHaveTextContent('$2,000')
+    expect(screen.getByTestId('safe-to-spend-spent')).toHaveTextContent('$150')
+    expect(screen.queryByText('Total Spent')).not.toBeInTheDocument()
 
     expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
     expect(screen.getByLabelText('Transport category')).toBeInTheDocument()
     expect(screen.getByLabelText('Dining category')).toBeInTheDocument()
+  })
+
+  it('renders over-income hero when spent exceeds income', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue({
+      ...sampleSummaryWithSpending,
+      total_income_cents: 10000,
+      total_spent_cents: 15000,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('Over income')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('safe-to-spend-amount')).toHaveTextContent('$50')
+  })
+
+  it('renders zero-income hint in the hero when income is 0', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue({
+      ...sampleSummaryWithSpending,
+      total_income_cents: 0,
+      total_spent_cents: 15000,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByText(/add income to see what's safe to spend/i)).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('safe-to-spend-amount')).toHaveTextContent('$0')
   })
 
   // ------------------------------------------------------------------ progress colors
