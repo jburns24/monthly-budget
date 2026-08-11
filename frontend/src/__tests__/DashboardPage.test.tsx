@@ -732,7 +732,9 @@ describe('DashboardPage', () => {
       isAuthenticated: true,
       logout: vi.fn().mockResolvedValue(undefined),
     })
-    vi.mocked(getBudgetSummary).mockResolvedValue(sampleSummaryWithSpending)
+    const summaryWithoutFlag = { ...sampleSummaryWithSpending }
+    delete (summaryWithoutFlag as { has_starting_balance?: boolean }).has_starting_balance
+    vi.mocked(getBudgetSummary).mockResolvedValue(summaryWithoutFlag)
 
     renderDashboardPage()
 
