@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ChakraProvider } from '@chakra-ui/react'
@@ -35,6 +35,7 @@ vi.mock('../components/ui/toaster', () => ({
 
 import { createExpense } from '../api/expenses'
 import { getCategories } from '../api/categories'
+import { toaster } from '../components/ui/toaster'
 
 // Polyfill localStorage for happy-dom environment
 const localStorageMock = (() => {
@@ -94,6 +95,8 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     updated_at: '2026-04-01T10:00:00Z',
     receipt_id: null,
     receipt_status: null,
+    entry_type: 'expense' as const,
+    is_starting_balance: false,
     ...overrides,
   }
 }
@@ -325,5 +328,148 @@ describe('CreateExpenseDialog', () => {
     await user.click(screen.getByRole('button', { name: /cancel/i }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  describe('entry type', () => {
+    it('renders Expense | Income control defaulting to Expense', async () => {
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+
+      renderCreateDialog()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('entry-type-toggle')).toBeInTheDocument()
+      })
+
+      const toggle = screen.getByTestId('entry-type-toggle')
+      expect(within(toggle).getByRole('radio', { name: /^expense$/i })).toBeChecked()
+      expect(within(toggle).getByRole('radio', { name: /^income$/i })).not.toBeChecked()
+      expect(screen.getByRole('heading', { name: 'Add Expense' })).toBeInTheDocument()
+      expect(screen.getByTestId('expense-submit-btn')).toHaveTextContent('Add Expense')
+    })
+
+    it('hides category field when Income is selected', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+
+      renderCreateDialog()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('expense-category-select')).toBeInTheDocument()
+      })
+
+      await user.click(within(screen.getByTestId('entry-type-toggle')).getByText('Income'))
+
+      expect(screen.queryByTestId('expense-category-select')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Add Income' })).toBeInTheDocument()
+      expect(screen.getByTestId('expense-submit-btn')).toHaveTextContent('Add Income')
+    })
+
+    it('submits income with entry_type and without category_id', async () => {
+      const user = userEvent.setup()
+      const mockExpense = makeExpense({
+        entry_type: 'income',
+        category: null,
+        amount_cents: 250000,
+      })
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      vi.mocked(createExpense).mockResolvedValue(mockExpense)
+
+      renderCreateDialog()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
+      })
+
+      await user.click(within(screen.getByTestId('entry-type-toggle')).getByText('Income'))
+      await waitFor(() => {
+        expect(screen.queryByTestId('expense-category-select')).not.toBeInTheDocument()
+      })
+
+      const amountInput = screen.getByTestId('expense-amount-input')
+      await user.clear(amountInput)
+      await user.type(amountInput, '2500')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('expense-submit-btn')).not.toBeDisabled()
+      })
+
+      await user.click(screen.getByTestId('expense-submit-btn'))
+
+      await waitFor(() => {
+        expect(createExpense).toHaveBeenCalledWith(
+          FAMILY_ID,
+          expect.objectContaining({
+            amount_cents: 250000,
+            entry_type: 'income',
+          })
+        )
+      })
+
+      const payload = vi.mocked(createExpense).mock.calls[0][1]
+      expect(payload).not.toHaveProperty('category_id')
+    })
+
+    it('submits expense with entry_type expense and category_id', async () => {
+      const user = userEvent.setup()
+      const mockExpense = makeExpense({ amount_cents: 1250 })
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      vi.mocked(createExpense).mockResolvedValue(mockExpense)
+
+      renderCreateDialog()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
+      })
+
+      await waitFor(() => {
+        const select = screen.getByTestId('expense-category-select')
+        expect(select.querySelectorAll('option').length).toBeGreaterThan(0)
+      })
+
+      await user.type(screen.getByTestId('expense-amount-input'), '12.50')
+      await user.click(screen.getByTestId('expense-submit-btn'))
+
+      await waitFor(() => {
+        expect(createExpense).toHaveBeenCalledWith(
+          FAMILY_ID,
+          expect.objectContaining({
+            amount_cents: 1250,
+            entry_type: 'expense',
+            category_id: 'cat-1',
+          })
+        )
+      })
+    })
+
+    it('shows Income added toast on successful income create', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      vi.mocked(createExpense).mockResolvedValue(
+        makeExpense({ entry_type: 'income', category: null, amount_cents: 10000 })
+      )
+
+      renderCreateDialog()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
+      })
+
+      await user.click(within(screen.getByTestId('entry-type-toggle')).getByText('Income'))
+      await waitFor(() => {
+        expect(screen.queryByTestId('expense-category-select')).not.toBeInTheDocument()
+      })
+
+      await user.type(screen.getByTestId('expense-amount-input'), '100')
+      await user.click(screen.getByTestId('expense-submit-btn'))
+
+      await waitFor(() => {
+        expect(toaster.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Income added',
+            type: 'success',
+          })
+        )
+      })
+    })
   })
 })

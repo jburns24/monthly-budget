@@ -12,10 +12,17 @@ from app.models.expense import Expense
 _EAGER = (selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
 
 
-def _month_filters(family_id: UUID, year_month: str, category_id: UUID | None) -> list[Any]:
+def _month_filters(
+    family_id: UUID,
+    year_month: str,
+    category_id: UUID | None,
+    entry_type: str | None = None,
+) -> list[Any]:
     filters: list[Any] = [Expense.family_id == family_id, Expense.year_month == year_month]
     if category_id is not None:
         filters.append(Expense.category_id == category_id)
+    if entry_type is not None:
+        filters.append(Expense.entry_type == entry_type)
     return filters
 
 
@@ -44,20 +51,29 @@ class SqlAlchemyExpenseRepository:
         category_id: UUID | None,
         limit: int,
         offset: int,
+        entry_type: str | None = None,
     ) -> list[Expense]:
         result = await self._session.execute(
             select(Expense)
             .options(*_EAGER)
-            .where(*_month_filters(family_id, year_month, category_id))
+            .where(*_month_filters(family_id, year_month, category_id, entry_type))
             .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
         return list(result.scalars().all())
 
-    async def count_for_month(self, family_id: UUID, year_month: str, category_id: UUID | None) -> int:
+    async def count_for_month(
+        self,
+        family_id: UUID,
+        year_month: str,
+        category_id: UUID | None,
+        entry_type: str | None = None,
+    ) -> int:
         result = await self._session.execute(
-            select(func.count()).select_from(Expense).where(*_month_filters(family_id, year_month, category_id))
+            select(func.count())
+            .select_from(Expense)
+            .where(*_month_filters(family_id, year_month, category_id, entry_type))
         )
         return result.scalar_one()
 

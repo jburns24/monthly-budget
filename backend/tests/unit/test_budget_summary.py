@@ -31,6 +31,8 @@ def test_empty_rows_gives_a_zeroed_summary() -> None:
 
     assert summary.year_month == "2026-04"
     assert summary.total_spent_cents == 0
+    assert summary.total_income_cents == 0
+    assert summary.has_starting_balance is False
     assert summary.categories == []
     assert summary.is_editable is True
 
@@ -41,6 +43,26 @@ def test_total_spent_cents_sums_every_category() -> None:
     summary = build_budget_summary(rows, "2026-04", is_editable=True)
 
     assert summary.total_spent_cents == 17500
+
+
+def test_total_income_cents_is_passed_through_not_derived_from_category_rows() -> None:
+    """Income is family-level (no category); category rows stay expense-only spend."""
+    rows = [_row(spent_cents=15000, goal_cents=60000)]
+
+    summary = build_budget_summary(
+        rows,
+        "2026-04",
+        is_editable=True,
+        total_income_cents=500000,
+    )
+
+    assert summary.total_spent_cents == 15000
+    assert summary.total_income_cents == 500000
+
+
+def test_has_starting_balance_defaults_false_and_passes_through() -> None:
+    assert build_budget_summary([], "2026-04", is_editable=True).has_starting_balance is False
+    assert build_budget_summary([], "2026-04", is_editable=True, has_starting_balance=True).has_starting_balance is True
 
 
 def test_no_goal_gives_status_none_and_zero_percentage() -> None:

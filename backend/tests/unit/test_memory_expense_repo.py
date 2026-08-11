@@ -9,6 +9,9 @@ three) fails — silently or loudly depending on the field.
 import uuid
 from datetime import date
 
+import pytest
+
+from app.ports.errors import UniqueViolation
 from app.schemas.expense import ExpenseResponse
 from tests.unit.conftest import make_category, make_expense, make_receipt, make_user, seed
 
@@ -98,6 +101,7 @@ async def test_get_in_family_with_details_survives_model_validate(uow, family_id
     found = await uow.expenses.get_in_family_with_details(expense.id, family_id)
     response = ExpenseResponse.model_validate(found)
 
+    assert response.category is not None
     assert response.category.name == "Groceries"
     assert response.created_by_user.id == expense.user_id
     assert response.receipt_status == "processing"
@@ -144,6 +148,74 @@ async def test_list_for_month_filters_by_category(uow, family_id) -> None:
 
     assert len(results) == 1
     assert results[0].category_id == groceries.id
+
+
+async def test_list_for_month_filters_by_entry_type(uow, family_id) -> None:
+    category = make_category(family_id, "Groceries")
+    user = make_user()
+    await seed(uow, category, user)
+    await seed(
+        uow,
+        make_expense(family_id, category.id, user_id=user.id),
+        make_expense(family_id, None, user_id=user.id, entry_type="income", description="Paycheck"),
+    )
+
+    income = await uow.expenses.list_for_month(family_id, "2026-04", None, 50, 0, entry_type="income")
+    expenses = await uow.expenses.list_for_month(family_id, "2026-04", None, 50, 0, entry_type="expense")
+
+    assert len(income) == 1
+    assert income[0].entry_type == "income"
+    assert income[0].category is None
+    assert len(expenses) == 1
+    assert expenses[0].entry_type == "expense"
+
+
+async def test_count_for_month_filters_by_entry_type(uow, family_id) -> None:
+    category = make_category(family_id, "Groceries")
+    user = make_user()
+    await seed(uow, category, user)
+    await seed(
+        uow,
+        make_expense(family_id, category.id, user_id=user.id),
+        make_expense(family_id, category.id, user_id=user.id),
+        make_expense(family_id, None, user_id=user.id, entry_type="income"),
+    )
+
+    assert await uow.expenses.count_for_month(family_id, "2026-04", None, entry_type="income") == 1
+    assert await uow.expenses.count_for_month(family_id, "2026-04", None, entry_type="expense") == 2
+
+
+async def test_duplicate_starting_balance_raises_unique_violation(uow, family_id) -> None:
+    """Partial unique index uq_expenses_starting_balance_per_family_month."""
+    user = make_user()
+    await seed(uow, user)
+    await seed(
+        uow,
+        make_expense(
+            family_id,
+            None,
+            user_id=user.id,
+            entry_type="income",
+            is_starting_balance=True,
+            year_month="2026-04",
+        ),
+    )
+    uow.expenses.add(
+        make_expense(
+            family_id,
+            None,
+            user_id=user.id,
+            entry_type="income",
+            is_starting_balance=True,
+            year_month="2026-04",
+            description="Second",
+        )
+    )
+
+    with pytest.raises(UniqueViolation) as exc_info:
+        await uow.flush()
+
+    assert exc_info.value.constraint == "uq_expenses_starting_balance_per_family_month"
 
 
 async def test_list_for_month_orders_newest_first(uow, family_id) -> None:

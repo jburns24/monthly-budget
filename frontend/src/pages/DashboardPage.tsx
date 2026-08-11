@@ -14,6 +14,8 @@ import FAB from '../components/expenses/FAB'
 import SetGoalDialog from '../components/goals/SetGoalDialog'
 import BulkGoalsEditor from '../components/goals/BulkGoalsEditor'
 import RolloverPrompt from '../components/goals/RolloverPrompt'
+import SafeToSpendCard from '../components/dashboard/SafeToSpendCard'
+import StartingBalancePrompt from '../components/expenses/StartingBalancePrompt'
 
 function getMonthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-')
@@ -407,53 +409,35 @@ function DashboardPage() {
         </Box>
       )}
 
-      {/* Rollover prompt — admin only, no goals for month, previous month has goals */}
-      {familyId && showRolloverPrompt && (
-        <Box mb={4}>
-          <RolloverPrompt
-            familyId={familyId}
-            yearMonth={currentMonth}
-            hasPreviousGoals={hasPreviousGoals}
-            previousMonth={previousMonth}
-            onRolloverComplete={handleRolloverComplete}
-          />
+      {/* Month-start prompts — starting balance first, then goal rollover */}
+      {familyId && (summary?.has_starting_balance === false || showRolloverPrompt) && (
+        <Box mb={4} display="flex" flexDirection="column" gap={3}>
+          {summary?.has_starting_balance === false && (
+            <StartingBalancePrompt
+              familyId={familyId}
+              yearMonth={currentMonth}
+              hasStartingBalance={false}
+            />
+          )}
+          {showRolloverPrompt && (
+            <RolloverPrompt
+              familyId={familyId}
+              yearMonth={currentMonth}
+              hasPreviousGoals={hasPreviousGoals}
+              previousMonth={previousMonth}
+              onRolloverComplete={handleRolloverComplete}
+            />
+          )}
         </Box>
       )}
 
       {/* Budget summary */}
       {summary && (
         <>
-          {/* Total spent */}
-          <Box
-            position="relative"
-            overflow="hidden"
-            mb={{ base: 4, md: 8 }}
-            p={{ base: 5, md: 8 }}
-            minH={{ base: '140px', md: '220px' }}
-            borderRadius="spotlight"
-            bg="gradient.violet"
-            background="radial-gradient(circle at 82% 18%, rgba(255,255,255,0.34), transparent 24%), radial-gradient(circle at 14% 92%, #d44bd3 0, transparent 42%), linear-gradient(135deg, #352073 0%, #7046d9 55%, #a34ec9 100%)"
-            display="flex"
-            flexDirection="column"
-            justifyContent="space-between"
-            boxShadow="inset 0 1px 0 rgba(255,255,255,0.18), 0 24px 60px rgba(51, 28, 110, 0.28)"
-          >
-            <Text fontSize="sm" color="rgba(255,255,255,0.72)" fontWeight="500">
-              Total Spent
-            </Text>
-            <Text
-              fontFamily="heading"
-              fontSize={{ base: '46px', md: '76px' }}
-              lineHeight="0.95"
-              letterSpacing={{ base: '-2.6px', md: '-3.8px' }}
-              fontWeight="500"
-              color="white"
-              fontVariantNumeric="tabular-nums"
-              data-testid="total-spent"
-            >
-              {formatCents(summary.total_spent_cents)}
-            </Text>
-          </Box>
+          <SafeToSpendCard
+            totalIncomeCents={summary.total_income_cents}
+            totalSpentCents={summary.total_spent_cents}
+          />
 
           {/* Empty state — has family but no expenses */}
           {!hasExpenses && (

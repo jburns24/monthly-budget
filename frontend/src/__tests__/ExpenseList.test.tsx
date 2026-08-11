@@ -27,6 +27,8 @@ const sampleExpenses: Expense[] = [
     updated_at: '2026-04-01T10:00:00Z',
     receipt_id: null,
     receipt_status: null,
+    entry_type: 'expense' as const,
+    is_starting_balance: false,
   },
   {
     id: 'exp-2',
@@ -40,6 +42,8 @@ const sampleExpenses: Expense[] = [
     updated_at: '2026-04-03T08:00:00Z',
     receipt_id: null,
     receipt_status: null,
+    entry_type: 'expense' as const,
+    is_starting_balance: false,
   },
 ]
 
@@ -64,11 +68,11 @@ describe('ExpenseList', () => {
     expect(screen.getByTestId('expense-card-exp-2')).toBeInTheDocument()
   })
 
-  it('shows formatted amount (cents to dollars)', () => {
+  it('shows formatted amount as whole dollars with expense sign', () => {
     renderExpenseList(sampleExpenses)
 
-    expect(screen.getByTestId('expense-amount-exp-1')).toHaveTextContent('$45.23')
-    expect(screen.getByTestId('expense-amount-exp-2')).toHaveTextContent('$15.00')
+    expect(screen.getByTestId('expense-amount-exp-1')).toHaveTextContent('−$45')
+    expect(screen.getByTestId('expense-amount-exp-2')).toHaveTextContent('−$15')
   })
 
   it('shows expense description', () => {
@@ -218,6 +222,53 @@ describe('ExpenseList', () => {
 
       expect(screen.getByTestId('expense-category-icon-exp-both')).toBeInTheDocument()
       expect(screen.getByTestId('expense-receipt-badge-exp-both')).toBeInTheDocument()
+    })
+  })
+
+  describe('entry type presentation', () => {
+    it('shows income amount with + sign, income color, and Income label', () => {
+      const expenses: Expense[] = [
+        {
+          ...sampleExpenses[0],
+          id: 'inc-1',
+          entry_type: 'income',
+          category: null,
+          amount_cents: 250000,
+          description: 'Paycheck',
+        },
+      ]
+      renderExpenseList(expenses)
+
+      const amount = screen.getByTestId('expense-amount-inc-1')
+      expect(amount).toHaveTextContent('+$2,500')
+      expect(amount).toHaveAttribute('data-entry-type', 'income')
+      expect(screen.getByTestId('expense-entry-type-inc-1')).toHaveTextContent('Income')
+    })
+
+    it('shows expense amount with − sign, spend color, and Expense label', () => {
+      renderExpenseList([sampleExpenses[0]])
+
+      const amount = screen.getByTestId('expense-amount-exp-1')
+      expect(amount).toHaveTextContent('−$45')
+      expect(amount).toHaveAttribute('data-entry-type', 'expense')
+      expect(screen.getByTestId('expense-entry-type-exp-1')).toHaveTextContent('Expense')
+    })
+
+    it('does not rely on color alone — label is present for both types', () => {
+      const expenses: Expense[] = [
+        sampleExpenses[0],
+        {
+          ...sampleExpenses[0],
+          id: 'inc-2',
+          entry_type: 'income',
+          category: null,
+          amount_cents: 10000,
+        },
+      ]
+      renderExpenseList(expenses)
+
+      expect(screen.getByTestId('expense-entry-type-exp-1')).toHaveTextContent('Expense')
+      expect(screen.getByTestId('expense-entry-type-inc-2')).toHaveTextContent('Income')
     })
   })
 

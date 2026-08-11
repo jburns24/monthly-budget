@@ -9,7 +9,7 @@ literal :class:`~app.ports.read_models.CategorySpendRow` data, no DB.
 
 from uuid import UUID
 
-from sqlalchemy import func, outerjoin, select
+from sqlalchemy import Exists, case, func, literal, outerjoin, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.category import Category
@@ -39,7 +39,8 @@ class SqlAlchemyBudgetQuery:
             Expense,
             (Expense.category_id == Category.id)
             & (Expense.family_id == family_id)
-            & (Expense.year_month == year_month),
+            & (Expense.year_month == year_month)
+            & (Expense.entry_type == "expense"),
         ).outerjoin(
             goal_subq,
             goal_subq.c.category_id == Category.id,
@@ -73,3 +74,32 @@ class SqlAlchemyBudgetQuery:
             )
             for row in result.all()
         ]
+
+    async def month_totals(self, family_id: UUID, year_month: str) -> tuple[int, int]:
+        stmt = select(
+            func.coalesce(
+                func.sum(case((Expense.entry_type == "income", Expense.amount_cents), else_=0)),
+                0,
+            ).label("income_cents"),
+            func.coalesce(
+                func.sum(case((Expense.entry_type == "expense", Expense.amount_cents), else_=0)),
+                0,
+            ).label("spent_cents"),
+        ).where(
+            Expense.family_id == family_id,
+            Expense.year_month == year_month,
+        )
+        row = (await self._session.execute(stmt)).one()
+        return int(row.income_cents), int(row.spent_cents)
+
+    async def has_starting_balance(self, family_id: UUID, year_month: str) -> bool:
+        exists_stmt = select(
+            Exists(
+                select(literal(1)).where(
+                    Expense.family_id == family_id,
+                    Expense.year_month == year_month,
+                    Expense.is_starting_balance.is_(True),
+                )
+            )
+        )
+        return bool((await self._session.execute(exists_stmt)).scalar_one())

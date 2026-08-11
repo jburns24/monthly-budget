@@ -1,5 +1,7 @@
 import type { ReceiptStatus } from '@/types/receipts'
 
+export type EntryType = 'expense' | 'income'
+
 export interface CategoryBrief {
   id: string
   name: string
@@ -14,13 +16,15 @@ export interface UserBrief {
 export interface Expense {
   id: string
   family_id: string
-  category: CategoryBrief
+  category: CategoryBrief | null
   created_by_user: UserBrief
   amount_cents: number
   description: string
   expense_date: string
   created_at: string
   updated_at: string
+  entry_type: EntryType
+  is_starting_balance: boolean
   receipt_id: string | null
   receipt_status: ReceiptStatus | null
 }
@@ -28,15 +32,19 @@ export interface Expense {
 export interface ExpenseCreate {
   amount_cents: number
   description?: string
-  category_id: string
+  category_id?: string | null
   expense_date: string
+  entry_type?: EntryType
+  is_starting_balance?: boolean
 }
 
 export interface ExpenseUpdate {
   amount_cents?: number
   description?: string
-  category_id?: string
+  category_id?: string | null
   expense_date?: string
+  entry_type?: EntryType
+  is_starting_balance?: boolean
   expected_updated_at: string
 }
 
@@ -60,5 +68,8 @@ export interface BudgetCategorySummary {
 export interface BudgetSummaryResponse {
   year_month: string
   total_spent_cents: number
+  total_income_cents: number
+  has_starting_balance: boolean
   categories: BudgetCategorySummary[]
+  is_editable?: boolean
 }

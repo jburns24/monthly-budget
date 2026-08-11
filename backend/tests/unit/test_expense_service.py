@@ -69,6 +69,7 @@ async def test_create_expense_eager_loads_category_and_user(uow, family_id) -> N
     )
 
     response = ExpenseResponse.model_validate(expense)
+    assert response.category is not None
     assert response.category.id == category.id
     assert response.created_by_user.id == user.id
     assert response.receipt_status is None
@@ -125,6 +126,82 @@ async def test_create_expense_computes_year_month(uow, family_id) -> None:
     )
 
     assert expense.year_month == "2025-12"
+
+
+async def test_create_income_without_category(uow, family_id) -> None:
+    """Income skips category validation and persists with a null category."""
+    user = make_user()
+    await seed(uow, user)
+
+    expense = await create_expense(
+        uow,
+        family_id=family_id,
+        user_id=user.id,
+        category_id=None,
+        amount_cents=250000,
+        description="Paycheck",
+        expense_date=date(2026, 4, 1),
+        entry_type="income",
+    )
+
+    assert expense.entry_type == "income"
+    assert expense.category_id is None
+    assert expense.is_starting_balance is False
+    response = ExpenseResponse.model_validate(expense)
+    assert response.category is None
+    assert response.entry_type == "income"
+
+
+async def test_create_starting_balance_sets_flags(uow, family_id) -> None:
+    user = make_user()
+    await seed(uow, user)
+
+    expense = await create_expense(
+        uow,
+        family_id=family_id,
+        user_id=user.id,
+        category_id=None,
+        amount_cents=100000,
+        description="Opening balance",
+        expense_date=date(2026, 4, 1),
+        entry_type="income",
+        is_starting_balance=True,
+    )
+
+    assert expense.entry_type == "income"
+    assert expense.is_starting_balance is True
+
+
+async def test_create_second_starting_balance_in_same_month_raises_409(uow, family_id) -> None:
+    """The unique partial index translation drives the 409 — no database needed."""
+    user = make_user()
+    await seed(uow, user)
+    await create_expense(
+        uow,
+        family_id=family_id,
+        user_id=user.id,
+        category_id=None,
+        amount_cents=100000,
+        description="Opening balance",
+        expense_date=date(2026, 4, 1),
+        entry_type="income",
+        is_starting_balance=True,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_expense(
+            uow,
+            family_id=family_id,
+            user_id=user.id,
+            category_id=None,
+            amount_cents=50000,
+            description="Duplicate opening",
+            expense_date=date(2026, 4, 15),
+            entry_type="income",
+            is_starting_balance=True,
+        )
+
+    assert exc_info.value.status_code == 409
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +273,34 @@ async def test_list_expenses_filters_by_category(uow, family_id) -> None:
     assert len(expenses) == 3
     assert total_count == 3
     assert all(e.category_id == groceries.id for e in expenses)
+
+
+async def test_list_expenses_filters_by_entry_type(uow, family_id) -> None:
+    category = make_category(family_id, "Groceries")
+    user = make_user()
+    await seed(uow, category, user)
+    await seed(
+        uow,
+        make_expense(family_id, category.id, user_id=user.id, year_month="2026-04"),
+        make_expense(family_id, category.id, user_id=user.id, year_month="2026-04"),
+        make_expense(
+            family_id,
+            None,
+            user_id=user.id,
+            year_month="2026-04",
+            entry_type="income",
+            description="Paycheck",
+        ),
+    )
+
+    income, income_count = await list_expenses(uow, family_id, year_month="2026-04", entry_type="income")
+    expenses, expense_count = await list_expenses(uow, family_id, year_month="2026-04", entry_type="expense")
+
+    assert income_count == 1
+    assert len(income) == 1
+    assert income[0].entry_type == "income"
+    assert expense_count == 2
+    assert all(e.entry_type == "expense" for e in expenses)
 
 
 async def test_get_expense_returns_it_with_details(uow, family_id) -> None:
@@ -271,6 +376,7 @@ async def test_update_expense_eager_loads_after_the_reload(uow, family_id) -> No
     )
 
     response = ExpenseResponse.model_validate(updated)
+    assert response.category is not None
     assert response.category.id == category.id
     assert response.created_by_user.id == user.id
 
@@ -322,3 +428,32 @@ async def test_update_expense_raises_404_for_an_unknown_id(uow, family_id) -> No
         )
 
     assert exc_info.value.status_code == 404
+
+
+async def test_update_income_skips_category_validation(uow, family_id) -> None:
+    user = make_user()
+    await seed(uow, user)
+    expense = make_expense(
+        family_id,
+        None,
+        user_id=user.id,
+        entry_type="income",
+        amount_cents=10000,
+        description="Paycheck",
+    )
+    await seed(uow, expense)
+
+    updated = await update_expense(
+        uow,
+        family_id=family_id,
+        expense_id=expense.id,
+        expected_updated_at=expense.updated_at,
+        description="Updated paycheck",
+        entry_type="income",
+    )
+
+    assert updated.description == "Updated paycheck"
+    assert updated.category_id is None
+    assert updated.entry_type == "income"
+    response = ExpenseResponse.model_validate(updated)
+    assert response.category is None

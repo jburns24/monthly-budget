@@ -333,7 +333,7 @@ async def create_test_expense(
     db: AsyncSession,
     family: Family,
     user: User,
-    category: Category,
+    category: Category | None = None,
     **overrides: Any,
 ) -> "Expense":
     """Insert an Expense into the test database and return the ORM object.
@@ -347,10 +347,12 @@ async def create_test_expense(
     user:
         The User who recorded the expense.
     category:
-        The Category the expense is in.
+        The Category the expense is in. Pass ``None`` for income rows (and set
+        ``entry_type="income"`` via overrides).
     **overrides:
         Field values that replace the auto-generated defaults.  Pass any
-        combination of Expense column names.
+        combination of Expense column names — including ``entry_type`` and
+        ``is_starting_balance``.
 
     Returns
     -------
@@ -360,6 +362,9 @@ async def create_test_expense(
     Example::
 
         expense = await create_test_expense(db_session, family, user, category, amount_cents=5000)
+        income = await create_test_expense(
+            db_session, family, user, None, entry_type="income", amount_cents=50000
+        )
     """
     from datetime import date as date_type
 
@@ -370,11 +375,13 @@ async def create_test_expense(
         "id": uuid.uuid4(),
         "family_id": family.id,
         "user_id": user.id,
-        "category_id": category.id,
+        "category_id": category.id if category is not None else None,
         "amount_cents": 1000,
         "description": "Test expense",
         "expense_date": date_type(2026, 4, 1),
         "year_month": "2026-04",
+        "entry_type": "expense",
+        "is_starting_balance": False,
         "created_at": now,
         "updated_at": now,
     }

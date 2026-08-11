@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ChakraProvider } from '@chakra-ui/react'
@@ -73,6 +73,8 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
     updated_at: '2026-04-01T10:00:00Z',
     receipt_id: null,
     receipt_status: null,
+    entry_type: 'expense' as const,
+    is_starting_balance: false,
     ...overrides,
   }
 }
@@ -354,5 +356,103 @@ describe('EditExpenseDialog', () => {
     await user.click(screen.getByRole('button', { name: /cancel/i }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  describe('entry type', () => {
+    it('defaults toggle from expense.entry_type and hides category for income', async () => {
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      const expense = makeExpense({
+        entry_type: 'income',
+        category: null,
+        description: 'Paycheck',
+      })
+
+      renderEditDialog(expense)
+
+      await waitFor(() => {
+        expect(
+          within(screen.getByTestId('entry-type-toggle')).getByRole('radio', { name: /^income$/i })
+        ).toBeChecked()
+      })
+
+      expect(screen.queryByTestId('edit-expense-category')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /edit income/i })).toBeInTheDocument()
+    })
+
+    it('hides category when switching an expense to income', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+
+      renderEditDialog()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('edit-expense-category')).toBeInTheDocument()
+      })
+
+      await user.click(within(screen.getByTestId('entry-type-toggle')).getByText('Income'))
+
+      expect(screen.queryByTestId('edit-expense-category')).not.toBeInTheDocument()
+    })
+
+    it('submits income update with entry_type and without category_id', async () => {
+      const user = userEvent.setup()
+      const expense = makeExpense({ entry_type: 'expense' })
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      vi.mocked(updateExpense).mockResolvedValue({
+        ...expense,
+        entry_type: 'income',
+        category: null,
+      })
+
+      renderEditDialog(expense)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('edit-expense-amount')).toBeInTheDocument()
+      })
+
+      await user.click(within(screen.getByTestId('entry-type-toggle')).getByText('Income'))
+      await waitFor(() => {
+        expect(screen.queryByTestId('edit-expense-category')).not.toBeInTheDocument()
+      })
+      await user.click(screen.getByRole('button', { name: /save/i }))
+
+      await waitFor(() => {
+        expect(updateExpense).toHaveBeenCalledWith(
+          FAMILY_ID,
+          expense.id,
+          expect.objectContaining({
+            entry_type: 'income',
+            expected_updated_at: expense.updated_at,
+          })
+        )
+      })
+
+      const payload = vi.mocked(updateExpense).mock.calls[0][2]
+      expect(payload).not.toHaveProperty('category_id')
+    })
+
+    it('shows Income updated toast when saving an income entry', async () => {
+      const user = userEvent.setup()
+      const expense = makeExpense({ entry_type: 'income', category: null })
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      vi.mocked(updateExpense).mockResolvedValue(expense)
+
+      renderEditDialog(expense)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('edit-expense-amount')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /save/i }))
+
+      await waitFor(() => {
+        expect(toaster.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Income updated',
+            type: 'success',
+          })
+        )
+      })
+    })
   })
 })

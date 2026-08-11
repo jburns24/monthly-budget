@@ -47,6 +47,10 @@ async def list_expenses(
     family_id: uuid.UUID,
     year_month: str = Query(..., description="Filter by month in YYYY-MM format"),
     category_id: uuid.UUID | None = Query(default=None),
+    entry_type: str | None = Query(
+        default=None,
+        description="Optional filter by entry type: 'expense' or 'income'.",
+    ),
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=50, ge=1, le=200),
     membership: tuple[User, FamilyMember] = Depends(require_family_member),
@@ -60,6 +64,7 @@ async def list_expenses(
         category_id=category_id,
         page=page,
         per_page=per_page,
+        entry_type=entry_type,
     )
     return ExpenseListResponse(
         expenses=[ExpenseResponse.model_validate(e) for e in expenses],
@@ -80,7 +85,7 @@ async def create_expense(
     membership: tuple[User, FamilyMember] = Depends(require_family_member),
     uow: UnitOfWork = Depends(get_uow),
 ) -> ExpenseResponse:
-    """Create a new expense for a family (any member)."""
+    """Create a new expense or income entry for a family (any member)."""
     current_user, _ = membership
     expense = await expense_service.create_expense(
         uow,
@@ -90,6 +95,8 @@ async def create_expense(
         amount_cents=body.amount_cents,
         description=body.description,
         expense_date=body.expense_date,
+        entry_type=body.entry_type,
+        is_starting_balance=body.is_starting_balance,
     )
     logger.info("expense_created_endpoint", expense_id=str(expense.id), user_id=str(current_user.id))
     return ExpenseResponse.model_validate(expense)
@@ -143,6 +150,8 @@ async def update_expense(
         description=body.description,
         category_id=body.category_id,
         expense_date=body.expense_date,
+        entry_type=body.entry_type,
+        is_starting_balance=body.is_starting_balance,
     )
     logger.info("expense_updated_endpoint", expense_id=str(expense_id), user_id=str(current_user.id))
     return ExpenseResponse.model_validate(expense)

@@ -54,7 +54,7 @@ def make_category(family_id: uuid.UUID, name: str, *, sort_order: int = 0, is_ac
 
 def make_expense(
     family_id: uuid.UUID,
-    category_id: uuid.UUID,
+    category_id: uuid.UUID | None,
     *,
     user_id: uuid.UUID | None = None,
     amount_cents: int = 1000,
@@ -62,8 +62,10 @@ def make_expense(
     expense_date: date = date(2026, 4, 1),
     year_month: str = "2026-04",
     receipt_id: uuid.UUID | None = None,
+    entry_type: str = "expense",
+    is_starting_balance: bool = False,
 ) -> Expense:
-    """Build an unattached Expense referencing ``category_id``."""
+    """Build an unattached Expense. Income rows pass ``category_id=None``."""
     return Expense(
         family_id=family_id,
         user_id=user_id or uuid.uuid4(),
@@ -73,6 +75,8 @@ def make_expense(
         expense_date=expense_date,
         year_month=year_month,
         receipt_id=receipt_id,
+        entry_type=entry_type,
+        is_starting_balance=is_starting_balance,
     )
 
 

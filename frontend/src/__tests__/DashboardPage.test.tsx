@@ -73,6 +73,13 @@ vi.mock('../components/goals/RolloverPrompt', () => ({
   ),
 }))
 
+// Mock StartingBalancePrompt to simplify banner stacking tests
+vi.mock('../components/expenses/StartingBalancePrompt', () => ({
+  default: vi.fn(({ hasStartingBalance }: { hasStartingBalance: boolean }) =>
+    hasStartingBalance ? null : <div data-testid="starting-balance-prompt" />
+  ),
+}))
+
 import { useAuth } from '../hooks/useAuth'
 import { getBudgetSummary } from '../api/expenses'
 import { getGoals } from '../api/goals'
@@ -134,6 +141,8 @@ function renderDashboardPage() {
 const sampleSummaryWithSpending = {
   year_month: '2026-04',
   total_spent_cents: 15000,
+  total_income_cents: 200000,
+  has_starting_balance: false,
   categories: [
     {
       category_id: 'cat-1',
@@ -168,6 +177,8 @@ const sampleSummaryWithSpending = {
 const sampleSummaryEmpty = {
   year_month: '2026-04',
   total_spent_cents: 0,
+  total_income_cents: 0,
+  has_starting_balance: false,
   categories: [
     {
       category_id: 'cat-1',
@@ -202,7 +213,7 @@ describe('DashboardPage', () => {
   })
 
   // ------------------------------------------------------------------ budget summary
-  it('renders total spent and category cards when data loads', async () => {
+  it('renders safe-to-spend hero and category cards when data loads', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: makeUserWithFamily(),
       isLoading: false,
@@ -214,12 +225,60 @@ describe('DashboardPage', () => {
     renderDashboardPage()
 
     await waitFor(() => {
-      expect(screen.getByText(/\$150/)).toBeInTheDocument()
+      expect(screen.getByTestId('safe-to-spend-card')).toBeInTheDocument()
     })
+
+    expect(screen.getByText('Safe to spend')).toBeInTheDocument()
+    expect(screen.getByTestId('safe-to-spend-amount')).toHaveTextContent('$1,850')
+    expect(screen.getByTestId('safe-to-spend-income')).toHaveTextContent('$2,000')
+    expect(screen.getByTestId('safe-to-spend-spent')).toHaveTextContent('$150')
+    expect(screen.queryByText('Total Spent')).not.toBeInTheDocument()
 
     expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
     expect(screen.getByLabelText('Transport category')).toBeInTheDocument()
     expect(screen.getByLabelText('Dining category')).toBeInTheDocument()
+  })
+
+  it('renders over-income hero when spent exceeds income', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue({
+      ...sampleSummaryWithSpending,
+      total_income_cents: 10000,
+      total_spent_cents: 15000,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('Over income')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('safe-to-spend-amount')).toHaveTextContent('$50')
+  })
+
+  it('renders zero-income hint in the hero when income is 0', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue({
+      ...sampleSummaryWithSpending,
+      total_income_cents: 0,
+      total_spent_cents: 15000,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByText(/add income to see what's safe to spend/i)).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('safe-to-spend-amount')).toHaveTextContent('$0')
   })
 
   // ------------------------------------------------------------------ progress colors
@@ -618,6 +677,103 @@ describe('DashboardPage', () => {
     })
 
     expect(screen.queryByTestId('manage-goals-btn')).not.toBeInTheDocument()
+  })
+
+  // ------------------------------------------------------------------ starting balance prompt
+  it('shows starting balance prompt when summary has_starting_balance is false', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue({
+      ...sampleSummaryWithSpending,
+      has_starting_balance: false,
+    })
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: false,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('starting-balance-prompt')).toBeInTheDocument()
+    })
+  })
+
+  it('hides starting balance prompt when has_starting_balance is true', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue({
+      ...sampleSummaryWithSpending,
+      has_starting_balance: true,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('starting-balance-prompt')).not.toBeInTheDocument()
+  })
+
+  it('hides starting balance prompt when has_starting_balance is omitted', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeUserWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    const summaryWithoutFlag = { ...sampleSummaryWithSpending }
+    delete (summaryWithoutFlag as { has_starting_balance?: boolean }).has_starting_balance
+    vi.mocked(getBudgetSummary).mockResolvedValue(summaryWithoutFlag)
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Groceries category')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('starting-balance-prompt')).not.toBeInTheDocument()
+  })
+
+  it('stacks starting balance prompt above rollover prompt', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: makeAdminWithFamily(),
+      isLoading: false,
+      isAuthenticated: true,
+      logout: vi.fn().mockResolvedValue(undefined),
+    })
+    vi.mocked(getBudgetSummary).mockResolvedValue({
+      ...sampleSummaryWithSpending,
+      has_starting_balance: false,
+    })
+    vi.mocked(getGoals).mockResolvedValue({
+      year_month: '2026-04',
+      goals: [],
+      has_previous_goals: true,
+    })
+
+    renderDashboardPage()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('starting-balance-prompt')).toBeInTheDocument()
+      expect(screen.getByTestId('rollover-prompt')).toBeInTheDocument()
+    })
+
+    const starting = screen.getByTestId('starting-balance-prompt')
+    const rollover = screen.getByTestId('rollover-prompt')
+    expect(
+      starting.compareDocumentPosition(rollover) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   // ------------------------------------------------------------------ rollover prompt

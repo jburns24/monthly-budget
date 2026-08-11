@@ -38,6 +38,18 @@ class BudgetQuery(Protocol):
         """Return one row per active category, ordered by ``(sort_order, name)``.
 
         Postgres tier: LEFT JOIN against expenses plus a goals subquery, grouped
-        per category.
+        per category. Category ``spent_cents`` sums only ``entry_type = 'expense'``.
         """
+        ...
+
+    async def month_totals(self, family_id: UUID, year_month: str) -> tuple[int, int]:
+        """Return ``(income_cents, spent_cents)`` for the family/month.
+
+        ``spent_cents`` sums ``entry_type = 'expense'`` only;
+        ``income_cents`` sums ``entry_type = 'income'`` only.
+        """
+        ...
+
+    async def has_starting_balance(self, family_id: UUID, year_month: str) -> bool:
+        """True when a starting-balance income row exists for the family/month."""
         ...

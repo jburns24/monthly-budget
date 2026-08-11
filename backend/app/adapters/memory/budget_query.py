@@ -1,9 +1,9 @@
 """In-memory stand-in for :class:`~app.ports.read_models.BudgetQuery`.
 
-``category_spend_and_goals`` is Postgres tier — a 5-way aggregate (categories
-LEFT JOIN expenses LEFT JOIN a goals subquery, GROUP BY) that a fake would have
-to re-implement rather than test. Matches the ``CategoryRepository`` precedent
-(``find_similar_active``, ``most_used_since``): raise rather than approximate.
+``category_spend_and_goals`` / ``month_totals`` / ``has_starting_balance`` are
+Postgres tier — aggregates a fake would have to re-implement rather than test.
+Matches the ``CategoryRepository`` precedent (``find_similar_active``,
+``most_used_since``): raise rather than approximate.
 """
 
 from uuid import UUID
@@ -23,4 +23,16 @@ class MemoryBudgetQuery:
             "BudgetQuery.category_spend_and_goals",
             "a 5-way SQL aggregate (LEFT JOIN + GROUP BY); the percentage/status/total "
             "math it feeds is unit-tested separately via expense_service.build_budget_summary",
+        )
+
+    async def month_totals(self, family_id: UUID, year_month: str) -> tuple[int, int]:
+        postgres_tier(
+            "BudgetQuery.month_totals",
+            "a SUM FILTER aggregate over entry_type for family/month income vs spend",
+        )
+
+    async def has_starting_balance(self, family_id: UUID, year_month: str) -> bool:
+        postgres_tier(
+            "BudgetQuery.has_starting_balance",
+            "a cheap EXISTS over is_starting_balance for the family/month",
         )
