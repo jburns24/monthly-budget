@@ -36,6 +36,11 @@ def test_get_anthropic_client_dependency_importable() -> None:
     assert callable(get_anthropic_client)
 
 
+def test_anthropic_workspace_id_setting_defaults_to_empty() -> None:
+    """Workspace scoping is opt-in for identity-linked Anthropic keys."""
+    assert Settings.model_fields["anthropic_workspace_id"].default == ""
+
+
 @pytest.mark.asyncio
 async def test_lifespan_sets_anthropic_on_app_state() -> None:
     """FastAPI lifespan sets app.state.anthropic during startup and calls close() on shutdown."""
@@ -52,6 +57,7 @@ async def test_lifespan_sets_anthropic_on_app_state() -> None:
         async with lifespan(test_app):
             assert test_app.state.anthropic is mock_client
             call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs["default_headers"] is None
             assert call_kwargs["max_retries"] == 2
             assert call_kwargs["timeout"].connect == 10.0
             assert call_kwargs["timeout"].read == 45.0
@@ -68,6 +74,7 @@ def test_lifespan_anthropic_constructor_kwargs() -> None:
     source = inspect.getsource(main_module.lifespan)
     assert "max_retries=2" in source
     assert "api_key=settings.anthropic_api_key" in source
+    assert "anthropic-workspace-id" in source
     assert "read=45.0" in source
     assert "connect=10.0" in source
     assert "app.state.anthropic" in source

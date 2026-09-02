@@ -35,8 +35,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         environment=settings.environment,
     )
 
+    anthropic_headers = (
+        {"anthropic-workspace-id": settings.anthropic_workspace_id} if settings.anthropic_workspace_id else None
+    )
     app.state.anthropic = AsyncAnthropic(
         api_key=settings.anthropic_api_key,
+        default_headers=anthropic_headers,
         max_retries=2,
         timeout=httpx.Timeout(connect=10.0, read=45.0, write=10.0, pool=5.0),
     )

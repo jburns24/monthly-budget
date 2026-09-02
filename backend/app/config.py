@@ -101,6 +101,10 @@ class Settings(BaseSettings):
         default="",
         description="Anthropic API key for receipt scanning",
     )
+    anthropic_workspace_id: str = Field(
+        default="",
+        description="Optional Anthropic workspace ID for identity-linked API keys",
+    )
     anthropic_mock: bool = Field(
         default=False,
         description="When True, skip real Anthropic calls and return deterministic mock responses",
