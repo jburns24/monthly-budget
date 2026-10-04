@@ -7,9 +7,6 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   replicas: 1
-  # The receipts PVC is ReadWriteOnce, so never let two pods hold it at once.
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: backend
@@ -88,10 +85,6 @@ spec:
                 name: app-config
             - secretRef:
                 name: app-secrets
-          volumeMounts:
-            - name: receipts
-              # Must stay in sync with RECEIPT_STORAGE_PATH in app-config.env.
-              mountPath: /data/receipts
           # Probe strategy, deliberately chosen -- see backend/app/routers/health.py:
           #
           #   GET /api/health       -> 200 healthy, 503 when DB *or* Redis is down.
@@ -129,7 +122,3 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
-      volumes:
-        - name: receipts
-          persistentVolumeClaim:
-            claimName: backend-receipts

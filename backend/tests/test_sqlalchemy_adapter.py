@@ -1045,22 +1045,6 @@ async def test_list_filtered_is_scoped_to_the_family(db_session, uow_factory) ->
     assert await uow.receipts.list_filtered(family_one.id, None, None, None, None, 50, 0) == []
 
 
-async def test_get_status_returns_the_status(db_session, uow_factory) -> None:
-    """get_status reads the persisted column directly, not a possibly-stale instance."""
-    family, owner = await _make_family(db_session)
-    receipt = await create_test_receipt(db_session, family, owner, status="completed")
-    uow = uow_factory(db_session)
-
-    assert await uow.receipts.get_status(receipt.id) == "completed"
-
-
-async def test_get_status_returns_none_for_an_unknown_id(db_session, uow_factory) -> None:
-    """A missing id is None, not an error."""
-    uow = uow_factory(db_session)
-
-    assert await uow.receipts.get_status(uuid.uuid4()) is None
-
-
 async def test_receipt_add_then_flush_assigns_id_and_server_side_created_at(db_session, uow_factory) -> None:
     """add() stages a new receipt; flush() assigns its id and created_at server default."""
     family, owner = await _make_family(db_session)
@@ -1086,61 +1070,6 @@ async def test_receipt_delete_removes_the_row(db_session, uow_factory) -> None:
     await uow.flush()
 
     assert await uow.receipts.get_in_family(receipt.id, family.id) is None
-
-
-# claim_for_retry — the concurrency guarantee (two connections racing the same
-# failed row, exactly one winning) is NOT retested here: it needs two real
-# database connections to exercise Postgres's row locking, which this single
-# session, single-connection db_session fixture cannot provide. That scenario
-# is already covered by tests/test_receipts_api.py::test_retry_concurrent_only_one_succeeds,
-# which has the two-connection machinery for it.
-
-
-async def test_claim_for_retry_moves_a_failed_receipt_to_processing(db_session, uow_factory) -> None:
-    """A failed receipt is claimed: status flips to processing and error_message is cleared."""
-    family, owner = await _make_family(db_session)
-    receipt = await create_test_receipt(db_session, family, owner, status="failed", error_message="Claude timed out")
-    uow = uow_factory(db_session)
-
-    claimed = await uow.receipts.claim_for_retry(receipt.id)
-
-    assert claimed is True
-    await db_session.refresh(receipt)
-    assert receipt.status == "processing"
-    assert receipt.error_message is None
-
-
-async def test_claim_for_retry_does_not_touch_a_completed_receipt(db_session, uow_factory) -> None:
-    """A completed receipt cannot be claimed; nothing about it changes."""
-    family, owner = await _make_family(db_session)
-    receipt = await create_test_receipt(db_session, family, owner, status="completed")
-    uow = uow_factory(db_session)
-
-    claimed = await uow.receipts.claim_for_retry(receipt.id)
-
-    assert claimed is False
-    await db_session.refresh(receipt)
-    assert receipt.status == "completed"
-
-
-async def test_claim_for_retry_does_not_touch_a_processing_receipt(db_session, uow_factory) -> None:
-    """A receipt already processing cannot be claimed again."""
-    family, owner = await _make_family(db_session)
-    receipt = await create_test_receipt(db_session, family, owner, status="processing")
-    uow = uow_factory(db_session)
-
-    claimed = await uow.receipts.claim_for_retry(receipt.id)
-
-    assert claimed is False
-    await db_session.refresh(receipt)
-    assert receipt.status == "processing"
-
-
-async def test_claim_for_retry_returns_false_for_an_unknown_id(db_session, uow_factory) -> None:
-    """A missing id claims nothing and does not raise."""
-    uow = uow_factory(db_session)
-
-    assert await uow.receipts.claim_for_retry(uuid.uuid4()) is False
 
 
 # ---------------------------------------------------------------------------

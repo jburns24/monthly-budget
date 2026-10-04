@@ -114,12 +114,6 @@ class Settings(BaseSettings):
         description="Mock scenario to use when anthropic_mock=True (success, medium_confidence, low_confidence, non_receipt, api_error)",
     )
 
-    # Receipt storage
-    receipt_storage_path: Path = Field(
-        default=Path("/data/receipts"),
-        description="Filesystem path where uploaded receipt images are stored",
-    )
-
     @model_validator(mode="after")
     def apply_database_migration_url_fallback(self) -> "Settings":
         """Default database_migration_url to database_url when unset."""

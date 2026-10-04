@@ -10,8 +10,6 @@ including unparsed rows.
 import uuid
 from datetime import date, datetime, timezone
 
-import pytest
-
 from tests.unit.conftest import make_receipt, seed
 
 
@@ -187,22 +185,6 @@ async def test_date_filter_excludes_receipts_with_no_parsed_date(uow, family_id)
 
 
 # ---------------------------------------------------------------------------
-# get_status
-# ---------------------------------------------------------------------------
-
-
-async def test_get_status_returns_the_persisted_status(uow, family_id) -> None:
-    receipt = make_receipt(family_id, uuid.uuid4(), status="processing")
-    await seed(uow, receipt)
-
-    assert await uow.receipts.get_status(receipt.id) == "processing"
-
-
-async def test_get_status_returns_none_for_an_unknown_id(uow) -> None:
-    assert await uow.receipts.get_status(uuid.uuid4()) is None
-
-
-# ---------------------------------------------------------------------------
 # add / delete
 # ---------------------------------------------------------------------------
 
@@ -243,20 +225,3 @@ async def test_delete_removes_the_row_on_flush(uow, family_id) -> None:
     await uow.flush()
 
     assert await uow.receipts.get_in_family(receipt.id, family_id) is None
-
-
-# ---------------------------------------------------------------------------
-# Postgres-tier: no fake for claim_for_retry
-# ---------------------------------------------------------------------------
-
-
-async def test_claim_for_retry_refuses_to_be_faked(uow) -> None:
-    """Row-lock serialization of the conditional UPDATE is Postgres tier; the
-    fake says so instead of letting a single-threaded call trivially "win"
-    without ever exercising the concurrency guarantee that is the entire point.
-    """
-    with pytest.raises(NotImplementedError, match="Postgres") as exc_info:
-        await uow.receipts.claim_for_retry(uuid.uuid4())
-
-    assert "row-lock serialization" in str(exc_info.value)
-    assert "concurrency" in str(exc_info.value)

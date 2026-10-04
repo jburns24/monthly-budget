@@ -1,23 +1,20 @@
-"""Tests for receipt_storage service.
+"""Tests for receipt image preparation (validation + sanitizing).
 
 Covers:
 - MIME validation accepts image/* types, rejects non-image bytes
 - sanitize_image re-encodes to JPEG, strips EXIF, resizes oversized images
 - Decompression-bomb guard raises PIL error on giant images
 - HEIC → JPEG conversion round-trip via pillow_heif
-- Async save / load / delete file operations
 """
 
 import io
-import uuid
-from pathlib import Path
 from unittest.mock import patch
 
 import pillow_heif
 import pytest
 from PIL import Image
 
-from app.services.receipt_storage import delete, load, sanitize_image, save, validate_mime
+from app.services.receipt_storage import sanitize_image, validate_mime
 
 pillow_heif.register_heif_opener()
 
@@ -191,58 +188,3 @@ def test_sanitize_heic_converts_to_jpeg() -> None:
     img = Image.open(io.BytesIO(result))
     assert img.format == "JPEG"
     assert size[0] > 0 and size[1] > 0
-
-
-# ---------------------------------------------------------------------------
-# Async save / load / delete tests
-# ---------------------------------------------------------------------------
-
-
-async def test_save_writes_file_to_disk(tmp_path: Path) -> None:
-    family_id = uuid.uuid4()
-    data = _make_jpeg()
-
-    with patch("app.services.receipt_storage.settings") as mock_settings:
-        mock_settings.receipt_storage_path = tmp_path
-        path = await save(family_id, data, ".jpg")
-
-    assert path.exists()
-    assert path.read_bytes() == data
-    assert path.suffix == ".jpg"
-    assert str(family_id) in str(path)
-
-
-async def test_save_creates_family_subdirectory(tmp_path: Path) -> None:
-    family_id = uuid.uuid4()
-
-    with patch("app.services.receipt_storage.settings") as mock_settings:
-        mock_settings.receipt_storage_path = tmp_path
-        path = await save(family_id, b"data", ".jpg")
-
-    assert path.parent.name == str(family_id)
-
-
-async def test_load_reads_file_from_disk(tmp_path: Path) -> None:
-    data = b"test image data"
-    test_file = tmp_path / "test.jpg"
-    test_file.write_bytes(data)
-
-    result = await load(test_file)
-
-    assert result == data
-
-
-async def test_delete_removes_file_from_disk(tmp_path: Path) -> None:
-    test_file = tmp_path / "test.jpg"
-    test_file.write_bytes(b"data")
-    assert test_file.exists()
-
-    await delete(test_file)
-
-    assert not test_file.exists()
-
-
-async def test_delete_is_noop_for_missing_file(tmp_path: Path) -> None:
-    """Deleting a nonexistent file should not raise."""
-    missing = tmp_path / "nonexistent.jpg"
-    await delete(missing)  # Should not raise

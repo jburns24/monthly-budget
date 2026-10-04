@@ -143,33 +143,6 @@ async def test_corrupt_image_raises_400(db_session: AsyncSession, uow_factory) -
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_phase1_save_failure_raises_500(db_session: AsyncSession, uow_factory) -> None:
-    user = await create_test_user(db_session)
-    uow = uow_factory(db_session)
-    family, _ = await create_test_family(db_session, user)
-    delete_mock = AsyncMock()
-
-    with (
-        patch("app.services.receipt_service.receipt_storage.validate_mime"),
-        patch(
-            "app.services.receipt_service.receipt_storage.sanitize_image",
-            return_value=(b"sanitized", (100, 100)),
-        ),
-        patch(
-            "app.services.receipt_service.receipt_storage.save",
-            AsyncMock(side_effect=OSError("disk full")),
-        ),
-        patch("app.services.receipt_service.receipt_storage.delete", delete_mock),
-    ):
-        with pytest.raises(HTTPException) as exc_info:
-            await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
-
-    assert exc_info.value.status_code == 500
-    # image_path was never set (save raised before path was returned), so no delete
-    delete_mock.assert_not_called()
-
-
 # ---------------------------------------------------------------------------
 # Phase 2: Claude API error → 503, receipt marked failed, image deleted
 # ---------------------------------------------------------------------------
@@ -180,8 +153,6 @@ async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_sessio
     user = await create_test_user(db_session)
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
-    image_path = _fake_path(family.id)
-    delete_mock = AsyncMock()
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -189,8 +160,6 @@ async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_sessio
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", delete_mock),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(side_effect=Exception("Claude API unavailable")),
@@ -200,8 +169,6 @@ async def test_phase2_claude_error_raises_503_and_marks_receipt_failed(db_sessio
             await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
     assert exc_info.value.status_code == 503
-    # Image is preserved (not deleted) on Claude errors so retry can re-run extraction.
-    delete_mock.assert_not_called()
 
     result = await db_session.execute(select(Receipt).where(Receipt.family_id == family.id))
     receipt = result.scalar_one_or_none()
@@ -220,8 +187,6 @@ async def test_phase2_non_receipt_raises_422_and_marks_receipt_failed(db_session
     user = await create_test_user(db_session)
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
-    image_path = _fake_path(family.id)
-    delete_mock = AsyncMock()
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -229,8 +194,6 @@ async def test_phase2_non_receipt_raises_422_and_marks_receipt_failed(db_session
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", delete_mock),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=ExtractedReceipt(is_receipt=False, confidence="high")),
@@ -241,7 +204,6 @@ async def test_phase2_non_receipt_raises_422_and_marks_receipt_failed(db_session
 
     assert exc_info.value.status_code == 422
     assert "doesn't appear to be a receipt" in exc_info.value.detail
-    delete_mock.assert_called_once_with(image_path)
 
     result = await db_session.execute(select(Receipt).where(Receipt.family_id == family.id))
     receipt = result.scalar_one_or_none()
@@ -260,7 +222,6 @@ async def test_success_high_confidence_creates_expense(db_session: AsyncSession,
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
-    image_path = _fake_path(family.id)
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -268,8 +229,6 @@ async def test_success_high_confidence_creates_expense(db_session: AsyncSession,
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=_extracted()),
@@ -309,7 +268,6 @@ async def test_extracted_category_resolves_against_real_categories(db_session: A
     # a passing assertion can only mean the hint matched, not that we got lucky.
     await create_test_category(db_session, family, name="Bills", sort_order=0)
     groceries = await create_test_category(db_session, family, name="Groceries", sort_order=1)
-    image_path = _fake_path(family.id)
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -317,8 +275,6 @@ async def test_extracted_category_resolves_against_real_categories(db_session: A
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=_extracted(store_name="Safeway", category="Groceries")),
@@ -344,7 +300,6 @@ async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession, 
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family)
-    image_path = _fake_path(family.id)
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -352,8 +307,6 @@ async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession, 
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=_extracted(confidence="low", total_amount=None, date=None, store_name=None)),
@@ -387,7 +340,6 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family)
-    image_path = _fake_path(family.id)
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -395,8 +347,6 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=_extracted(confidence="low", total_amount=42.50)),
@@ -436,7 +386,6 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
-    image_path = _fake_path(family.id)
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -444,8 +393,6 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=_extracted()),
@@ -479,7 +426,6 @@ async def test_low_confidence_no_store_name_still_creates_expense(db_session: As
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
-    image_path = _fake_path(family.id)
 
     extracted = _extracted(confidence="low", total_amount=None, date=None, store_name=None)
 
@@ -489,8 +435,6 @@ async def test_low_confidence_no_store_name_still_creates_expense(db_session: As
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=extracted),
@@ -516,8 +460,6 @@ async def test_no_active_categories_raises_409(db_session: AsyncSession, uow_fac
     user = await create_test_user(db_session)
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
-    image_path = _fake_path(family.id)
-    delete_mock = AsyncMock()
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -525,8 +467,6 @@ async def test_no_active_categories_raises_409(db_session: AsyncSession, uow_fac
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", delete_mock),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=_extracted()),
@@ -537,8 +477,6 @@ async def test_no_active_categories_raises_409(db_session: AsyncSession, uow_fac
 
     assert exc_info.value.status_code == 409
     assert "categor" in str(exc_info.value.detail).lower()
-    # Image is preserved so the retry endpoint works once a category exists.
-    delete_mock.assert_not_called()
 
     result = await db_session.execute(select(Receipt).where(Receipt.family_id == family.id))
     receipt = result.scalar_one()
@@ -557,7 +495,6 @@ async def test_success_no_total_needs_edit_true(db_session: AsyncSession, uow_fa
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family)
-    image_path = _fake_path(family.id)
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -565,8 +502,6 @@ async def test_success_no_total_needs_edit_true(db_session: AsyncSession, uow_fa
             "app.services.receipt_service.receipt_storage.sanitize_image",
             return_value=(b"sanitized", (100, 100)),
         ),
-        patch("app.services.receipt_service.receipt_storage.save", AsyncMock(return_value=image_path)),
-        patch("app.services.receipt_service.receipt_storage.delete", AsyncMock()),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
             AsyncMock(return_value=_extracted(total_amount=None)),

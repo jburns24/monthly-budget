@@ -138,19 +138,17 @@ async def resolve_target(db, family_id: uuid.UUID | None) -> tuple[uuid.UUID, uu
 
 
 async def sweep_failed(db, family_id: uuid.UUID) -> None:
-    """Delete this family's failed receipts + their preserved images.
+    """Delete this family's failed receipts.
 
-    Phase-2 failures intentionally commit a status='failed' row and keep the
-    image on disk for the retry endpoint. Useful in the app, just litter here.
+    Failures intentionally commit a status='failed' row as an audit trail.
+    Useful in the app, just litter here.
     """
     rows = (await db.scalars(select(Receipt).where(Receipt.family_id == family_id, Receipt.status == "failed"))).all()
     for r in rows:
-        if r.image_path:
-            Path(r.image_path).unlink(missing_ok=True)
         await db.delete(r)
     await db.commit()
     if rows:
-        print(f"\n  cleaned up {len(rows)} failed receipt row(s) + image(s)")
+        print(f"\n  cleaned up {len(rows)} failed receipt row(s)")
 
 
 async def main() -> int:
@@ -223,7 +221,6 @@ async def main() -> int:
     print(f"  revision          {args.revision or '—'}")
     print(f"  ANTHROPIC_MOCK    {settings.anthropic_mock}")
     print(f"  ANTHROPIC_API_KEY {key_desc}")
-    print(f"  storage path      {settings.receipt_storage_path}")
     print(f"  image             {image_path}  ({len(raw):,} bytes)")
 
     if settings.anthropic_mock and not args.allow_mock:
@@ -282,7 +279,6 @@ async def main() -> int:
                         "parsed_date": str(receipt.parsed_date) if receipt.parsed_date else None,
                         "raw_response": receipt.raw_response,
                         "error_message": receipt.error_message,
-                        "image_path": receipt.image_path,
                     },
                     "expense_id": str(expense.id),
                     "needs_edit": needs_edit,
@@ -322,8 +318,6 @@ async def main() -> int:
             await db.execute(delete(Expense).where(Expense.id == expense.id))
             await db.execute(delete(Receipt).where(Receipt.id == receipt.id))
             await db.commit()
-            if receipt.image_path:
-                Path(receipt.image_path).unlink(missing_ok=True)
             print("\n  cleaned up receipt + expense rows (pass --keep to retain them)")
         else:
             print(f"\n  kept: receipt={created['receipt']} expense={created['expense']}")
