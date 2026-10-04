@@ -27,6 +27,7 @@ export interface Expense {
   is_starting_balance: boolean
   receipt_id: string | null
   receipt_status: ReceiptStatus | null
+  recurring_expense_id?: string | null
 }
 
 export interface ExpenseCreate {

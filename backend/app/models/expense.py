@@ -38,6 +38,8 @@ class Expense(Base):
         Index("idx_expenses_family_category_month", "family_id", "category_id", "year_month"),
         Index("idx_expenses_user", "user_id"),
         Index("idx_expenses_date", "expense_date"),
+        # One generated row per rule per occurrence date; NULLs (manual entries) never collide.
+        Index("uq_expenses_recurring_occurrence", "recurring_expense_id", "expense_date", unique=True),
         Index(
             "uq_expenses_starting_balance_per_family_month",
             "family_id",
@@ -75,6 +77,11 @@ class Expense(Base):
     is_starting_balance: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     receipt_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        nullable=True,
+    )
+    recurring_expense_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("recurring_expenses.id", ondelete="SET NULL"),
         nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(

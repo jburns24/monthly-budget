@@ -17,7 +17,7 @@ from app.schemas.expense import (
     ExpenseResponse,
     ExpenseUpdate,
 )
-from app.services import expense_service
+from app.services import expense_service, recurring_service
 from app.services.grace_period import is_within_grace_period
 
 logger = get_logger(__name__)
@@ -194,6 +194,13 @@ async def get_budget_summary(
     membership: tuple[User, FamilyMember] = Depends(require_family_member),
     uow: UnitOfWork = Depends(get_uow),
 ) -> BudgetSummaryResponse:
-    """Get budget summary for a family for the given month."""
-    is_editable = await _is_editable(uow, family_id, month)
+    """Get budget summary for a family for the given month.
+
+    Also the trigger for recurring-expense reconciliation: opening the budget is the
+    user-initiated request that trues up any recurring entries that have come due.
+    """
+    family = await uow.families.get(family_id)
+    assert family is not None  # guaranteed by require_family_member
+    await recurring_service.reconcile(uow, family_id, recurring_service.family_today(family.timezone))
+    is_editable = is_within_grace_period(family, month)
     return await expense_service.get_budget_summary(uow, family_id=family_id, year_month=month, is_editable=is_editable)

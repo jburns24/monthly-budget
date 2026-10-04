@@ -6,6 +6,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage'
 import FamilyPage from './pages/FamilyPage'
 import CategoriesPage from './pages/CategoriesPage'
 import ExpensesPage from './pages/ExpensesPage'
+import RecurringPage from './pages/RecurringPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Header from './components/Header'
 import BottomNavigation from './components/BottomNavigation'
@@ -65,6 +66,16 @@ function App() {
             <ProtectedRoute>
               <ProtectedLayout>
                 <ExpensesPage />
+              </ProtectedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recurring"
+          element={
+            <ProtectedRoute>
+              <ProtectedLayout>
+                <RecurringPage />
               </ProtectedLayout>
             </ProtectedRoute>
           }

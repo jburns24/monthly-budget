@@ -11,7 +11,7 @@ import {
   Text,
 } from '@chakra-ui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useFamilyContext } from '../contexts/FamilyContext'
 import { getExpenses } from '../api/expenses'
 import { getCategories } from '../api/categories'
@@ -178,17 +178,32 @@ function ExpensesPage() {
           </Heading>
         </Box>
         {familyId && (
-          <Button
-            colorPalette="brand"
-            borderRadius="pill"
-            minH="44px"
-            px={{ base: 4, md: 5 }}
-            _active={{ transform: 'scale(0.97)' }}
-            onClick={() => setCreateOpen(true)}
-            data-testid="add-expense-btn"
-          >
-            Add Expense
-          </Button>
+          <Flex gap={2} align="center">
+            <Button
+              asChild
+              bg="surface.1"
+              color="ink"
+              borderRadius="pill"
+              minH="44px"
+              px={{ base: 4, md: 5 }}
+              _hover={{ bg: 'surface.2' }}
+            >
+              <RouterLink to="/recurring" data-testid="recurring-link">
+                Recurring
+              </RouterLink>
+            </Button>
+            <Button
+              colorPalette="brand"
+              borderRadius="pill"
+              minH="44px"
+              px={{ base: 4, md: 5 }}
+              _active={{ transform: 'scale(0.97)' }}
+              onClick={() => setCreateOpen(true)}
+              data-testid="add-expense-btn"
+            >
+              Add Expense
+            </Button>
+          </Flex>
         )}
       </Flex>
 
