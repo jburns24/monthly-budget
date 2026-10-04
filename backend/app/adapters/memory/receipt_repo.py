@@ -8,7 +8,7 @@ crosses risk (a).
 from datetime import date
 from uuid import UUID
 
-from app.adapters.memory.store import MemoryStore, postgres_tier
+from app.adapters.memory.store import MemoryStore
 from app.models.receipt import Receipt
 
 
@@ -67,23 +67,8 @@ class MemoryReceiptRepository:
         matches.sort(key=lambda r: r.created_at, reverse=True)
         return matches[offset : offset + limit]
 
-    async def get_status(self, receipt_id: UUID) -> str | None:
-        receipt = self._store.get(Receipt, receipt_id)
-        return None if receipt is None else receipt.status
-
     def add(self, receipt: Receipt) -> None:
         self._store.add(receipt)
 
     async def delete(self, receipt: Receipt) -> None:
         self._store.delete(receipt)
-
-    # ------------------------------------------------------------------
-    # Postgres tier
-    # ------------------------------------------------------------------
-
-    async def claim_for_retry(self, receipt_id: UUID) -> bool:
-        postgres_tier(
-            "ReceiptRepository.claim_for_retry",
-            "row-lock serialization of a conditional UPDATE, which a single-threaded fake would "
-            "trivially satisfy without ever exercising the concurrency it exists to prevent",
-        )

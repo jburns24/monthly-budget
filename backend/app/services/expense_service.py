@@ -14,7 +14,6 @@ because ``ExpenseResponse`` walks ``.category``, ``.user``, and
 
 import uuid
 from datetime import date, datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -26,7 +25,6 @@ from app.ports.errors import UniqueViolation
 from app.ports.read_models import CategorySpendRow
 from app.ports.unit_of_work import UnitOfWork
 from app.schemas.expense import BudgetCategorySummary, BudgetSummaryResponse
-from app.services import receipt_storage
 
 logger = get_logger(__name__)
 
@@ -249,7 +247,7 @@ async def delete_expense(
     family_id: uuid.UUID,
     expense_id: uuid.UUID,
 ) -> None:
-    """Hard-delete an expense, cascade-deleting any linked Receipt row and on-disk image.
+    """Hard-delete an expense, cascade-deleting any linked Receipt row.
 
     Raises HTTPException(404) if not found or not in the family.
     """
@@ -258,10 +256,7 @@ async def delete_expense(
         raise HTTPException(status_code=404, detail="Expense not found")
 
     if expense.receipt_id is not None and expense.receipt is not None:
-        linked_receipt = expense.receipt
-        if linked_receipt.image_path:
-            await receipt_storage.delete(Path(linked_receipt.image_path))
-        await uow.receipts.delete(linked_receipt)
+        await uow.receipts.delete(expense.receipt)
 
     await uow.expenses.delete(expense)
     await uow.flush()

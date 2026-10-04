@@ -183,7 +183,6 @@ k8s_resource(
         'app-config:configmap',
         'app-secrets:secret',
         'monthly-budget:ingress',
-        'backend-receipts:persistentvolumeclaim',
     ],
     labels=['infra'],
 )

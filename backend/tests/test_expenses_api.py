@@ -752,10 +752,7 @@ async def test_delete_expense_non_member_returns_404(db_session: AsyncSession, a
 
 @pytest.mark.asyncio
 async def test_delete_expense_cascades_to_receipt(db_session: AsyncSession, authenticated_client) -> None:
-    """DELETE /api/families/{id}/expenses/{expense_id} removes the linked Receipt row and on-disk image."""
-    from pathlib import Path
-    from unittest.mock import AsyncMock, patch
-
+    """DELETE /api/families/{id}/expenses/{expense_id} removes the linked Receipt row."""
     from sqlalchemy import select
 
     from app.main import app
@@ -763,7 +760,7 @@ async def test_delete_expense_cascades_to_receipt(db_session: AsyncSession, auth
     user = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
-    receipt = await create_test_receipt(db_session, family, user, image_path="/data/receipts/test.jpg")
+    receipt = await create_test_receipt(db_session, family, user)
     expense = await create_test_expense(
         db_session,
         family,
@@ -776,12 +773,10 @@ async def test_delete_expense_cascades_to_receipt(db_session: AsyncSession, auth
     expense.receipt_id = receipt.id
     await db_session.flush()
 
-    storage_delete = AsyncMock()
     app.dependency_overrides[get_db] = override_get_db(db_session)
     try:
-        with patch("app.services.expense_service.receipt_storage.delete", storage_delete):
-            async with authenticated_client(user) as client:
-                resp = await client.delete(f"/api/families/{family.id}/expenses/{expense.id}")
+        async with authenticated_client(user) as client:
+            resp = await client.delete(f"/api/families/{family.id}/expenses/{expense.id}")
     finally:
         app.dependency_overrides.pop(get_db, None)
 
@@ -790,9 +785,6 @@ async def test_delete_expense_cascades_to_receipt(db_session: AsyncSession, auth
     # Receipt row is gone
     result = await db_session.execute(select(Receipt).where(Receipt.id == receipt.id))
     assert result.scalar_one_or_none() is None
-
-    # on-disk delete was called with the correct path
-    storage_delete.assert_called_once_with(Path("/data/receipts/test.jpg"))
 
 
 # ---------------------------------------------------------------------------

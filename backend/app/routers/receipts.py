@@ -1,13 +1,11 @@
-"""Receipts router: upload, list, get, image, retry, and delete endpoints."""
+"""Receipts router: upload, list, get, and delete endpoints."""
 
 import uuid
 from datetime import date
-from pathlib import Path
 from typing import Annotated
 
 from anthropic import AsyncAnthropic
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
 
 from app.dependencies import get_anthropic_client, require_family_member
 from app.deps.provider import get_uow
@@ -17,7 +15,7 @@ from app.models.receipt import Receipt
 from app.models.user import User
 from app.ports.unit_of_work import UnitOfWork
 from app.schemas.receipt import ReceiptResponse, ReceiptStatus, ReceiptUploadResponse
-from app.services import rate_limiter, receipt_service, receipt_storage
+from app.services import rate_limiter, receipt_service
 
 logger = get_logger(__name__)
 
@@ -143,83 +141,6 @@ async def get_receipt(
 
 
 # ---------------------------------------------------------------------------
-# GET /api/families/{family_id}/receipts/{receipt_id}/image — stream image
-# ---------------------------------------------------------------------------
-
-
-@router.get("/{receipt_id}/image")
-async def get_receipt_image(
-    family_id: uuid.UUID,
-    receipt_id: uuid.UUID,
-    membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
-    uow: Annotated[UnitOfWork, Depends(get_uow)],
-) -> StreamingResponse:
-    """Stream the raw image bytes for a receipt. Returns 410 if file is missing."""
-    receipt = await _get_receipt_or_404(uow, family_id, receipt_id)
-
-    if not receipt.image_path:
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Image no longer available.")
-
-    image_path = Path(receipt.image_path)
-    try:
-        image_bytes = await receipt_storage.load(image_path)
-    except (FileNotFoundError, OSError):
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Image file not found.")
-
-    return StreamingResponse(
-        iter([image_bytes]),
-        media_type="image/jpeg",
-        headers={
-            "Content-Disposition": "inline",
-            "Cache-Control": "private, max-age=3600",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
-
-
-# ---------------------------------------------------------------------------
-# POST /api/families/{family_id}/receipts/{receipt_id}/retry
-# ---------------------------------------------------------------------------
-
-
-@router.post("/{receipt_id}/retry", response_model=ReceiptUploadResponse)
-async def retry_receipt(
-    family_id: uuid.UUID,
-    receipt_id: uuid.UUID,
-    membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
-    anthropic: Annotated[AsyncAnthropic, Depends(get_anthropic_client)],
-    uow: Annotated[UnitOfWork, Depends(get_uow)],
-) -> ReceiptUploadResponse:
-    """Re-run Claude extraction for a failed receipt.
-
-    Returns 409 if the receipt is not in ``status='failed'``. Uses optimistic
-    locking (``UPDATE ... WHERE status='failed' RETURNING``) so that two
-    concurrent retries on the same receipt cannot both proceed — exactly one
-    caller wins the row-level UPDATE, the other gets 409. See spec Open
-    Question #2.
-    """
-    receipt = await _get_receipt_or_404(uow, family_id, receipt_id)
-
-    # Atomic failed->processing transition (raises 409 on non-failed rows).
-    receipt = await receipt_service.claim_receipt_for_retry(uow, receipt)
-
-    receipt, expense, needs_edit = await receipt_service.reprocess_receipt(uow, anthropic, receipt)
-
-    logger.info(
-        "receipt_retry_complete",
-        receipt_id=str(receipt.id),
-        family_id=str(family_id),
-        needs_edit=needs_edit,
-    )
-
-    return ReceiptUploadResponse(
-        receipt=ReceiptResponse.model_validate(receipt),
-        expense_id=expense.id,
-        needs_edit=needs_edit,
-    )
-
-
-# ---------------------------------------------------------------------------
 # DELETE /api/families/{family_id}/receipts/{receipt_id}
 # ---------------------------------------------------------------------------
 
@@ -240,9 +161,6 @@ async def delete_receipt(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the uploader or a family admin can delete this receipt.",
         )
-
-    if receipt.image_path:
-        await receipt_storage.delete(Path(receipt.image_path))
 
     await uow.receipts.delete(receipt)
 

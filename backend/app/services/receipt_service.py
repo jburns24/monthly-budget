@@ -1,20 +1,19 @@
 """Receipt upload processing service — three-phase transaction.
 
-Phase 1 (savepoint): validate MIME, sanitize image, save to disk, insert
+Phase 1 (savepoint): validate MIME, sanitize image, insert
   Receipt(status='processing').
 Phase 2 (non-atomic): call extract_receipt via AsyncAnthropic.
 Phase 3 (savepoint): update Receipt + create Expense with suggested category.
 
-On Phase 2 Claude errors: mark Receipt 'failed', preserve image for retry.
-On non-receipt / Phase 3 errors: mark Receipt 'failed', delete image.
-On a family with no active categories: mark Receipt 'failed', preserve image,
-  raise 409 — a parsed receipt must never complete without an Expense.
+The image itself is never stored — only the extraction result. Any failure marks
+the Receipt 'failed' and the user re-uploads (there is nothing to retry from).
+On a family with no active categories: mark Receipt 'failed', raise 409 — a
+  parsed receipt must never complete without an Expense.
 """
 
 import uuid
 from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
 from typing import cast
 
 from anthropic import AsyncAnthropic
@@ -99,8 +98,8 @@ def _amount_cents(total_amount: float | None) -> int | None:
     return max(1, round(total_amount * 100))
 
 
-async def _mark_failed(uow: UnitOfWork, receipt: Receipt, image_path: Path | None, reason: str) -> None:
-    """Update receipt to failed status and optionally delete the image file.
+async def _mark_failed(uow: UnitOfWork, receipt: Receipt, reason: str) -> None:
+    """Update receipt to failed status.
 
     Commits the unit of work so the audit row persists even though the caller is
     about to raise an HTTPException (which would otherwise trigger ``get_db``'s
@@ -108,7 +107,7 @@ async def _mark_failed(uow: UnitOfWork, receipt: Receipt, image_path: Path | Non
     requires that the Receipt row is durable with ``status='failed'`` so the
     retry flow and audit trail can function.
 
-    This is one of only two places in the codebase that calls
+    This is the only place in the codebase that calls
     ``UnitOfWork.commit`` — the rule everywhere else is that ``get_db``'s
     teardown owns the commit. See ``docs/data-layer-ports-design.md`` section 2.
     """
@@ -121,9 +120,6 @@ async def _mark_failed(uow: UnitOfWork, receipt: Receipt, image_path: Path | Non
     except Exception:
         logger.warning("receipt_mark_failed_db_error", receipt_id=str(receipt.id))
 
-    if image_path is not None:
-        await receipt_storage.delete(image_path)
-
 
 async def _run_phase3(
     uow: UnitOfWork,
@@ -131,7 +127,6 @@ async def _run_phase3(
     extracted: ExtractedReceipt,
     family_id: uuid.UUID,
     uploader_id: uuid.UUID,
-    image_path: Path | None,
 ) -> tuple[Expense, bool]:
     """Phase 3: update Receipt fields + create Expense. Returns (expense, needs_edit)."""
     parsed_date = _parse_expense_date(extracted.date)
@@ -163,9 +158,8 @@ async def _run_phase3(
     if suggested_category is None:
         # expenses.category_id is NOT NULL, so there is nothing to attach the
         # expense to. Fail loudly instead of reporting success with an empty
-        # expense list. The image is preserved (image_path not passed) so the
-        # retry endpoint works once the family creates a category.
-        await _mark_failed(uow, receipt, None, "No active categories available to categorize the expense")
+        # expense list. The user re-uploads once the family creates a category.
+        await _mark_failed(uow, receipt, "No active categories available to categorize the expense")
         logger.warning("receipt_phase3_no_active_categories", receipt_id=str(receipt.id), family_id=str(family_id))
         raise HTTPException(
             status_code=409,
@@ -216,7 +210,7 @@ async def _run_phase3(
             await uow.flush()
 
     except Exception as exc:
-        await _mark_failed(uow, receipt, image_path, f"DB error in phase 3: {exc}")
+        await _mark_failed(uow, receipt, f"DB error in phase 3: {exc}")
         logger.error("receipt_phase3_failed", receipt_id=str(receipt.id), error=str(exc))
         raise HTTPException(
             status_code=503,
@@ -286,26 +280,20 @@ async def process_upload(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid image: {exc}") from exc
 
-    # --- Phase 1: save image + insert Receipt(status=processing) ---
-    image_path: Path | None = None
+    # --- Phase 1: insert Receipt(status=processing) ---
     receipt: Receipt
 
     try:
-        image_path = await receipt_storage.save(family_id, sanitized_bytes, ".jpg")
-
         async with uow.savepoint():
             receipt = Receipt(
                 family_id=family_id,
                 uploaded_by=uploader_id,
-                image_path=str(image_path),
                 status="processing",
             )
             uow.receipts.add(receipt)
             await uow.flush()
 
     except Exception as exc:
-        if image_path is not None:
-            await receipt_storage.delete(image_path)
         logger.error("receipt_phase1_failed", family_id=str(family_id), error=str(exc))
         raise HTTPException(status_code=500, detail="Failed to save receipt") from exc
 
@@ -329,17 +317,16 @@ async def process_upload(
             usage_callback=usage_callback,
         )
     except Exception as exc:
-        # Keep image on disk so the retry endpoint can re-run extraction.
-        await _mark_failed(uow, receipt, None, f"Claude API error: {exc}")
+        await _mark_failed(uow, receipt, f"Claude API error: {exc}")
         logger.error("receipt_phase2_failed", receipt_id=str(receipt.id), error=str(exc))
         raise HTTPException(
             status_code=503,
             detail="Receipt processing failed. Try again or enter manually.",
         ) from exc
 
-    # Non-receipt: clean up and reject
+    # Non-receipt: reject
     if not extracted.is_receipt:
-        await _mark_failed(uow, receipt, image_path, "Not a receipt")
+        await _mark_failed(uow, receipt, "Not a receipt")
         logger.info("receipt_not_a_receipt", receipt_id=str(receipt.id))
         raise HTTPException(
             status_code=422,
@@ -354,126 +341,5 @@ async def process_upload(
         has_date=extracted.date is not None,
     )
 
-    expense, needs_edit = await _run_phase3(uow, receipt, extracted, family_id, uploader_id, image_path)
-    return receipt, expense, needs_edit
-
-
-async def claim_receipt_for_retry(uow: UnitOfWork, receipt: Receipt) -> Receipt:
-    """Atomically transition ``receipt.status`` from 'failed' to 'processing'.
-
-    Implements the optimistic-locking contract described in the spec's Open
-    Question #2: two concurrent retries on the same failed receipt must not
-    both proceed (which would double-charge Claude). ``claim_for_retry`` issues a
-    single ``UPDATE receipts SET status='processing' WHERE id=? AND
-    status='failed'`` which the database serializes at row-lock granularity;
-    exactly one caller sees a non-zero rowcount, and the other sees zero and
-    gets 409. That guarantee is why ``claim_for_retry`` is Postgres tier and has
-    no in-memory implementation — see the port docstring.
-
-    The claim is committed immediately so the in-flight ``processing`` state
-    is visible to other sessions (and to a 409-ing concurrent request).
-
-    Raises
-    ------
-    HTTPException(409)
-        Receipt is not in ``status='failed'`` (already completed, already
-        being retried, or still processing from the initial upload).
-    """
-    # Capture the id now — after a savepoint rollback the ORM instance's
-    # attributes are expired and a lazy reload would re-issue IO on the
-    # (already-rolled-back) session, raising MissingGreenlet.
-    receipt_id = receipt.id
-
-    # Use a savepoint for the claim UPDATE so the no-op path (claimed=False, 409)
-    # can be rolled back without touching the caller's outer transaction.
-    async with uow.savepoint() as savepoint:
-        claimed = await uow.receipts.claim_for_retry(receipt_id)
-        if not claimed:
-            await savepoint.rollback()
-
-    if not claimed:
-        # Look up the current status for an accurate 409 detail. Query outside
-        # the savepoint so we see the true persisted row (the passed-in
-        # ``receipt.status`` is potentially stale if another session already
-        # transitioned it to 'processing').
-        current_status = await uow.receipts.get_status(receipt_id)
-        raise HTTPException(
-            status_code=409,
-            detail=f"Receipt cannot be retried from status '{current_status}'.",
-        )
-
-    # Commit the savepoint + outer transaction so the in-flight 'processing'
-    # state is visible to a concurrent retry (which will then see rowcount=0
-    # and 409). This is the spec's optimistic-lock guarantee, and the second and
-    # last call to ``UnitOfWork.commit`` in the codebase.
-    await uow.commit()
-    # Sync the ORM instance with the freshly-committed row state. Required, not
-    # belt-and-braces: the claim went out as a Core UPDATE that the session's
-    # identity map knows nothing about, and ``expire_on_commit=False`` (design
-    # doc risk (e)) means the commit does not expire ``receipt`` either. Without
-    # these two lines the caller would keep reading ``status='failed'`` off a
-    # row that is now 'processing'. Turning expire_on_commit on instead would
-    # trade this for a lazy refresh outside the greenlet context — a
-    # MissingGreenlet at response-serialization time.
-    receipt.status = "processing"
-    receipt.error_message = None
-    return receipt
-
-
-async def reprocess_receipt(
-    uow: UnitOfWork,
-    anthropic_client_inst: AsyncAnthropic,
-    receipt: Receipt,
-) -> tuple[Receipt, Expense, bool]:
-    """Re-run Phase 2 + Phase 3 for an existing failed receipt.
-
-    Used by the retry endpoint. Loads the image from ``receipt.image_path``.
-    Callers must first use :func:`claim_receipt_for_retry` to atomically move
-    the row from ``status='failed'`` to ``status='processing'`` and avoid the
-    concurrent-retry race.
-
-    Raises
-    ------
-    HTTPException(422)
-        Image file missing or no longer on disk.
-    HTTPException(422)
-        Claude determines image is not a receipt.
-    HTTPException(409)
-        Family has no active categories to attach the expense to.
-    HTTPException(503)
-        Claude API error or Phase 3 DB failure.
-    """
-    if not receipt.image_path:
-        raise HTTPException(status_code=422, detail="Image no longer available. Please re-upload.")
-
-    image_path = Path(receipt.image_path)
-    try:
-        image_bytes = await receipt_storage.load(image_path)
-    except (FileNotFoundError, OSError):
-        raise HTTPException(status_code=422, detail="Image file missing. Please re-upload.")
-
-    # Phase 2: call Claude
-    try:
-        extracted = await claude_client.extract_receipt(
-            anthropic_client_inst,
-            image_bytes,
-            media_type="image/jpeg",
-        )
-    except Exception as exc:
-        await _mark_failed(uow, receipt, None, f"Claude API error: {exc}")
-        logger.error("receipt_retry_phase2_failed", receipt_id=str(receipt.id), error=str(exc))
-        raise HTTPException(
-            status_code=503,
-            detail="Receipt processing failed. Try again or enter manually.",
-        ) from exc
-
-    if not extracted.is_receipt:
-        await _mark_failed(uow, receipt, image_path, "Not a receipt")
-        logger.info("receipt_retry_not_a_receipt", receipt_id=str(receipt.id))
-        raise HTTPException(
-            status_code=422,
-            detail="This doesn't appear to be a receipt. Please try again or enter manually.",
-        )
-
-    expense, needs_edit = await _run_phase3(uow, receipt, extracted, receipt.family_id, receipt.uploaded_by, image_path)
+    expense, needs_edit = await _run_phase3(uow, receipt, extracted, family_id, uploader_id)
     return receipt, expense, needs_edit

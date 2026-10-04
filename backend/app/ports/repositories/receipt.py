@@ -44,41 +44,10 @@ class ReceiptRepository(Protocol):
         """
         ...
 
-    async def get_status(self, receipt_id: UUID) -> str | None:
-        """Return the persisted ``status`` column, or None if the row is gone.
-
-        Reads the column directly rather than an instance attribute: the caller
-        (``claim_receipt_for_retry``'s 409 path) needs the *true* persisted value
-        precisely because the ORM instance it holds may be stale — another
-        session may already have claimed the row.
-        """
-        ...
-
     def add(self, receipt: Receipt) -> None:
         """Stage a new receipt. Not durable until ``UnitOfWork.flush``."""
         ...
 
     async def delete(self, receipt: Receipt) -> None:
         """Stage a hard delete. Not applied until ``UnitOfWork.flush``."""
-        ...
-
-    # ------------------------------------------------------------------
-    # Postgres tier: no in-memory implementation, integration tests only.
-    # ------------------------------------------------------------------
-
-    async def claim_for_retry(self, receipt_id: UUID) -> bool:
-        """Move ``receipt_id`` from ``status='failed'`` to ``'processing'``.
-
-        Returns True for the caller that won the row, False for everyone else.
-
-        Postgres tier, and the one method here where that classification is not
-        about SQL features but about the *guarantee*. The contract is that two
-        concurrent retries cannot both proceed (which would double-charge
-        Claude), and it is delivered by a conditional
-        ``UPDATE ... WHERE id = ? AND status = 'failed'`` that the database
-        serializes at row-lock granularity. A single-threaded in-memory fake
-        would return True-then-False and "pass" without ever exercising the
-        locking that is the entire point, so it would prove nothing. See
-        ``docs/data-layer-ports-design.md`` section 3.
-        """
         ...
