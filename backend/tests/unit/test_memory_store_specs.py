@@ -60,13 +60,14 @@ def test_composite_unique_constraints_are_derived_from_the_table() -> None:
 
 def test_partial_unique_indexes_are_derived_from_the_table() -> None:
     """A boolean-column postgresql_where becomes UniqueIndex.where_field."""
-    assert model_spec(Expense).unique == (
+    assert set(model_spec(Expense).unique) == {
         UniqueIndex(
             "uq_expenses_starting_balance_per_family_month",
             ("family_id", "year_month"),
             where_field="is_starting_balance",
         ),
-    )
+        UniqueIndex("uq_expenses_recurring_occurrence", ("recurring_expense_id", "expense_date")),
+    }
 
 
 def test_an_unrecognised_server_default_fails_loudly() -> None:

@@ -99,6 +99,16 @@ function ExpenseList({ expenses, onEdit, onDelete }: ExpenseListProps) {
                 >
                   {isIncome ? 'Income' : 'Expense'}
                 </Badge>
+                {expense.recurring_expense_id && (
+                  <Badge
+                    size="sm"
+                    variant="subtle"
+                    color="ink.muted"
+                    data-testid={`expense-recurring-${expense.id}`}
+                  >
+                    Recurring
+                  </Badge>
+                )}
                 {expense.receipt_status === 'completed' && expense.amount_cents === 0 && (
                   <Badge
                     colorPalette="yellow"

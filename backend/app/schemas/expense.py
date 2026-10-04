@@ -109,6 +109,7 @@ class ExpenseResponse(BaseModel):
     is_starting_balance: bool
     receipt_id: uuid.UUID | None = None
     receipt_status: ReceiptStatus | None = None
+    recurring_expense_id: uuid.UUID | None = None
 
 
 class ExpenseListResponse(BaseModel):

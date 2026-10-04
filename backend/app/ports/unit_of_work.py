@@ -26,6 +26,7 @@ from app.ports.repositories.family_member import FamilyMemberRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
 from app.ports.repositories.receipt import ReceiptRepository
+from app.ports.repositories.recurring_expense import RecurringExpenseRepository
 from app.ports.repositories.refresh_token import RefreshTokenRepository
 from app.ports.repositories.user import UserRepository
 
@@ -60,6 +61,7 @@ class UnitOfWork(Protocol):
     invites: InviteRepository
     goals: MonthlyGoalRepository
     receipts: ReceiptRepository
+    recurring: RecurringExpenseRepository
     tokens: RefreshTokenRepository
     budget: BudgetQuery
 

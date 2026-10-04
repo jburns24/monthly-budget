@@ -15,6 +15,7 @@ from app.adapters.sqlalchemy.family_repo import SqlAlchemyFamilyRepository
 from app.adapters.sqlalchemy.invite_repo import SqlAlchemyInviteRepository
 from app.adapters.sqlalchemy.monthly_goal_repo import SqlAlchemyMonthlyGoalRepository
 from app.adapters.sqlalchemy.receipt_repo import SqlAlchemyReceiptRepository
+from app.adapters.sqlalchemy.recurring_expense_repo import SqlAlchemyRecurringExpenseRepository
 from app.adapters.sqlalchemy.refresh_token_repo import SqlAlchemyRefreshTokenRepository
 from app.adapters.sqlalchemy.user_repo import SqlAlchemyUserRepository
 from app.ports.read_models import BudgetQuery
@@ -25,6 +26,7 @@ from app.ports.repositories.family_member import FamilyMemberRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
 from app.ports.repositories.receipt import ReceiptRepository
+from app.ports.repositories.recurring_expense import RecurringExpenseRepository
 from app.ports.repositories.refresh_token import RefreshTokenRepository
 from app.ports.repositories.user import UserRepository
 
@@ -65,6 +67,7 @@ class SqlAlchemyUnitOfWork:
     invites: InviteRepository
     goals: MonthlyGoalRepository
     receipts: ReceiptRepository
+    recurring: RecurringExpenseRepository
     tokens: RefreshTokenRepository
     budget: BudgetQuery
 
@@ -79,6 +82,7 @@ class SqlAlchemyUnitOfWork:
         self.invites = SqlAlchemyInviteRepository(session)
         self.goals = SqlAlchemyMonthlyGoalRepository(session)
         self.receipts = SqlAlchemyReceiptRepository(session)
+        self.recurring = SqlAlchemyRecurringExpenseRepository(session)
         self.tokens = SqlAlchemyRefreshTokenRepository(session)
         self.budget = SqlAlchemyBudgetQuery(session)
 

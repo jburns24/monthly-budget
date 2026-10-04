@@ -7,6 +7,7 @@ from app.models.family_member import FamilyMember
 from app.models.invite import Invite
 from app.models.monthly_goal import MonthlyGoal
 from app.models.receipt import Receipt
+from app.models.recurring_expense import RecurringExpense
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist
 from app.models.user import User
 
@@ -18,6 +19,7 @@ __all__ = [
     "Invite",
     "MonthlyGoal",
     "Receipt",
+    "RecurringExpense",
     "RefreshTokenBlacklist",
     "User",
 ]
