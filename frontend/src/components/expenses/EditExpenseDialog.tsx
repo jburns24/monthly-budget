@@ -11,7 +11,7 @@ import {
   DialogBackdrop,
 } from '@chakra-ui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { updateExpense } from '../../api/expenses'
+import { deleteExpense, updateExpense } from '../../api/expenses'
 import { getCategories } from '../../api/categories'
 import type { EntryType, Expense, ExpenseUpdate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
@@ -37,6 +37,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
   const [description, setDescription] = useState(expense.description)
   const [categoryId, setCategoryId] = useState(expense.category?.id ?? '')
   const [expenseDate, setExpenseDate] = useState(expense.expense_date)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isIncome = entryType === 'income'
 
   const { data: categories = [] } = useQuery({
@@ -88,6 +89,29 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
       }
     },
   })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteExpense(familyId, expense.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+      toaster.create({
+        title: isIncome ? 'Income deleted' : 'Expense deleted',
+        type: 'success',
+        duration: 4000,
+      })
+      onOpenChange(false)
+    },
+    onError: () => {
+      toaster.create({
+        title: 'Error',
+        description: 'Failed to delete. Please try again.',
+        type: 'error',
+        duration: 4000,
+      })
+    },
+  })
+  const busy = mutation.isPending || deleteMutation.isPending
 
   const amountCents = Math.round(parseFloat(amountStr) * 100)
   const isValid =
@@ -184,26 +208,64 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
           </Stack>
         </Stack>
       </DialogBody>
-      <DialogFooter>
-        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-          Cancel
-        </Button>
-        <Button
-          colorPalette="brand"
-          onClick={() => mutation.mutate()}
-          loading={mutation.isPending}
-          disabled={!isValid}
-        >
-          Save
-        </Button>
-      </DialogFooter>
+      {confirmingDelete ? (
+        <DialogFooter flexWrap="wrap">
+          <Text mr="auto" fontSize="sm">
+            Delete this {isIncome ? 'income' : 'expense'}? This can't be undone.
+          </Text>
+          <Button
+            variant="ghost"
+            onClick={() => setConfirmingDelete(false)}
+            disabled={deleteMutation.isPending}
+          >
+            Keep
+          </Button>
+          <Button
+            colorPalette="red"
+            onClick={() => deleteMutation.mutate()}
+            loading={deleteMutation.isPending}
+            data-testid="delete-expense-confirm"
+          >
+            Delete
+          </Button>
+        </DialogFooter>
+      ) : (
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            colorPalette="red"
+            mr="auto"
+            onClick={() => setConfirmingDelete(true)}
+            disabled={busy}
+            data-testid="edit-expense-delete"
+          >
+            Delete
+          </Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            colorPalette="brand"
+            onClick={() => mutation.mutate()}
+            loading={mutation.isPending}
+            disabled={!isValid || busy}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      )}
     </>
   )
 }
 
 function EditExpenseDialog({ open, onOpenChange, familyId, expense }: EditExpenseDialogProps) {
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && onOpenChange(false)} placement="center">
+    <DialogRoot
+      open={open}
+      onOpenChange={(e) => !e.open && onOpenChange(false)}
+      placement={{ base: 'bottom', md: 'center' }}
+      scrollBehavior="inside"
+    >
       <DialogBackdrop />
       <DialogPositioner>
         <DialogContent>

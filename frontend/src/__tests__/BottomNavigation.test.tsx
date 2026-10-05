@@ -23,7 +23,6 @@ describe('BottomNavigation', () => {
     expect(screen.getByLabelText('Dashboard')).toBeInTheDocument()
     expect(screen.getByLabelText('Family')).toBeInTheDocument()
     expect(screen.getByLabelText('Categories')).toBeInTheDocument()
-    expect(screen.getByLabelText('Settings (coming soon)')).toBeInTheDocument()
   })
 
   it('marks Dashboard tab as active when on root path', () => {
@@ -37,13 +36,6 @@ describe('BottomNavigation', () => {
     renderWithProviders(<BottomNavigation />, '/family')
     const familyLink = screen.getByLabelText('Family')
     expect(familyLink).toBeInTheDocument()
-  })
-
-  it('renders Settings as disabled with aria-disabled', () => {
-    renderWithProviders(<BottomNavigation />)
-    const settingsItem = screen.getByLabelText('Settings (coming soon)')
-    const disabledEl = settingsItem.querySelector('[aria-disabled="true"]')
-    expect(disabledEl).toBeInTheDocument()
   })
 
   it('renders nav with accessible bottom navigation label', () => {

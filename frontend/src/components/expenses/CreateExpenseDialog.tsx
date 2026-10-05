@@ -127,7 +127,12 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
     (isIncome || effectiveCategoryId.length > 0)
 
   return (
-    <DialogRoot open={open} onOpenChange={(e) => !e.open && handleClose()} placement="center">
+    <DialogRoot
+      open={open}
+      onOpenChange={(e) => !e.open && handleClose()}
+      placement={{ base: 'bottom', md: 'center' }}
+      scrollBehavior="inside"
+    >
       <DialogBackdrop />
       <DialogPositioner>
         <DialogContent>

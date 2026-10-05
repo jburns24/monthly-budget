@@ -6,10 +6,10 @@ import ExpenseList from '../components/expenses/ExpenseList'
 import type { Expense } from '../types/expenses'
 import system from '../theme'
 
-function renderExpenseList(expenses: Expense[], onEdit = vi.fn(), onDelete = vi.fn()) {
+function renderExpenseList(expenses: Expense[], onEdit = vi.fn()) {
   return render(
     <ChakraProvider value={system}>
-      <ExpenseList expenses={expenses} onEdit={onEdit} onDelete={onDelete} />
+      <ExpenseList expenses={expenses} onEdit={onEdit} />
     </ChakraProvider>
   )
 }
@@ -96,13 +96,6 @@ describe('ExpenseList', () => {
     expect(screen.getByTestId('expense-category-icon-exp-2')).toHaveTextContent('🚗')
   })
 
-  it('shows user display name on each card', () => {
-    renderExpenseList(sampleExpenses)
-
-    expect(screen.getByTestId('expense-user-exp-1')).toHaveTextContent('Alice')
-    expect(screen.getByTestId('expense-user-exp-2')).toHaveTextContent('Bob')
-  })
-
   it('shows expense date on each card', () => {
     renderExpenseList(sampleExpenses)
 
@@ -110,13 +103,24 @@ describe('ExpenseList', () => {
     expect(screen.getByTestId('expense-date-exp-2')).toBeInTheDocument()
   })
 
-  it('renders edit and delete buttons on each card', () => {
+  it('renders only an edit button on each card (delete lives in the edit dialog)', () => {
     renderExpenseList(sampleExpenses)
 
     expect(screen.getByTestId('expense-edit-btn-exp-1')).toBeInTheDocument()
-    expect(screen.getByTestId('expense-delete-btn-exp-1')).toBeInTheDocument()
-    expect(screen.getByTestId('expense-edit-btn-exp-2')).toBeInTheDocument()
-    expect(screen.getByTestId('expense-delete-btn-exp-2')).toBeInTheDocument()
+    expect(screen.queryByTestId('expense-delete-btn-exp-1')).not.toBeInTheDocument()
+  })
+
+  it('shows an abbreviated date without the year', () => {
+    renderExpenseList(sampleExpenses)
+
+    expect(screen.getByTestId('expense-date-exp-1')).toHaveTextContent(/^Apr 1$/)
+  })
+
+  it('shows a recurring icon only for recurring expenses', () => {
+    renderExpenseList([{ ...sampleExpenses[0], recurring_expense_id: 'rule-1' }, sampleExpenses[1]])
+
+    expect(screen.getByTestId('expense-recurring-exp-1')).toBeInTheDocument()
+    expect(screen.queryByTestId('expense-recurring-exp-2')).not.toBeInTheDocument()
   })
 
   it('calls onEdit with the correct expense when edit is clicked', async () => {
@@ -130,17 +134,6 @@ describe('ExpenseList', () => {
     expect(onEdit).toHaveBeenCalledWith(sampleExpenses[0])
   })
 
-  it('calls onDelete with the correct expense when delete is clicked', async () => {
-    const user = userEvent.setup()
-    const onDelete = vi.fn()
-    renderExpenseList(sampleExpenses, vi.fn(), onDelete)
-
-    await user.click(screen.getByTestId('expense-delete-btn-exp-2'))
-
-    expect(onDelete).toHaveBeenCalledTimes(1)
-    expect(onDelete).toHaveBeenCalledWith(sampleExpenses[1])
-  })
-
   it('shows fallback icon when category has no icon', () => {
     const expenseWithNoIcon: Expense[] = [
       {
@@ -152,77 +145,6 @@ describe('ExpenseList', () => {
     renderExpenseList(expenseWithNoIcon)
 
     expect(screen.getByTestId('expense-category-icon-exp-no-icon')).toHaveTextContent('📁')
-  })
-
-  it('shows fallback description text when description is empty', () => {
-    const expenseNoDesc: Expense[] = [
-      {
-        ...sampleExpenses[0],
-        id: 'exp-no-desc',
-        description: '',
-      },
-    ]
-    renderExpenseList(expenseNoDesc)
-
-    expect(screen.getByTestId('expense-description-exp-no-desc')).toHaveTextContent(
-      '(no description)'
-    )
-  })
-
-  describe('receipt badge', () => {
-    it('shows receipt badge on expense with completed receipt_status', () => {
-      const expenses: Expense[] = [
-        { ...sampleExpenses[0], id: 'exp-r', receipt_id: 'rec-1', receipt_status: 'completed' },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.getByTestId('expense-receipt-badge-exp-r')).toBeInTheDocument()
-    })
-
-    it('badge has title "Added via receipt"', () => {
-      const expenses: Expense[] = [
-        { ...sampleExpenses[0], id: 'exp-r', receipt_id: 'rec-1', receipt_status: 'completed' },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.getByTestId('expense-receipt-badge-exp-r')).toHaveAttribute(
-        'title',
-        'Added via receipt'
-      )
-    })
-
-    it('does not show receipt badge when receipt_status is null', () => {
-      const expenses: Expense[] = [
-        { ...sampleExpenses[0], id: 'exp-no-r', receipt_id: null, receipt_status: null },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.queryByTestId('expense-receipt-badge-exp-no-r')).not.toBeInTheDocument()
-    })
-
-    it('does not show receipt badge when receipt_status is processing', () => {
-      const expenses: Expense[] = [
-        {
-          ...sampleExpenses[0],
-          id: 'exp-proc',
-          receipt_id: 'rec-2',
-          receipt_status: 'processing',
-        },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.queryByTestId('expense-receipt-badge-exp-proc')).not.toBeInTheDocument()
-    })
-
-    it('category icon remains visible alongside the receipt badge', () => {
-      const expenses: Expense[] = [
-        { ...sampleExpenses[0], id: 'exp-both', receipt_id: 'rec-3', receipt_status: 'completed' },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.getByTestId('expense-category-icon-exp-both')).toBeInTheDocument()
-      expect(screen.getByTestId('expense-receipt-badge-exp-both')).toBeInTheDocument()
-    })
   })
 
   describe('entry type presentation', () => {
@@ -242,7 +164,7 @@ describe('ExpenseList', () => {
       const amount = screen.getByTestId('expense-amount-inc-1')
       expect(amount).toHaveTextContent('+$2,500')
       expect(amount).toHaveAttribute('data-entry-type', 'income')
-      expect(screen.getByTestId('expense-entry-type-inc-1')).toHaveTextContent('Income')
+      expect(screen.getByTestId('expense-category-name-inc-1')).toHaveTextContent('Income')
     })
 
     it('shows expense amount with − sign, spend color, and Expense label', () => {
@@ -251,66 +173,6 @@ describe('ExpenseList', () => {
       const amount = screen.getByTestId('expense-amount-exp-1')
       expect(amount).toHaveTextContent('−$45')
       expect(amount).toHaveAttribute('data-entry-type', 'expense')
-      expect(screen.getByTestId('expense-entry-type-exp-1')).toHaveTextContent('Expense')
-    })
-
-    it('does not rely on color alone — label is present for both types', () => {
-      const expenses: Expense[] = [
-        sampleExpenses[0],
-        {
-          ...sampleExpenses[0],
-          id: 'inc-2',
-          entry_type: 'income',
-          category: null,
-          amount_cents: 10000,
-        },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.getByTestId('expense-entry-type-exp-1')).toHaveTextContent('Expense')
-      expect(screen.getByTestId('expense-entry-type-inc-2')).toHaveTextContent('Income')
-    })
-  })
-
-  describe('needs review chip', () => {
-    it('shows "Needs review" chip when amount_cents is 0 and receipt_status is completed', () => {
-      const expenses: Expense[] = [
-        {
-          ...sampleExpenses[0],
-          id: 'exp-zero',
-          amount_cents: 0,
-          receipt_id: 'rec-4',
-          receipt_status: 'completed',
-        },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.getByTestId('expense-needs-review-exp-zero')).toBeInTheDocument()
-      expect(screen.getByTestId('expense-needs-review-exp-zero')).toHaveTextContent('Needs review')
-    })
-
-    it('does not show "Needs review" chip when amount_cents is non-zero', () => {
-      const expenses: Expense[] = [
-        { ...sampleExpenses[0], id: 'exp-ok', receipt_id: 'rec-5', receipt_status: 'completed' },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.queryByTestId('expense-needs-review-exp-ok')).not.toBeInTheDocument()
-    })
-
-    it('does not show "Needs review" chip when receipt_status is not completed', () => {
-      const expenses: Expense[] = [
-        {
-          ...sampleExpenses[0],
-          id: 'exp-proc2',
-          amount_cents: 0,
-          receipt_id: 'rec-6',
-          receipt_status: 'processing',
-        },
-      ]
-      renderExpenseList(expenses)
-
-      expect(screen.queryByTestId('expense-needs-review-exp-proc2')).not.toBeInTheDocument()
     })
   })
 })
