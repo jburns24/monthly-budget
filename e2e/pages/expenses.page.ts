@@ -27,11 +27,16 @@ export class ExpensesPage {
   readonly dateInput: Locator
   readonly submitButton: Locator
 
+  // Repeat (recurring) controls shared by the create and edit dialogs
+  readonly repeatCheckbox: Locator
+  readonly repeatFrequencySelect: Locator
+  readonly repeatEndInput: Locator
+  readonly editSaveButton: Locator
+
   // Expense list
   readonly expenseList: Locator
   readonly expenseListEmpty: Locator
   readonly editButtons: Locator
-  readonly deleteButtons: Locator
 
   // Pagination controls
   readonly paginationControls: Locator
@@ -60,10 +65,14 @@ export class ExpensesPage {
     this.dateInput = page.getByTestId('expense-date-input')
     this.submitButton = page.getByTestId('expense-submit-btn')
 
+    this.repeatCheckbox = page.getByTestId('repeat-checkbox')
+    this.repeatFrequencySelect = page.getByTestId('repeat-frequency-select')
+    this.repeatEndInput = page.getByTestId('repeat-end-input')
+    this.editSaveButton = page.getByRole('button', { name: 'Save', exact: true })
+
     this.expenseList = page.getByTestId('expense-list')
     this.expenseListEmpty = page.getByTestId('expense-list-empty')
     this.editButtons = page.locator('[data-testid^="expense-edit-btn-"]')
-    this.deleteButtons = page.locator('[data-testid^="expense-delete-btn-"]')
 
     this.paginationControls = page.getByTestId('pagination-controls')
     this.prevPageButton = page.getByTestId('prev-page-btn')
@@ -122,10 +131,12 @@ export class ExpensesPage {
   }
 
   /**
-   * Click the Delete button for an expense by its ID.
+   * Start deleting an expense by its ID: opens the edit dialog and clicks its
+   * Delete button, which reveals the inline confirmation (`delete-expense-confirm`).
    */
   async deleteExpense(expenseId: string): Promise<void> {
-    await this.page.getByTestId(`expense-delete-btn-${expenseId}`).click()
+    await this.editExpense(expenseId)
+    await this.page.getByTestId('edit-expense-delete').click()
   }
 
   /**

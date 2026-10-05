@@ -12,10 +12,13 @@ import {
 } from '@chakra-ui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createExpense } from '../../api/expenses'
+import { createRecurringExpense } from '../../api/recurring'
 import { getCategories } from '../../api/categories'
 import type { EntryType, ExpenseCreate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
+import type { Frequency } from '../../types/recurring'
 import EntryTypeToggle from './EntryTypeToggle'
+import RepeatFields from './RepeatFields'
 
 const LAST_USED_CATEGORY_KEY = 'lastUsedCategoryId'
 
@@ -49,6 +52,9 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   const [description, setDescription] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [expenseDate, setExpenseDate] = useState(todayString)
+  const [repeat, setRepeat] = useState(false)
+  const [frequency, setFrequency] = useState<Frequency>('monthly')
+  const [endDate, setEndDate] = useState('')
   const isIncome = entryType === 'income'
 
   const { data: categories = [] } = useQuery({
@@ -70,8 +76,20 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   }, [open])
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const amountCents = Math.round(parseFloat(amount) * 100)
+      if (repeat) {
+        await createRecurringExpense(familyId, {
+          amount_cents: amountCents,
+          description: description.trim() || undefined,
+          entry_type: entryType,
+          frequency,
+          start_date: expenseDate,
+          end_date: endDate || null,
+          ...(isIncome ? {} : { category_id: effectiveCategoryId }),
+        })
+        return
+      }
       const payload: ExpenseCreate = {
         amount_cents: amountCents,
         description: description.trim() || undefined,
@@ -81,7 +99,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
       if (!isIncome) {
         payload.category_id = effectiveCategoryId
       }
-      return createExpense(familyId, payload)
+      await createExpense(familyId, payload)
     },
     onSuccess: () => {
       if (!isIncome) {
@@ -89,8 +107,9 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
       }
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+      if (repeat) queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
       toaster.create({
-        title: isIncome ? 'Income added' : 'Expense added',
+        title: repeat ? 'Recurring entry saved' : isIncome ? 'Income added' : 'Expense added',
         description: `$${parseFloat(amount).toFixed(2)} recorded successfully.`,
         type: 'success',
         duration: 4000,
@@ -115,6 +134,9 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
     setDescription('')
     setExpenseDate(todayString())
     setCategoryId('')
+    setRepeat(false)
+    setFrequency('monthly')
+    setEndDate('')
     onOpenChange(false)
   }
 
@@ -124,6 +146,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
     !isNaN(parsedAmount) &&
     parsedAmount > 0 &&
     expenseDate.length > 0 &&
+    (!repeat || !endDate || endDate >= expenseDate) &&
     (isIncome || effectiveCategoryId.length > 0)
 
   return (
@@ -151,6 +174,16 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
                   disabled={mutation.isPending}
                 />
               </Stack>
+              <RepeatFields
+                repeat={repeat}
+                onRepeatChange={setRepeat}
+                frequency={frequency}
+                onFrequencyChange={setFrequency}
+                endDate={endDate}
+                onEndDateChange={setEndDate}
+                minEndDate={expenseDate}
+                disabled={mutation.isPending}
+              />
               <Stack gap={1}>
                 <Text fontWeight="medium" fontSize="sm">
                   Amount{' '}
@@ -208,7 +241,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
               )}
               <Stack gap={1}>
                 <Text fontWeight="medium" fontSize="sm">
-                  Date{' '}
+                  {repeat ? 'First date' : 'Date'}{' '}
                   <Text as="span" color="red.500">
                     *
                   </Text>
