@@ -140,35 +140,54 @@ async def update_rule(
 ) -> RecurringExpense:
     """Apply the fields present in ``fields`` (so ``end_date: None`` can clear it).
 
-    Changing the frequency re-anchors the schedule on the next due date. Resuming a
-    paused rule skips the periods it was paused for instead of back-filling them.
-    Already-generated entries are never touched.
+    Changing the frequency or ``next_due_date`` re-anchors the schedule on the (new)
+    next due date; a new next due date must be after today, because earlier dates
+    may already have generated entries. Extending the end date of a rule that had
+    ended brings it back to life. Resuming a paused rule skips the periods it was
+    paused for instead of back-filling them. Already-generated entries are never
+    touched.
     """
     rule = await _get_rule(uow, family_id, rule_id)
     was_active = rule.is_active
+    was_ended = not was_active and rule.end_date is not None and rule.next_due_date > rule.end_date
 
-    if fields.get("category_id") is not None:
+    new_category_id = fields.get("category_id")
+    if new_category_id is not None:
         if rule.entry_type == "income":
             raise HTTPException(status_code=400, detail="income must not have category_id")
-        await _validate_category(uow, family_id, fields["category_id"])
-        rule.category_id = fields["category_id"]
+        await _validate_category(uow, family_id, new_category_id)
+
+    new_next = fields.get("next_due_date")
+    if new_next is not None and new_next <= today:
+        raise HTTPException(status_code=400, detail="next_due_date must be after today")
+    effective_next = new_next or rule.next_due_date
+    effective_end = fields["end_date"] if "end_date" in fields else rule.end_date
+    if new_next is not None and effective_end is not None and effective_end < new_next:
+        raise HTTPException(status_code=400, detail="end_date must not be before next_due_date")
+
+    if new_category_id is not None:
+        rule.category_id = new_category_id
     for name in ("amount_cents", "description"):
         if fields.get(name) is not None:
             setattr(rule, name, fields[name])
-    if fields.get("frequency") is not None and fields["frequency"] != rule.frequency:
-        rule.frequency = fields["frequency"]
-        rule.start_date = rule.next_due_date
+    new_frequency = fields.get("frequency")
+    if (new_frequency is not None and new_frequency != rule.frequency) or new_next is not None:
+        if new_frequency is not None:
+            rule.frequency = new_frequency
+        rule.start_date = effective_next
+        rule.next_due_date = effective_next
         rule.occurrences_created = 0
     if "end_date" in fields:
-        end_date = fields["end_date"]
-        if end_date is not None and end_date < rule.next_due_date and rule.is_active:
+        if effective_end is not None and effective_end < rule.next_due_date and rule.is_active:
             # An end date already behind the next occurrence simply stops the rule.
             rule.is_active = False
-        rule.end_date = end_date
+        rule.end_date = effective_end
 
     resuming = fields.get("is_active") is True and not was_active
     if fields.get("is_active") is not None:
         rule.is_active = fields["is_active"]
+    elif was_ended and (rule.end_date is None or rule.next_due_date <= rule.end_date):
+        rule.is_active = True
     if resuming:
         _fast_forward(rule, today)
         if rule.end_date is not None and rule.next_due_date > rule.end_date:

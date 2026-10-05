@@ -136,4 +136,33 @@ describe('RecurringPage', () => {
     await userEvent.click(await screen.findByTestId('add-recurring-btn'))
     expect(await screen.findByTestId('recurring-amount-input')).toBeInTheDocument()
   })
+
+  it('shows Ended (no Resume) for a rule past its end date', async () => {
+    vi.mocked(getRecurringExpenses).mockResolvedValue([
+      makeRule({ is_active: false, end_date: '2026-10-01', next_due_date: '2026-11-01' }),
+    ])
+    renderPage()
+    const row = await screen.findByTestId('recurring-row-rule-1')
+    expect(row).toHaveTextContent('Ended')
+    expect(screen.queryByTestId('recurring-toggle-rule-1')).not.toBeInTheDocument()
+    expect(screen.getByTestId('recurring-edit-rule-1')).toBeInTheDocument()
+  })
+
+  it('shows Paused (with Resume) for a user-paused rule', async () => {
+    vi.mocked(getRecurringExpenses).mockResolvedValue([makeRule({ is_active: false })])
+    renderPage()
+    const row = await screen.findByTestId('recurring-row-rule-1')
+    expect(row).toHaveTextContent('Paused')
+    expect(screen.getByTestId('recurring-toggle-rule-1')).toHaveTextContent('Resume')
+  })
+
+  it('opens the edit dialog prefilled from the rule', async () => {
+    vi.mocked(getRecurringExpenses).mockResolvedValue([makeRule()])
+    renderPage()
+    await userEvent.click(await screen.findByTestId('recurring-edit-rule-1'))
+    expect(await screen.findByTestId('edit-recurring-amount')).toHaveValue('1500')
+    expect(screen.getByTestId('edit-recurring-description')).toHaveValue('Rent')
+    expect(screen.getByTestId('edit-recurring-frequency')).toHaveValue('monthly')
+    expect(screen.getByTestId('edit-recurring-next')).toHaveValue('2026-11-01')
+  })
 })

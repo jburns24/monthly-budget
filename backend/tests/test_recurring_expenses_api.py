@@ -236,3 +236,187 @@ async def test_other_family_cannot_see_rules(db_session, app_with_db, authentica
         resp = await client.get(f"/api/families/{family.id}/recurring-expenses")
 
     assert resp.status_code in (403, 404)
+
+
+async def _make_rule(client, family, category, **overrides) -> dict:
+    body = {
+        "amount_cents": 1000,
+        "category_id": str(category.id),
+        "frequency": "monthly",
+        "start_date": (date.today() + timedelta(days=10)).isoformat(),
+    }
+    body.update(overrides)
+    resp = await client.post(f"/api/families/{family.id}/recurring-expenses", json=body)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_update_changes_future_fields_only(db_session, app_with_db, authenticated_client) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    rent = await create_test_category(db_session, family, name="Rent")
+    fun = await create_test_category(db_session, family, name="Fun")
+    start = date.today() - timedelta(days=40)
+
+    async with authenticated_client(user) as client:
+        rule = await _make_rule(client, family, rent, start_date=start.isoformat(), description="old")
+        generated = await _count(db_session, uuid.UUID(rule["id"]))
+        resp = await client.put(
+            f"/api/families/{family.id}/recurring-expenses/{rule['id']}",
+            json={"amount_cents": 2500, "description": "", "category_id": str(fun.id)},
+        )
+
+    body = resp.json()
+    assert resp.status_code == 200
+    assert (body["amount_cents"], body["description"], body["category_id"]) == (2500, "", str(fun.id))
+    assert generated >= 1
+    assert await _count(db_session, uuid.UUID(rule["id"])) == generated
+    rows = await db_session.execute(select(Expense).where(Expense.recurring_expense_id == uuid.UUID(rule["id"])))
+    assert all(e.amount_cents == 1000 and e.category_id == rent.id for e in rows.scalars())
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_bad_category_and_income_category(db_session, app_with_db, authenticated_client) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    cat = await create_test_category(db_session, family, name="Rent")
+    other_user = await create_test_user(db_session, display_name="Other")
+    other_family, _ = await create_test_family(db_session, other_user)
+    foreign = await create_test_category(db_session, other_family, name="Foreign")
+
+    async with authenticated_client(user) as client:
+        rule = await _make_rule(client, family, cat)
+        income = await _make_rule(client, family, cat, entry_type="income", category_id=None)
+        base = f"/api/families/{family.id}/recurring-expenses"
+        bad = await client.put(f"{base}/{rule['id']}", json={"category_id": str(foreign.id)})
+        inc = await client.put(f"{base}/{income['id']}", json={"category_id": str(cat.id)})
+        zero = await client.put(f"{base}/{rule['id']}", json={"amount_cents": 0})
+
+    assert bad.status_code == 400
+    assert inc.status_code == 400
+    assert zero.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_next_due_date_reanchors_schedule(db_session, app_with_db, authenticated_client) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    cat = await create_test_category(db_session, family, name="Rent")
+    target = date.today() + timedelta(days=20)
+
+    async with authenticated_client(user) as client:
+        rule = await _make_rule(client, family, cat)
+        resp = await client.put(
+            f"/api/families/{family.id}/recurring-expenses/{rule['id']}",
+            json={"next_due_date": target.isoformat()},
+        )
+
+    body = resp.json()
+    assert resp.status_code == 200
+    assert body["next_due_date"] == body["start_date"] == target.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_update_next_due_date_must_be_after_today_and_before_end(
+    db_session, app_with_db, authenticated_client
+) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    cat = await create_test_category(db_session, family, name="Rent")
+    today = date.today()
+
+    async with authenticated_client(user) as client:
+        rule = await _make_rule(client, family, cat, end_date=(today + timedelta(days=60)).isoformat())
+        url = f"/api/families/{family.id}/recurring-expenses/{rule['id']}"
+        past = await client.put(url, json={"next_due_date": (today - timedelta(days=1)).isoformat()})
+        same_day = await client.put(url, json={"next_due_date": today.isoformat()})
+        after_end = await client.put(url, json={"next_due_date": (today + timedelta(days=90)).isoformat()})
+        unchanged = (await client.get(f"/api/families/{family.id}/recurring-expenses")).json()["recurring_expenses"][0]
+
+    assert past.status_code == same_day.status_code == after_end.status_code == 400
+    assert unchanged["next_due_date"] == rule["next_due_date"]
+
+
+@pytest.mark.asyncio
+async def test_update_frequency_restarts_from_next_due(db_session, app_with_db, authenticated_client) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    cat = await create_test_category(db_session, family, name="Rent")
+
+    async with authenticated_client(user) as client:
+        rule = await _make_rule(client, family, cat)
+        resp = await client.put(
+            f"/api/families/{family.id}/recurring-expenses/{rule['id']}", json={"frequency": "weekly"}
+        )
+
+    body = resp.json()
+    assert body["frequency"] == "weekly"
+    assert body["start_date"] == body["next_due_date"] == rule["next_due_date"]
+
+
+@pytest.mark.asyncio
+async def test_extending_end_date_revives_an_ended_rule(db_session, app_with_db, authenticated_client) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    cat = await create_test_category(db_session, family, name="Rent")
+    today = date.today()
+
+    async with authenticated_client(user) as client:
+        # Weekly rule that ended last week: every occurrence already generated.
+        rule = await _make_rule(
+            client,
+            family,
+            cat,
+            frequency="weekly",
+            start_date=(today - timedelta(days=14)).isoformat(),
+            end_date=(today - timedelta(days=7)).isoformat(),
+        )
+        url = f"/api/families/{family.id}/recurring-expenses/{rule['id']}"
+        generated = await _count(db_session, uuid.UUID(rule["id"]))
+        extended = await client.put(url, json={"end_date": (today + timedelta(days=30)).isoformat()})
+        paused = await client.put(url, json={"is_active": False})
+        ended_again = await client.put(url, json={"end_date": (today + timedelta(days=45)).isoformat()})
+
+    assert rule["is_active"] is False
+    assert extended.json()["is_active"] is True
+    assert await _count(db_session, uuid.UUID(rule["id"])) >= generated
+    # Extending the end date of a *paused* rule must not silently resume it.
+    assert paused.json()["is_active"] is False
+    assert ended_again.json()["is_active"] is False
+
+
+@pytest.mark.asyncio
+async def test_end_date_before_next_due_stops_rule_and_resume_needs_extension(
+    db_session, app_with_db, authenticated_client
+) -> None:
+    user = await create_test_user(db_session)
+    family, _ = await create_test_family(db_session, user)
+    cat = await create_test_category(db_session, family, name="Rent")
+
+    async with authenticated_client(user) as client:
+        rule = await _make_rule(client, family, cat)
+        url = f"/api/families/{family.id}/recurring-expenses/{rule['id']}"
+        stopped = await client.put(url, json={"end_date": date.today().isoformat()})
+        resume = await client.put(url, json={"is_active": True})
+
+    assert stopped.json()["is_active"] is False
+    assert resume.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_update_other_family_rule_is_404(db_session, app_with_db, authenticated_client) -> None:
+    owner = await create_test_user(db_session, display_name="Owner")
+    family, _ = await create_test_family(db_session, owner)
+    cat = await create_test_category(db_session, family, name="Rent")
+    outsider = await create_test_user(db_session, display_name="Outsider")
+    other_family, _ = await create_test_family(db_session, outsider)
+
+    async with authenticated_client(owner) as client:
+        rule = await _make_rule(client, family, cat)
+    async with authenticated_client(outsider) as client:
+        resp = await client.put(
+            f"/api/families/{other_family.id}/recurring-expenses/{rule['id']}", json={"amount_cents": 5}
+        )
+
+    assert resp.status_code == 404

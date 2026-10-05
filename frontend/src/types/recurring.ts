@@ -40,6 +40,7 @@ export interface RecurringExpenseUpdate {
   description?: string
   category_id?: string
   frequency?: Frequency
+  next_due_date?: string
   end_date?: string | null
   is_active?: boolean
 }
