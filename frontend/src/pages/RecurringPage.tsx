@@ -1,35 +1,70 @@
 import { useState } from 'react'
-import { Badge, Box, Button, Container, Flex, Heading, Spinner, Text } from '@chakra-ui/react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Box, Button, Container, Flex, Heading, Spinner, Text } from '@chakra-ui/react'
+import { useQuery } from '@tanstack/react-query'
 import { useFamilyContext } from '../contexts/FamilyContext'
-import {
-  deleteRecurringExpense,
-  getRecurringExpenses,
-  updateRecurringExpense,
-} from '../api/recurring'
+import { getRecurringExpenses } from '../api/recurring'
 import { getCategories } from '../api/categories'
 import { FREQUENCY_LABELS, type RecurringExpense } from '../types/recurring'
 import CreateRecurringDialog from '../components/recurring/CreateRecurringDialog'
 import EditRecurringDialog from '../components/recurring/EditRecurringDialog'
 import { isEnded } from '../utils/recurrence'
-import { toaster } from '../components/ui/toaster'
-
-function formatAmount(amountCents: number): string {
-  return `$${(amountCents / 100).toFixed(2)}`
-}
+import { formatCents } from '../utils/format'
 
 function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+  const showYear = year !== new Date().getFullYear()
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
-    year: 'numeric',
+    ...(showYear ? { year: 'numeric' } : {}),
   })
+}
+
+/** Active rules first, then paused, then ended; stable within each group. */
+function statusRank(rule: RecurringExpense): number {
+  if (rule.is_active) return 0
+  return isEnded(rule) ? 2 : 1
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function EditIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
 }
 
 function RecurringPage() {
   const { familyId } = useFamilyContext()
-  const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [editRule, setEditRule] = useState<RecurringExpense | null>(null)
 
@@ -49,62 +84,38 @@ function RecurringPage() {
     enabled: familyId !== null,
   })
 
-  function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
-    queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
-    queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+  const sortedRules = rules ? [...rules].sort((x, y) => statusRank(x) - statusRank(y)) : undefined
+
+  function category(rule: RecurringExpense) {
+    return categories.find((c) => c.id === rule.category_id)
   }
 
-  const toggleMutation = useMutation({
-    mutationFn: (rule: RecurringExpense) =>
-      updateRecurringExpense(familyId!, rule.id, { is_active: !rule.is_active }),
-    onSuccess: invalidate,
-    onError: () =>
-      toaster.create({
-        title: 'Error',
-        description: 'Could not update this recurring entry.',
-        type: 'error',
-        duration: 4000,
-      }),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: (rule: RecurringExpense) => deleteRecurringExpense(familyId!, rule.id),
-    onSuccess: () => {
-      invalidate()
-      toaster.create({ title: 'Recurring entry deleted', type: 'success', duration: 4000 })
-    },
-    onError: () =>
-      toaster.create({
-        title: 'Error',
-        description: 'Failed to delete recurring entry.',
-        type: 'error',
-        duration: 4000,
-      }),
-  })
-
-  function categoryLabel(rule: RecurringExpense): string {
+  function title(rule: RecurringExpense): string {
+    if (rule.description) return rule.description
     if (rule.entry_type === 'income') return 'Income'
-    const cat = categories.find((c) => c.id === rule.category_id)
-    return cat ? `${cat.icon ? `${cat.icon} ` : ''}${cat.name}` : 'Expense'
+    return category(rule)?.name ?? 'Expense'
   }
 
-  function handleDelete(rule: RecurringExpense) {
-    const name = rule.description || categoryLabel(rule)
-    if (window.confirm(`Delete "${name}"? Entries already added stay in your history.`)) {
-      deleteMutation.mutate(rule)
-    }
+  function metaLine(rule: RecurringExpense): string {
+    const parts = [FREQUENCY_LABELS[rule.frequency]]
+    if (isEnded(rule)) parts.unshift('Ended')
+    else if (!rule.is_active) parts.unshift('Paused')
+    else parts.push(`Next ${formatDate(rule.next_due_date)}`)
+    if (rule.is_active && rule.end_date) parts.push(`until ${formatDate(rule.end_date)}`)
+    return parts.join(' · ')
   }
 
   return (
-    <Container maxW="1199px" px={{ base: 4, md: 8 }} py={{ base: 8, md: 16 }}>
-      <Flex
-        align={{ base: 'flex-end', md: 'center' }}
-        justify="space-between"
-        mb={{ base: 8, md: 12 }}
-      >
-        <Box>
+    <Container
+      maxW="1199px"
+      px={{ base: 4, md: 8 }}
+      pt={{ base: 4, md: 16 }}
+      pb={{ base: '120px', md: 16 }}
+    >
+      <Flex align="center" justify="space-between" gap={3} mb={{ base: 4, md: 12 }}>
+        <Box minW={0}>
           <Text
+            display={{ base: 'none', md: 'block' }}
             color="ink.muted"
             fontSize="13px"
             fontWeight="500"
@@ -117,10 +128,10 @@ function RecurringPage() {
           <Heading
             as="h1"
             fontFamily="heading"
-            fontSize={{ base: '48px', md: '85px' }}
+            fontSize={{ base: '28px', md: '85px' }}
             fontWeight="500"
             lineHeight="0.95"
-            letterSpacing={{ base: '-2.4px', md: '-4.25px' }}
+            letterSpacing={{ base: '-1px', md: '-4.25px' }}
             color="ink"
           >
             Recurring
@@ -131,18 +142,26 @@ function RecurringPage() {
             colorPalette="brand"
             borderRadius="pill"
             minH="44px"
-            px={{ base: 4, md: 5 }}
+            minW="44px"
+            px={{ base: 0, md: 5 }}
+            flexShrink={0}
             onClick={() => setCreateOpen(true)}
+            aria-label="Add recurring"
             data-testid="add-recurring-btn"
           >
-            Add Recurring
+            <Box display={{ base: 'inline-flex', md: 'none' }}>
+              <PlusIcon />
+            </Box>
+            <Box as="span" display={{ base: 'none', md: 'inline' }}>
+              Add Recurring
+            </Box>
           </Button>
         )}
       </Flex>
 
       {!familyId && (
         <Box py={12} textAlign="center">
-          <Text color="gray.500">Create or join a family to set up recurring entries.</Text>
+          <Text color="ink.muted">Create or join a family to set up recurring entries.</Text>
         </Box>
       )}
 
@@ -154,7 +173,7 @@ function RecurringPage() {
 
       {familyId && isError && (
         <Box py={8} textAlign="center">
-          <Text color="red.500">Failed to load recurring entries. Please refresh the page.</Text>
+          <Text color="spend">Failed to load recurring entries. Please refresh the page.</Text>
         </Box>
       )}
 
@@ -167,89 +186,81 @@ function RecurringPage() {
         </Box>
       )}
 
-      {rules && rules.length > 0 && (
-        <Flex direction="column" gap={3} data-testid="recurring-list">
-          {rules.map((rule) => {
+      {sortedRules && sortedRules.length > 0 && (
+        <Flex direction="column" gap={2} maxW={{ md: '720px' }} data-testid="recurring-list">
+          {sortedRules.map((rule) => {
             const isIncome = rule.entry_type === 'income'
+            const inactive = !rule.is_active
+            const name = title(rule)
             return (
               <Flex
                 key={rule.id}
-                p={4}
-                gap={4}
                 align="center"
-                justify="space-between"
-                flexWrap="wrap"
+                p={3}
+                gap={3}
                 bg="surface.1"
-                borderRadius="16px"
+                borderRadius="card"
                 borderWidth="1px"
                 borderColor="hairline"
-                opacity={rule.is_active ? 1 : 0.6}
                 data-testid={`recurring-row-${rule.id}`}
               >
-                <Box minW={0} flex="1">
-                  <Flex align="center" gap={2} flexWrap="wrap">
-                    <Text fontWeight="500" color="ink" truncate>
-                      {rule.description || categoryLabel(rule)}
-                    </Text>
-                    <Badge size="sm" variant="subtle" color="ink.muted">
-                      {FREQUENCY_LABELS[rule.frequency]}
-                    </Badge>
-                    {!rule.is_active && (
-                      <Badge size="sm" variant="subtle" color="ink.muted">
-                        {isEnded(rule) ? 'Ended' : 'Paused'}
-                      </Badge>
-                    )}
-                  </Flex>
-                  <Text fontSize="xs" color="ink.muted" mt={1}>
-                    {categoryLabel(rule)}
-                    {rule.is_active && ` · Next ${formatDate(rule.next_due_date)}`}
-                    {rule.end_date && ` · Ends ${formatDate(rule.end_date)}`}
+                <Flex
+                  align="center"
+                  justify="center"
+                  w="40px"
+                  h="40px"
+                  flexShrink={0}
+                  borderRadius="10px"
+                  bg="surface.2"
+                  borderWidth="1px"
+                  borderColor="hairline"
+                  fontSize="xl"
+                  opacity={inactive ? 0.55 : 1}
+                  aria-hidden="true"
+                >
+                  {isIncome ? '💵' : (category(rule)?.icon ?? '📁')}
+                </Flex>
+                <Box flex={1} minW={0}>
+                  <Text fontWeight="500" color="ink" truncate>
+                    {name}
+                  </Text>
+                  <Text
+                    fontSize="xs"
+                    color="ink.muted"
+                    truncate
+                    data-testid={`recurring-meta-${rule.id}`}
+                  >
+                    {metaLine(rule)}
                   </Text>
                 </Box>
                 <Text
                   fontWeight="500"
+                  fontSize={{ base: 'sm', md: 'md' }}
                   fontVariantNumeric="tabular-nums"
+                  whiteSpace="nowrap"
+                  flexShrink={0}
                   color={isIncome ? 'income' : 'spend'}
+                  opacity={inactive ? 0.55 : 1}
                 >
-                  {isIncome ? '+' : ''}
-                  {formatAmount(rule.amount_cents)}
+                  {isIncome ? '+' : '−'}
+                  {formatCents(rule.amount_cents)}
                 </Text>
-                <Flex gap={2}>
-                  <Button
-                    size="sm"
-                    bg="surface.2"
-                    color="ink"
-                    borderRadius="pill"
-                    onClick={() => setEditRule(rule)}
-                    data-testid={`recurring-edit-${rule.id}`}
-                  >
-                    Edit
-                  </Button>
-                  {!isEnded(rule) && (
-                    <Button
-                      size="sm"
-                      bg="surface.2"
-                      color="ink"
-                      borderRadius="pill"
-                      onClick={() => toggleMutation.mutate(rule)}
-                      disabled={toggleMutation.isPending}
-                      data-testid={`recurring-toggle-${rule.id}`}
-                    >
-                      {rule.is_active ? 'Pause' : 'Resume'}
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    color="red.400"
-                    borderRadius="pill"
-                    onClick={() => handleDelete(rule)}
-                    disabled={deleteMutation.isPending}
-                    data-testid={`recurring-delete-${rule.id}`}
-                  >
-                    Delete
-                  </Button>
-                </Flex>
+                <Button
+                  bg="surface.2"
+                  color="ink"
+                  borderRadius="full"
+                  w="44px"
+                  h="44px"
+                  minW="44px"
+                  p={0}
+                  flexShrink={0}
+                  _hover={{ bg: 'surface.3' }}
+                  onClick={() => setEditRule(rule)}
+                  aria-label={`Edit ${name}`}
+                  data-testid={`recurring-edit-${rule.id}`}
+                >
+                  <EditIcon />
+                </Button>
               </Flex>
             )
           })}

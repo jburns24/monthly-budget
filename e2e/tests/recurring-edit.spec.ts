@@ -50,7 +50,7 @@ test('editing amount, description and frequency updates the row', async ({ page 
   await page.getByTestId(`recurring-edit-${ruleId}`).click()
 
   await expect(page.getByTestId('edit-recurring-amount')).toHaveValue('1500')
-  await page.getByTestId('edit-recurring-amount').fill('1600.50')
+  await page.getByTestId('edit-recurring-amount').fill('1600')
   await page.getByTestId('edit-recurring-description').fill('Rent (new lease)')
   await page.getByTestId('edit-recurring-frequency').selectOption('weekly')
   await expect(page.getByTestId('edit-recurring-frequency-hint')).toBeVisible()
@@ -58,7 +58,7 @@ test('editing amount, description and frequency updates the row', async ({ page 
 
   const row = page.getByTestId(`recurring-row-${ruleId}`)
   await expect(row).toContainText('Rent (new lease)')
-  await expect(row).toContainText('$1600.50')
+  await expect(row).toContainText('−$1,600')
   await expect(row).toContainText('Weekly')
 })
 
@@ -79,10 +79,10 @@ test('moving the next date works for a future date and is blocked for today or e
 
   await expect(page.getByTestId('edit-recurring-save')).toHaveCount(0)
   const [y, m, d] = target.split('-').map(Number)
-  const label = new Date(y, m - 1, d).toLocaleDateString(undefined, {
+  const label = new Date(y, m - 1, d).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
-    year: 'numeric',
+    ...(y !== new Date().getFullYear() ? { year: 'numeric' } : {}),
   })
   await expect(page.getByTestId(`recurring-row-${ruleId}`)).toContainText(`Next ${label}`)
 })
@@ -114,13 +114,81 @@ test('an ended rule shows Ended and comes back when the end date is extended', a
   await page.goto('/recurring')
   const row = page.getByTestId(`recurring-row-${ended.id}`)
   await expect(row).toContainText('Ended')
-  await expect(page.getByTestId(`recurring-toggle-${ended.id}`)).toHaveCount(0)
-
   await page.getByTestId(`recurring-edit-${ended.id}`).click()
+  await expect(page.getByTestId('edit-recurring-toggle')).toHaveCount(0)
   await page.getByTestId('edit-recurring-end').fill(isoDaysFromToday(60))
   await page.getByTestId('edit-recurring-save').click()
 
   await expect(row).not.toContainText('Ended')
   await expect(row).not.toContainText('Paused')
-  await expect(page.getByTestId(`recurring-toggle-${ended.id}`)).toHaveText('Pause')
+  await page.getByTestId(`recurring-edit-${ended.id}`).click()
+  await expect(page.getByTestId('edit-recurring-toggle')).toHaveText('Pause')
+})
+
+test('pause and resume from the edit dialog, and paused rules sort last', async ({ page }) => {
+  const ctx = await playwrightRequest.newContext({
+    baseURL: API_BASE,
+    storageState: 'playwright/.auth/user.json',
+  })
+  const second = await createRecurringViaApi(ctx, familyId, {
+    amount_cents: 900,
+    category_id: categoryId,
+    frequency: 'monthly',
+    start_date: isoDaysFromToday(20),
+    description: 'Streaming',
+  })
+  await ctx.dispose()
+
+  await page.goto('/recurring')
+  await page.getByTestId(`recurring-edit-${ruleId}`).click()
+  await page.getByTestId('edit-recurring-toggle').click()
+
+  await expect(page.getByTestId(`recurring-meta-${ruleId}`)).toContainText('Paused')
+  const rows = page.locator('[data-testid^="recurring-row-"]')
+  await expect(rows.last()).toHaveAttribute('data-testid', `recurring-row-${ruleId}`)
+  await expect(rows.first()).toHaveAttribute('data-testid', `recurring-row-${second.id}`)
+
+  await page.getByTestId(`recurring-edit-${ruleId}`).click()
+  await expect(page.getByTestId('edit-recurring-toggle')).toHaveText('Resume')
+  await page.getByTestId('edit-recurring-toggle').click()
+  await expect(page.getByTestId(`recurring-meta-${ruleId}`)).not.toContainText('Paused')
+})
+
+test('deleting needs an inline confirmation and removes the row', async ({ page }) => {
+  await page.goto('/recurring')
+  await page.getByTestId(`recurring-edit-${ruleId}`).click()
+  await page.getByTestId('edit-recurring-delete').click()
+  await page.getByText('Keep').click()
+  await expect(page.getByTestId(`recurring-row-${ruleId}`)).toBeVisible()
+
+  await page.getByTestId('edit-recurring-delete').click()
+  await page.getByTestId('edit-recurring-delete-confirm').click()
+  await expect(page.getByTestId(`recurring-row-${ruleId}`)).toHaveCount(0)
+})
+
+test('rows stay readable on a 320px screen with a very long description', async ({ page }) => {
+  const ctx = await playwrightRequest.newContext({
+    baseURL: API_BASE,
+    storageState: 'playwright/.auth/user.json',
+  })
+  await createRecurringViaApi(ctx, familyId, {
+    amount_cents: 123456789,
+    category_id: categoryId,
+    frequency: 'biweekly',
+    start_date: isoDaysFromToday(5),
+    description: 'An extremely long description that should be truncated rather than wrap '.repeat(
+      3
+    ),
+  })
+  await ctx.dispose()
+
+  await page.setViewportSize({ width: 320, height: 640 })
+  await page.goto('/recurring')
+  await expect(page.getByTestId('recurring-list')).toBeVisible()
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
+  const box = await page.getByTestId(`recurring-row-${ruleId}`).boundingBox()
+  expect(box!.height).toBeLessThan(80)
 })

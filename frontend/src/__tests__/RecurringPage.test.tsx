@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -28,11 +28,7 @@ vi.mock('../components/ui/toaster', () => ({
 }))
 
 import { useAuth } from '../hooks/useAuth'
-import {
-  deleteRecurringExpense,
-  getRecurringExpenses,
-  updateRecurringExpense,
-} from '../api/recurring'
+import { getRecurringExpenses } from '../api/recurring'
 
 const FAMILY_ID = 'fam-123'
 
@@ -100,34 +96,8 @@ describe('RecurringPage', () => {
     const row = await screen.findByTestId('recurring-row-rule-1')
     expect(row).toHaveTextContent('Rent')
     expect(row).toHaveTextContent('Monthly')
-    expect(row).toHaveTextContent('$1500.00')
+    expect(row).toHaveTextContent('−$1,500')
     expect(row).toHaveTextContent('Next')
-  })
-
-  it('pauses an active rule', async () => {
-    vi.mocked(getRecurringExpenses).mockResolvedValue([makeRule()])
-    vi.mocked(updateRecurringExpense).mockResolvedValue(makeRule({ is_active: false }))
-    renderPage()
-    await userEvent.click(await screen.findByTestId('recurring-toggle-rule-1'))
-    await waitFor(() =>
-      expect(updateRecurringExpense).toHaveBeenCalledWith(FAMILY_ID, 'rule-1', { is_active: false })
-    )
-  })
-
-  it('only deletes after confirmation', async () => {
-    vi.mocked(getRecurringExpenses).mockResolvedValue([makeRule()])
-    vi.mocked(deleteRecurringExpense).mockResolvedValue()
-    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
-    vi.stubGlobal('confirm', confirm)
-    renderPage()
-    const btn = await screen.findByTestId('recurring-delete-rule-1')
-
-    await userEvent.click(btn)
-    expect(deleteRecurringExpense).not.toHaveBeenCalled()
-
-    await userEvent.click(btn)
-    await waitFor(() => expect(deleteRecurringExpense).toHaveBeenCalledWith(FAMILY_ID, 'rule-1'))
-    vi.unstubAllGlobals()
   })
 
   it('opens the create dialog', async () => {
@@ -137,23 +107,45 @@ describe('RecurringPage', () => {
     expect(await screen.findByTestId('recurring-amount-input')).toBeInTheDocument()
   })
 
-  it('shows Ended (no Resume) for a rule past its end date', async () => {
+  it('shows Ended in the meta line for a rule past its end date', async () => {
     vi.mocked(getRecurringExpenses).mockResolvedValue([
       makeRule({ is_active: false, end_date: '2026-10-01', next_due_date: '2026-11-01' }),
     ])
     renderPage()
-    const row = await screen.findByTestId('recurring-row-rule-1')
-    expect(row).toHaveTextContent('Ended')
-    expect(screen.queryByTestId('recurring-toggle-rule-1')).not.toBeInTheDocument()
-    expect(screen.getByTestId('recurring-edit-rule-1')).toBeInTheDocument()
+    expect(await screen.findByTestId('recurring-meta-rule-1')).toHaveTextContent(/^Ended/)
   })
 
-  it('shows Paused (with Resume) for a user-paused rule', async () => {
+  it('shows Paused in the meta line for a user-paused rule, without a Next date', async () => {
     vi.mocked(getRecurringExpenses).mockResolvedValue([makeRule({ is_active: false })])
     renderPage()
-    const row = await screen.findByTestId('recurring-row-rule-1')
-    expect(row).toHaveTextContent('Paused')
-    expect(screen.getByTestId('recurring-toggle-rule-1')).toHaveTextContent('Resume')
+    const meta = await screen.findByTestId('recurring-meta-rule-1')
+    expect(meta).toHaveTextContent(/^Paused/)
+    expect(meta).not.toHaveTextContent('Next')
+  })
+
+  it('lists active rules before paused and ended ones', async () => {
+    vi.mocked(getRecurringExpenses).mockResolvedValue([
+      makeRule({
+        id: 'ended',
+        is_active: false,
+        end_date: '2026-10-01',
+        next_due_date: '2026-11-01',
+      }),
+      makeRule({ id: 'paused', is_active: false }),
+      makeRule({ id: 'active' }),
+    ])
+    renderPage()
+    await screen.findByTestId('recurring-list')
+    const ids = screen.getAllByTestId(/^recurring-row-/).map((el) => el.getAttribute('data-testid'))
+    expect(ids).toEqual(['recurring-row-active', 'recurring-row-paused', 'recurring-row-ended'])
+  })
+
+  it('shows income with a plus sign and the other rows with a minus', async () => {
+    vi.mocked(getRecurringExpenses).mockResolvedValue([
+      makeRule({ id: 'inc', entry_type: 'income', category_id: null, description: 'Pay' }),
+    ])
+    renderPage()
+    expect(await screen.findByTestId('recurring-row-inc')).toHaveTextContent('+$1,500')
   })
 
   it('opens the edit dialog prefilled from the rule', async () => {
