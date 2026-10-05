@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ChakraProvider } from '@chakra-ui/react'
@@ -25,6 +25,10 @@ vi.mock('../api/categories', () => ({
   seedCategories: vi.fn(() => new Promise(() => {})),
 }))
 
+vi.mock('../api/recurring', () => ({
+  createRecurringExpense: vi.fn(() => new Promise(() => {})),
+}))
+
 // Mock the toaster to avoid rendering issues in tests
 vi.mock('../components/ui/toaster', () => ({
   toaster: {
@@ -34,6 +38,7 @@ vi.mock('../components/ui/toaster', () => ({
 }))
 
 import { deleteExpense, updateExpense } from '../api/expenses'
+import { createRecurringExpense } from '../api/recurring'
 import { getCategories } from '../api/categories'
 import { toaster } from '../components/ui/toaster'
 
@@ -356,6 +361,89 @@ describe('EditExpenseDialog', () => {
     await user.click(screen.getByRole('button', { name: /cancel/i }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  describe('repeat', () => {
+    it('hides the recurring fields until Repeat is checked', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      renderEditDialog()
+
+      const checkbox = await screen.findByTestId('repeat-checkbox')
+      expect(checkbox).not.toBeChecked()
+      expect(screen.queryByTestId('repeat-frequency-select')).not.toBeInTheDocument()
+
+      await user.click(checkbox)
+      expect(screen.getByTestId('repeat-frequency-select')).toBeInTheDocument()
+    })
+
+    it('saves the expense then creates a rule starting at the next occurrence', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      vi.mocked(updateExpense).mockResolvedValue(makeExpense())
+      vi.mocked(createRecurringExpense).mockResolvedValue({} as never)
+      const onOpenChange = vi.fn()
+      renderEditDialog(makeExpense({ expense_date: '2026-01-31' }), true, onOpenChange)
+
+      await user.click(await screen.findByTestId('repeat-checkbox'))
+      await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+      await waitFor(() => expect(createRecurringExpense).toHaveBeenCalledTimes(1))
+      expect(updateExpense).toHaveBeenCalledTimes(1)
+      expect(createRecurringExpense).toHaveBeenCalledWith(
+        FAMILY_ID,
+        expect.objectContaining({
+          amount_cents: 4523,
+          description: 'Weekly groceries',
+          entry_type: 'expense',
+          frequency: 'monthly',
+          start_date: '2026-02-28',
+          end_date: null,
+          category_id: 'cat-1',
+        })
+      )
+      await waitFor(() =>
+        expect(toaster.create).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Expense updated and set to repeat' })
+        )
+      )
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
+
+    it('does not create a rule when Repeat is unchecked', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      vi.mocked(updateExpense).mockResolvedValue(makeExpense())
+      renderEditDialog()
+
+      await screen.findByTestId('repeat-checkbox')
+      await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+      await waitFor(() => expect(updateExpense).toHaveBeenCalledTimes(1))
+      expect(createRecurringExpense).not.toHaveBeenCalled()
+    })
+
+    it('shows the checkbox locked on for entries that belong to a recurring rule', async () => {
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      renderEditDialog(makeExpense({ recurring_expense_id: 'rule-1' }))
+
+      const checkbox = await screen.findByTestId('repeat-checkbox')
+      expect(checkbox).toBeChecked()
+      expect(checkbox).toBeDisabled()
+      expect(screen.getByTestId('repeat-locked-hint')).toBeInTheDocument()
+      expect(screen.queryByTestId('repeat-frequency-select')).not.toBeInTheDocument()
+    })
+
+    it('blocks save when the end date is before the first repeat', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      renderEditDialog(makeExpense({ expense_date: '2026-04-01' }))
+
+      await user.click(await screen.findByTestId('repeat-checkbox'))
+      fireEvent.change(screen.getByTestId('repeat-end-input'), { target: { value: '2026-04-15' } })
+
+      expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled()
+    })
   })
 
   describe('delete', () => {

@@ -13,6 +13,7 @@ import {
   createFamilyViaApi,
   createCategoryViaApi,
   createExpenseViaApi,
+  createIncomeViaApi,
   createMonthlyGoalViaApi,
   sendInviteViaApi,
 } from '../fixtures/test-data'
@@ -115,6 +116,13 @@ test.beforeEach(async () => {
   const transport = await createCategoryViaApi(ctx, familyId, 'Transport', '🚌')
   transportCategoryId = transport.id
 
+  // The dashboard only shows total spent once the month has income, so seed some
+  // for the current and previous month.
+  const now = new Date()
+  const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  await createIncomeViaApi(ctx, familyId, 500000, `${ym(now)}-01`)
+  await createIncomeViaApi(ctx, familyId, 500000, `${ym(new Date(now.getFullYear(), now.getMonth() - 1, 1))}-01`)
+
   // Persist User A's session for the browser.
   await ctx.storageState({ path: 'playwright/.auth/user.json' })
   await ctx.dispose()
@@ -159,7 +167,7 @@ test('member creates expense via FAB on dashboard and sees it reflected', async 
 
   // Wait for the expense list to appear with our new expense.
   await expect(page.getByText('Coffee beans')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('$25.00')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('$25')).toBeVisible({ timeout: 5_000 })
 
   // Navigate back to dashboard and verify the total updated.
   await dashboard.goto()
@@ -203,7 +211,7 @@ test('member creates expense via expenses page and sees it in filtered list', as
 
   // The new expense should appear in the current month's list.
   await expect(page.getByText('Bus fare')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('$12.00', { exact: true })).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('−$12', { exact: true })).toBeVisible({ timeout: 5_000 })
 
   // Filter by Transport category — "Bus fare" should still appear.
   await expensesPage.filterByCategory(transportCategoryId)
@@ -259,7 +267,7 @@ test('member edits an expense amount and description', async ({ page }) => {
 
   // Updated values should be visible; old description should not.
   await expect(page.getByText('Premium coffee beans')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('$30.00')).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText('$30')).toBeVisible({ timeout: 5_000 })
   await expect(page.getByText('Coffee beans', { exact: true })).not.toBeVisible()
 })
 
@@ -436,12 +444,8 @@ test("multiple family members can create and see each other's expenses", async (
   await expect(page.getByText("Alice's lunch")).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText("Bob's commute")).toBeVisible({ timeout: 5_000 })
 
-  // Verify the user attribution shows the creator's name.
-  // The ExpenseList renders display_name in a data-testid="expense-user-{id}" element.
-  // Check expense user attributions — scoped to expense-user testids to avoid
-  // matching the navbar which also shows the logged-in user's display name.
-  await expect(page.locator('[data-testid^="expense-user-"]').filter({ hasText: 'Alice' })).toBeVisible({ timeout: 5_000 })
-  await expect(page.locator('[data-testid^="expense-user-"]').filter({ hasText: 'Bob' })).toBeVisible({ timeout: 5_000 })
+  // Rows no longer show who created an entry (kept to the main details on mobile).
+  await expect(page.locator('[data-testid^="expense-user-"]')).toHaveCount(0)
 })
 
 // ---------------------------------------------------------------------------
@@ -495,7 +499,7 @@ test('expense edit succeeds for a month still within the grace period', async ({
   expect(response.status()).toBe(200)
 
   // Updated amount should be visible.
-  await expect(page.getByText('$35.00')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('$35')).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------

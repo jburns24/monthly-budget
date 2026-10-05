@@ -155,7 +155,7 @@ async def test_reset(
 ) -> dict:
     """Truncate test data tables in FK-safe order.
 
-    Clears: invites → family_members → categories → families → users →
+    Clears: invites → family_members → expenses → recurring_expenses → categories → families → users →
     refresh_token_blacklist.
 
     This endpoint enables idempotent e2e test suites — call it in
@@ -165,6 +165,7 @@ async def test_reset(
     await db.execute(delete(FamilyMember))
     # expenses and monthly_goals have FKs to categories, so delete them first.
     await db.execute(text("DELETE FROM expenses"))
+    await db.execute(text("DELETE FROM recurring_expenses"))
     await db.execute(text("DELETE FROM monthly_goals"))
     # categories has FK to families (CASCADE), so delete categories before families.
     await db.execute(text("DELETE FROM categories"))

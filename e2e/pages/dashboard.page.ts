@@ -39,7 +39,7 @@ export class DashboardPage {
     this.monthLabel = page.getByRole('heading').filter({ hasText: /\w+ \d{4}/ })
 
     // Total spent value — identified by data-testid
-    this.totalSpent = page.getByTestId('total-spent')
+    this.totalSpent = page.getByTestId('safe-to-spend-spent')
 
     // Category cards are rendered as role="button" with aria-label "{name} category"
     this.categoryCards = page.locator('[role="button"][aria-label$=" category"]')

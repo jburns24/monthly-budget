@@ -12,10 +12,14 @@ import {
 } from '@chakra-ui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteExpense, updateExpense } from '../../api/expenses'
+import { createRecurringExpense } from '../../api/recurring'
 import { getCategories } from '../../api/categories'
 import type { EntryType, Expense, ExpenseUpdate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
+import type { Frequency } from '../../types/recurring'
+import { nextOccurrence } from '../../utils/recurrence'
 import EntryTypeToggle from './EntryTypeToggle'
+import RepeatFields from './RepeatFields'
 
 interface EditExpenseDialogProps {
   open: boolean
@@ -37,8 +41,12 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
   const [description, setDescription] = useState(expense.description)
   const [categoryId, setCategoryId] = useState(expense.category?.id ?? '')
   const [expenseDate, setExpenseDate] = useState(expense.expense_date)
+  const [repeat, setRepeat] = useState(false)
+  const [frequency, setFrequency] = useState<Frequency>('monthly')
+  const [endDate, setEndDate] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isIncome = entryType === 'income'
+  const isRecurring = expense.recurring_expense_id != null
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories', familyId],
@@ -46,7 +54,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
   })
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const amountCents = Math.round(parseFloat(amountStr) * 100)
       const payload: ExpenseUpdate = {
         amount_cents: amountCents,
@@ -58,13 +66,33 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
       if (!isIncome) {
         payload.category_id = categoryId
       }
-      return updateExpense(familyId, expense.id, payload)
+      const updated = await updateExpense(familyId, expense.id, payload)
+      if (repeat && !isRecurring) {
+        // This entry is the first occurrence; the rule starts at the next one.
+        await createRecurringExpense(familyId, {
+          amount_cents: amountCents,
+          description: description.trim() || undefined,
+          entry_type: entryType,
+          frequency,
+          start_date: nextOccurrence(expenseDate, frequency),
+          end_date: endDate || null,
+          ...(isIncome ? {} : { category_id: categoryId }),
+        })
+      }
+      return updated
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+      if (repeat) queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
       toaster.create({
-        title: isIncome ? 'Income updated' : 'Expense updated',
+        title: repeat
+          ? isIncome
+            ? 'Income updated and set to repeat'
+            : 'Expense updated and set to repeat'
+          : isIncome
+            ? 'Income updated'
+            : 'Expense updated',
         type: 'success',
         duration: 4000,
       })
@@ -119,6 +147,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
     !isNaN(amountCents) &&
     amountCents > 0 &&
     expenseDate.trim().length > 0 &&
+    (!repeat || !endDate || endDate >= nextOccurrence(expenseDate, frequency)) &&
     (isIncome || categoryId.trim().length > 0)
 
   return (
@@ -138,6 +167,18 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
               disabled={mutation.isPending}
             />
           </Stack>
+          <RepeatFields
+            repeat={repeat}
+            onRepeatChange={setRepeat}
+            frequency={frequency}
+            onFrequencyChange={setFrequency}
+            endDate={endDate}
+            onEndDateChange={setEndDate}
+            minEndDate={nextOccurrence(expenseDate, frequency)}
+            disabled={busy}
+            locked={isRecurring}
+            lockedHint="Part of a recurring entry. Manage it on the Recurring page."
+          />
           <Stack gap={1}>
             <Text fontWeight="medium" fontSize="sm">
               Amount{' '}
