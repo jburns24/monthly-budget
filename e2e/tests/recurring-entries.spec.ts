@@ -137,3 +137,26 @@ test('editing a one-off expense and checking Repeat creates a rule without dupli
   await expensesPage.goto()
   await expect(expensesPage.expenseCard(expense.id)).toHaveCount(1)
 })
+
+test('success notifications appear at the top of the screen, clear of the bottom nav', async ({
+  page,
+}) => {
+  const expensesPage = new ExpensesPage(page)
+  await expensesPage.goto()
+  await expensesPage.openCreateDialog()
+  await expensesPage.fillExpenseForm({
+    amount: '9',
+    description: 'Coffee',
+    categoryId: groceryCategoryId,
+    date: CURRENT_DATE,
+  })
+
+  const toast = page.locator('[data-scope="toast"][data-part="root"]').first()
+  await expect(toast).toBeVisible({ timeout: 10_000 })
+  await expect(toast).toContainText('Expense added')
+
+  const box = await toast.boundingBox()
+  const viewport = page.viewportSize()
+  expect(box).not.toBeNull()
+  expect(box!.y + box!.height).toBeLessThan(viewport!.height / 2)
+})
