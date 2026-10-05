@@ -111,6 +111,29 @@ export async function createExpenseViaApi(
 }
 
 /**
+ * Create an income entry (no category) for the given family via the backend API.
+ * The dashboard only shows the "spent" figure once the month has income.
+ */
+export async function createIncomeViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  amountCents: number,
+  incomeDate: string,
+): Promise<void> {
+  const res = await ctx.post(`${API_BASE}/api/families/${familyId}/expenses`, {
+    data: {
+      amount_cents: amountCents,
+      entry_type: 'income',
+      description: 'Paycheck',
+      expense_date: incomeDate,
+    },
+  })
+  if (!res.ok()) {
+    throw new Error(`createIncome failed: ${res.status()} ${await res.text()}`)
+  }
+}
+
+/**
  * Create a monthly spending goal for the given family and category via the
  * dev-only backend test endpoint.  `amountCents` is in cents (e.g. 10000 = $100).
  * `yearMonth` must be in YYYY-MM format.
