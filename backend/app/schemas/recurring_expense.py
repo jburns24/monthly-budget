@@ -38,12 +38,15 @@ class RecurringExpenseUpdate(BaseModel):
 
     Only fields present in the body change; ``end_date: null`` clears the end date.
     The entry type is fixed at creation — delete and recreate to change it.
+    ``next_due_date`` moves the schedule: it must be after today and re-anchors the
+    rule on that date.
     """
 
     amount_cents: int | None = Field(default=None, gt=0)
     description: str | None = Field(default=None, max_length=500)
     category_id: uuid.UUID | None = None
     frequency: Frequency | None = None
+    next_due_date: date | None = None
     end_date: date | None = None
     is_active: bool | None = None
 

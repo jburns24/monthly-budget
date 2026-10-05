@@ -10,6 +10,8 @@ import {
 import { getCategories } from '../api/categories'
 import { FREQUENCY_LABELS, type RecurringExpense } from '../types/recurring'
 import CreateRecurringDialog from '../components/recurring/CreateRecurringDialog'
+import EditRecurringDialog from '../components/recurring/EditRecurringDialog'
+import { isEnded } from '../utils/recurrence'
 import { toaster } from '../components/ui/toaster'
 
 function formatAmount(amountCents: number): string {
@@ -29,6 +31,7 @@ function RecurringPage() {
   const { familyId } = useFamilyContext()
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
+  const [editRule, setEditRule] = useState<RecurringExpense | null>(null)
 
   const {
     data: rules,
@@ -193,7 +196,7 @@ function RecurringPage() {
                     </Badge>
                     {!rule.is_active && (
                       <Badge size="sm" variant="subtle" color="ink.muted">
-                        Paused
+                        {isEnded(rule) ? 'Ended' : 'Paused'}
                       </Badge>
                     )}
                   </Flex>
@@ -217,12 +220,24 @@ function RecurringPage() {
                     bg="surface.2"
                     color="ink"
                     borderRadius="pill"
-                    onClick={() => toggleMutation.mutate(rule)}
-                    disabled={toggleMutation.isPending}
-                    data-testid={`recurring-toggle-${rule.id}`}
+                    onClick={() => setEditRule(rule)}
+                    data-testid={`recurring-edit-${rule.id}`}
                   >
-                    {rule.is_active ? 'Pause' : 'Resume'}
+                    Edit
                   </Button>
+                  {!isEnded(rule) && (
+                    <Button
+                      size="sm"
+                      bg="surface.2"
+                      color="ink"
+                      borderRadius="pill"
+                      onClick={() => toggleMutation.mutate(rule)}
+                      disabled={toggleMutation.isPending}
+                      data-testid={`recurring-toggle-${rule.id}`}
+                    >
+                      {rule.is_active ? 'Pause' : 'Resume'}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -242,7 +257,19 @@ function RecurringPage() {
       )}
 
       {familyId && (
-        <CreateRecurringDialog open={createOpen} onOpenChange={setCreateOpen} familyId={familyId} />
+        <>
+          <CreateRecurringDialog
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+            familyId={familyId}
+          />
+          <EditRecurringDialog
+            open={editRule !== null}
+            onOpenChange={(open) => !open && setEditRule(null)}
+            familyId={familyId}
+            rule={editRule}
+          />
+        </>
       )}
     </Container>
   )

@@ -1,4 +1,4 @@
-import type { Frequency } from '../types/recurring'
+import type { Frequency, RecurringExpense } from '../types/recurring'
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
@@ -17,4 +17,9 @@ export function nextOccurrence(dateStr: string, frequency: Frequency): string {
   const month = targetIndex % 12
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
   return `${year}-${pad(month + 1)}-${pad(Math.min(d, lastDay))}`
+}
+
+/** A rule whose schedule ran past its end date (inactive, but not paused by the user). */
+export function isEnded(rule: RecurringExpense): boolean {
+  return !rule.is_active && rule.end_date !== null && rule.next_due_date > rule.end_date
 }

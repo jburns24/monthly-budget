@@ -194,3 +194,26 @@ export async function sendInviteViaApi(
   }
   return res.json() as Promise<{ id: string }>
 }
+
+/**
+ * Create a recurring rule via the backend API. Occurrences on or before today are
+ * generated immediately, so pass a future `startDate` for a rule with no entries yet.
+ */
+export async function createRecurringViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  data: {
+    amount_cents: number
+    category_id: string
+    frequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+    start_date: string
+    description?: string
+    end_date?: string | null
+  },
+): Promise<{ id: string; next_due_date: string; is_active: boolean }> {
+  const res = await ctx.post(`${API_BASE}/api/families/${familyId}/recurring-expenses`, { data })
+  if (!res.ok()) {
+    throw new Error(`createRecurring failed: ${res.status()} ${await res.text()}`)
+  }
+  return res.json() as Promise<{ id: string; next_due_date: string; is_active: boolean }>
+}
