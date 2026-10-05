@@ -19,7 +19,6 @@ import ExpenseList from '../components/expenses/ExpenseList'
 import CreateExpenseDialog from '../components/expenses/CreateExpenseDialog'
 import FAB from '../components/expenses/FAB'
 import EditExpenseDialog from '../components/expenses/EditExpenseDialog'
-import DeleteExpenseDialog from '../components/expenses/DeleteExpenseDialog'
 import type { Expense } from '../types/expenses'
 
 const PER_PAGE = 20
@@ -81,6 +80,27 @@ function NextIcon() {
   )
 }
 
+function RepeatIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="17 1 21 5 17 9" />
+      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+      <polyline points="7 23 3 19 7 15" />
+      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
+  )
+}
+
 function ExpensesPage() {
   const { familyId } = useFamilyContext()
   const queryClient = useQueryClient()
@@ -96,7 +116,6 @@ function ExpensesPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editExpense, setEditExpense] = useState<Expense | null>(null)
-  const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null)
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories', familyId],
@@ -142,20 +161,18 @@ function ExpensesPage() {
     <Container
       maxW="1199px"
       px={{ base: 4, md: 8 }}
-      py={{ base: 8, md: 16 }}
+      pt={{ base: 4, md: 16 }}
+      pb={{ base: '160px', md: 16 }}
       data-testid="expenses-page"
     >
       {/* FAB for quick expense entry */}
       {familyId && <FAB familyId={familyId} />}
 
       {/* Header */}
-      <Flex
-        align={{ base: 'flex-end', md: 'center' }}
-        justify="space-between"
-        mb={{ base: 8, md: 12 }}
-      >
+      <Flex align="center" justify="space-between" gap={3} mb={{ base: 4, md: 12 }}>
         <Box>
           <Text
+            display={{ base: 'none', md: 'block' }}
             color="ink.muted"
             fontSize="13px"
             fontWeight="500"
@@ -168,10 +185,10 @@ function ExpensesPage() {
           <Heading
             as="h1"
             fontFamily="heading"
-            fontSize={{ base: '52px', md: '85px' }}
+            fontSize={{ base: '28px', md: '85px' }}
             fontWeight="500"
             lineHeight="0.95"
-            letterSpacing={{ base: '-2.6px', md: '-4.25px' }}
+            letterSpacing={{ base: '-1px', md: '-4.25px' }}
             color="ink"
           >
             Expenses
@@ -185,18 +202,23 @@ function ExpensesPage() {
               color="ink"
               borderRadius="pill"
               minH="44px"
-              px={{ base: 4, md: 5 }}
+              minW="44px"
+              px={{ base: 0, md: 5 }}
               _hover={{ bg: 'surface.2' }}
             >
-              <RouterLink to="/recurring" data-testid="recurring-link">
-                Recurring
+              <RouterLink to="/recurring" aria-label="Recurring" data-testid="recurring-link">
+                <RepeatIcon />
+                <Box as="span" display={{ base: 'none', md: 'inline' }}>
+                  Recurring
+                </Box>
               </RouterLink>
             </Button>
             <Button
+              display={{ base: 'none', md: 'inline-flex' }}
               colorPalette="brand"
               borderRadius="pill"
               minH="44px"
-              px={{ base: 4, md: 5 }}
+              px={5}
               _active={{ transform: 'scale(0.97)' }}
               onClick={() => setCreateOpen(true)}
               data-testid="add-expense-btn"
@@ -211,8 +233,8 @@ function ExpensesPage() {
       <Flex
         align="center"
         justify="space-between"
-        mb={4}
-        p={2}
+        mb={3}
+        p={1}
         bg="surface.1"
         borderRadius="pill"
         borderWidth="1px"
@@ -222,9 +244,9 @@ function ExpensesPage() {
           bg="surface.2"
           color="ink"
           borderRadius="full"
-          w="40px"
-          h="40px"
-          minW="40px"
+          w="44px"
+          h="44px"
+          minW="44px"
           onClick={handlePrevMonth}
           aria-label="Previous month"
           _hover={{ bg: 'surface.3' }}
@@ -244,9 +266,9 @@ function ExpensesPage() {
           bg="surface.2"
           color="ink"
           borderRadius="full"
-          w="40px"
-          h="40px"
-          minW="40px"
+          w="44px"
+          h="44px"
+          minW="44px"
           onClick={handleNextMonth}
           aria-label="Next month"
           _hover={{ bg: 'surface.3' }}
@@ -258,7 +280,7 @@ function ExpensesPage() {
 
       {/* Category filter */}
       {familyId && categories.length > 0 && (
-        <Box mb={6}>
+        <Box mb={3}>
           <NativeSelectRoot size="sm">
             <NativeSelectField
               bg="surface.1"
@@ -286,7 +308,7 @@ function ExpensesPage() {
       {/* No family state */}
       {!familyId && (
         <Box py={12} textAlign="center">
-          <Text color="gray.500">Create or join a family to track expenses.</Text>
+          <Text color="ink.muted">Create or join a family to track expenses.</Text>
         </Box>
       )}
 
@@ -300,7 +322,7 @@ function ExpensesPage() {
       {/* Error state */}
       {familyId && isError && (
         <Box py={8} textAlign="center">
-          <Text color="red.500">Failed to load expenses. Please refresh the page.</Text>
+          <Text color="spend">Failed to load expenses. Please refresh the page.</Text>
         </Box>
       )}
 
@@ -308,13 +330,11 @@ function ExpensesPage() {
       {familyId && expenseData && (
         <>
           <Text fontSize="sm" color="ink.muted" mb={3} data-testid="expenses-month-label">
-            {getMonthLabel(yearMonth)}
-            {totalCount > 0 && ` — ${totalCount} expense${totalCount !== 1 ? 's' : ''}`}
+            {totalCount > 0 && `${totalCount} expense${totalCount !== 1 ? 's' : ''}`}
           </Text>
           <ExpenseList
             expenses={expenseData.expenses}
             onEdit={(expense) => setEditExpense(expense)}
-            onDelete={(expense) => setDeleteExpense(expense)}
           />
 
           {/* Pagination */}
@@ -324,7 +344,7 @@ function ExpensesPage() {
                 bg="surface.1"
                 color="ink"
                 borderRadius="pill"
-                size="sm"
+                minH="44px"
                 onClick={() => setPage((p) => p - 1)}
                 disabled={page <= 1}
                 aria-label="Previous page"
@@ -339,7 +359,7 @@ function ExpensesPage() {
                 bg="surface.1"
                 color="ink"
                 borderRadius="pill"
-                size="sm"
+                minH="44px"
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= totalPages}
                 aria-label="Next page"
@@ -373,17 +393,6 @@ function ExpensesPage() {
             }}
             familyId={familyId}
             expense={editExpense}
-          />
-          <DeleteExpenseDialog
-            open={deleteExpense !== null}
-            onOpenChange={(open) => {
-              if (!open) {
-                setDeleteExpense(null)
-                handleExpenseChanged()
-              }
-            }}
-            familyId={familyId}
-            expense={deleteExpense}
           />
         </>
       )}

@@ -33,7 +33,7 @@ vi.mock('../components/ui/toaster', () => ({
   Toaster: vi.fn(() => null),
 }))
 
-import { updateExpense } from '../api/expenses'
+import { deleteExpense, updateExpense } from '../api/expenses'
 import { getCategories } from '../api/categories'
 import { toaster } from '../components/ui/toaster'
 
@@ -356,6 +356,58 @@ describe('EditExpenseDialog', () => {
     await user.click(screen.getByRole('button', { name: /cancel/i }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  describe('delete', () => {
+    async function openConfirm() {
+      const user = userEvent.setup()
+      const onOpenChange = vi.fn()
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      renderEditDialog(makeExpense(), true, onOpenChange)
+      await user.click(await screen.findByTestId('edit-expense-delete'))
+      return { user, onOpenChange }
+    }
+
+    it('asks for confirmation before deleting', async () => {
+      await openConfirm()
+
+      expect(screen.getByText(/can't be undone/i)).toBeInTheDocument()
+      expect(deleteExpense).not.toHaveBeenCalled()
+    })
+
+    it('deletes, toasts and closes on confirm', async () => {
+      vi.mocked(deleteExpense).mockResolvedValue(undefined)
+      const { user, onOpenChange } = await openConfirm()
+
+      await user.click(screen.getByTestId('delete-expense-confirm'))
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(deleteExpense).toHaveBeenCalledWith(FAMILY_ID, makeExpense().id)
+      expect(toaster.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Expense deleted' })
+      )
+    })
+
+    it('does not delete when the confirmation is dismissed', async () => {
+      const { user } = await openConfirm()
+
+      await user.click(screen.getByRole('button', { name: /keep/i }))
+
+      expect(deleteExpense).not.toHaveBeenCalled()
+      expect(screen.getByTestId('edit-expense-delete')).toBeInTheDocument()
+    })
+
+    it('shows an error toast when delete fails', async () => {
+      vi.mocked(deleteExpense).mockRejectedValue(new Error('boom'))
+      const { user, onOpenChange } = await openConfirm()
+
+      await user.click(screen.getByTestId('delete-expense-confirm'))
+
+      await waitFor(() =>
+        expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
+      )
+      expect(onOpenChange).not.toHaveBeenCalled()
+    })
   })
 
   describe('entry type', () => {
