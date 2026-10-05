@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { Button, Input, NativeSelectField, NativeSelectRoot, Stack, Text } from '@chakra-ui/react'
+import {
+  Button,
+  Input,
+  NativeSelectField,
+  NativeSelectRoot,
+  SimpleGrid,
+  Stack,
+  Text,
+} from '@chakra-ui/react'
 import {
   DialogRoot,
   DialogPositioner,
@@ -189,42 +197,44 @@ function CreateRecurringDialog({ open, onOpenChange, familyId }: CreateRecurring
                   </NativeSelectRoot>
                 </Stack>
               )}
-              <Stack gap={1}>
-                <Text fontWeight="medium" fontSize="sm">
-                  Repeats
-                </Text>
-                <NativeSelectRoot disabled={mutation.isPending}>
-                  <NativeSelectField
-                    value={frequency}
-                    onChange={(e) => setFrequency(e.target.value as Frequency)}
-                    data-testid="recurring-frequency-select"
-                  >
-                    {(Object.keys(FREQUENCY_LABELS) as Frequency[]).map((f) => (
-                      <option key={f} value={f}>
-                        {FREQUENCY_LABELS[f]}
-                      </option>
-                    ))}
-                  </NativeSelectField>
-                </NativeSelectRoot>
-              </Stack>
-              <Stack gap={1}>
-                <Text fontWeight="medium" fontSize="sm">
-                  First date{' '}
-                  <Text as="span" color="red.500">
-                    *
+              <SimpleGrid columns={2} gap={3}>
+                <Stack gap={1}>
+                  <Text fontWeight="medium" fontSize="sm">
+                    Repeats
                   </Text>
-                </Text>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  disabled={mutation.isPending}
-                  data-testid="recurring-start-input"
-                />
-                <Text fontSize="xs" color="ink.muted">
-                  Dates on or before today are added right away.
-                </Text>
-              </Stack>
+                  <NativeSelectRoot disabled={mutation.isPending}>
+                    <NativeSelectField
+                      value={frequency}
+                      onChange={(e) => setFrequency(e.target.value as Frequency)}
+                      data-testid="recurring-frequency-select"
+                    >
+                      {(Object.keys(FREQUENCY_LABELS) as Frequency[]).map((f) => (
+                        <option key={f} value={f}>
+                          {FREQUENCY_LABELS[f]}
+                        </option>
+                      ))}
+                    </NativeSelectField>
+                  </NativeSelectRoot>
+                </Stack>
+                <Stack gap={1}>
+                  <Text fontWeight="medium" fontSize="sm">
+                    First date{' '}
+                    <Text as="span" color="red.500">
+                      *
+                    </Text>
+                  </Text>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    disabled={mutation.isPending}
+                    data-testid="recurring-start-input"
+                  />
+                </Stack>
+              </SimpleGrid>
+              <Text fontSize="xs" color="ink.muted" mt={-2}>
+                Dates on or before today are added right away.
+              </Text>
               <Stack gap={1}>
                 <Text fontWeight="medium" fontSize="sm">
                   Ends (optional)
@@ -241,11 +251,12 @@ function CreateRecurringDialog({ open, onOpenChange, familyId }: CreateRecurring
             </Stack>
           </DialogBody>
           <DialogFooter>
-            <Button variant="ghost" onClick={handleClose} disabled={mutation.isPending}>
+            <Button variant="ghost" minH="44px" onClick={handleClose} disabled={mutation.isPending}>
               Cancel
             </Button>
             <Button
               colorPalette="brand"
+              minH="44px"
               onClick={() => mutation.mutate()}
               loading={mutation.isPending}
               disabled={!isValid}

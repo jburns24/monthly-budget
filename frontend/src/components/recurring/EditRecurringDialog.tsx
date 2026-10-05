@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { Button, Input, NativeSelectField, NativeSelectRoot, Stack, Text } from '@chakra-ui/react'
+import {
+  Button,
+  Flex,
+  Input,
+  NativeSelectField,
+  NativeSelectRoot,
+  SimpleGrid,
+  Stack,
+  Text,
+} from '@chakra-ui/react'
 import {
   DialogRoot,
   DialogPositioner,
@@ -11,7 +20,7 @@ import {
   DialogBackdrop,
 } from '@chakra-ui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { updateRecurringExpense } from '../../api/recurring'
+import { deleteRecurringExpense, updateRecurringExpense } from '../../api/recurring'
 import { getCategories } from '../../api/categories'
 import { FREQUENCY_LABELS, type Frequency, type RecurringExpense } from '../../types/recurring'
 import type { RecurringExpenseUpdate } from '../../types/recurring'
@@ -47,6 +56,7 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
   const [frequency, setFrequency] = useState<Frequency>(rule.frequency)
   const [nextDate, setNextDate] = useState(rule.next_due_date)
   const [endDate, setEndDate] = useState(rule.end_date ?? '')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories', familyId],
@@ -85,6 +95,49 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
     },
   })
 
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
+    queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
+    queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+  }
+
+  const toggleMutation = useMutation({
+    mutationFn: () => updateRecurringExpense(familyId, rule.id, { is_active: !rule.is_active }),
+    onSuccess: () => {
+      refresh()
+      toaster.create({
+        title: rule.is_active ? 'Recurring entry paused' : 'Recurring entry resumed',
+        type: 'success',
+        duration: 4000,
+      })
+      onOpenChange(false)
+    },
+    onError: () =>
+      toaster.create({
+        title: 'Error',
+        description: 'Could not update this recurring entry.',
+        type: 'error',
+        duration: 4000,
+      }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteRecurringExpense(familyId, rule.id),
+    onSuccess: () => {
+      refresh()
+      toaster.create({ title: 'Recurring entry deleted', type: 'success', duration: 4000 })
+      onOpenChange(false)
+    },
+    onError: () =>
+      toaster.create({
+        title: 'Error',
+        description: 'Failed to delete recurring entry.',
+        type: 'error',
+        duration: 4000,
+      }),
+  })
+  const busy = mutation.isPending || toggleMutation.isPending || deleteMutation.isPending
+
   const cents = Math.round(parseFloat(amount) * 100)
   const nextChanged = nextDate !== rule.next_due_date
   // A moved date must be in the future: earlier dates may already have entries.
@@ -109,7 +162,7 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
       <DialogBody>
         <Stack gap={4}>
           <Text fontSize="xs" color="ink.muted">
-            Changes apply to future entries. Entries already added are not changed.
+            Applies to future entries only.
           </Text>
           <Stack gap={1}>
             <Text fontWeight="medium" fontSize="sm">
@@ -173,49 +226,51 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
               )}
             </Stack>
           )}
-          <Stack gap={1}>
-            <Text fontWeight="medium" fontSize="sm">
-              Repeats
+          <SimpleGrid columns={2} gap={3}>
+            <Stack gap={1}>
+              <Text fontWeight="medium" fontSize="sm">
+                Repeats
+              </Text>
+              <NativeSelectRoot disabled={mutation.isPending}>
+                <NativeSelectField
+                  value={frequency}
+                  onChange={(e) => setFrequency(e.target.value as Frequency)}
+                  data-testid="edit-recurring-frequency"
+                >
+                  {(Object.keys(FREQUENCY_LABELS) as Frequency[]).map((f) => (
+                    <option key={f} value={f}>
+                      {FREQUENCY_LABELS[f]}
+                    </option>
+                  ))}
+                </NativeSelectField>
+              </NativeSelectRoot>
+            </Stack>
+            <Stack gap={1}>
+              <Text fontWeight="medium" fontSize="sm">
+                Next date{' '}
+                <Text as="span" color="red.500">
+                  *
+                </Text>
+              </Text>
+              <Input
+                type="date"
+                value={nextDate}
+                onChange={(e) => setNextDate(e.target.value)}
+                disabled={mutation.isPending}
+                data-testid="edit-recurring-next"
+              />
+            </Stack>
+          </SimpleGrid>
+          {frequency !== rule.frequency && (
+            <Text fontSize="xs" color="ink.muted" data-testid="edit-recurring-frequency-hint">
+              The schedule restarts from the next date.
             </Text>
-            <NativeSelectRoot disabled={mutation.isPending}>
-              <NativeSelectField
-                value={frequency}
-                onChange={(e) => setFrequency(e.target.value as Frequency)}
-                data-testid="edit-recurring-frequency"
-              >
-                {(Object.keys(FREQUENCY_LABELS) as Frequency[]).map((f) => (
-                  <option key={f} value={f}>
-                    {FREQUENCY_LABELS[f]}
-                  </option>
-                ))}
-              </NativeSelectField>
-            </NativeSelectRoot>
-            {frequency !== rule.frequency && (
-              <Text fontSize="xs" color="ink.muted" data-testid="edit-recurring-frequency-hint">
-                The schedule restarts from the next date below.
-              </Text>
-            )}
-          </Stack>
-          <Stack gap={1}>
-            <Text fontWeight="medium" fontSize="sm">
-              Next date{' '}
-              <Text as="span" color="red.500">
-                *
-              </Text>
+          )}
+          {!nextValid && (
+            <Text fontSize="xs" color="spend" data-testid="edit-recurring-next-hint">
+              Pick a date after today.
             </Text>
-            <Input
-              type="date"
-              value={nextDate}
-              onChange={(e) => setNextDate(e.target.value)}
-              disabled={mutation.isPending}
-              data-testid="edit-recurring-next"
-            />
-            {!nextValid && (
-              <Text fontSize="xs" color="spend" data-testid="edit-recurring-next-hint">
-                Pick a date after today.
-              </Text>
-            )}
-          </Stack>
+          )}
           <Stack gap={1}>
             <Text fontWeight="medium" fontSize="sm">
               Ends (optional)
@@ -241,22 +296,77 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
               </Text>
             )}
           </Stack>
+          <Flex gap={2} pt={1}>
+            {!ended && (
+              <Button
+                flex={1}
+                bg="surface.2"
+                color="ink"
+                borderRadius="pill"
+                minH="44px"
+                onClick={() => toggleMutation.mutate()}
+                loading={toggleMutation.isPending}
+                disabled={busy}
+                data-testid="edit-recurring-toggle"
+              >
+                {rule.is_active ? 'Pause' : 'Resume'}
+              </Button>
+            )}
+            <Button
+              flex={1}
+              variant="ghost"
+              colorPalette="red"
+              borderRadius="pill"
+              minH="44px"
+              onClick={() => setConfirmingDelete(true)}
+              disabled={busy}
+              data-testid="edit-recurring-delete"
+            >
+              Delete
+            </Button>
+          </Flex>
         </Stack>
       </DialogBody>
-      <DialogFooter>
-        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-          Cancel
-        </Button>
-        <Button
-          colorPalette="brand"
-          onClick={() => mutation.mutate()}
-          loading={mutation.isPending}
-          disabled={!isValid}
-          data-testid="edit-recurring-save"
-        >
-          Save
-        </Button>
-      </DialogFooter>
+      {confirmingDelete ? (
+        <DialogFooter flexWrap="wrap">
+          <Text mr="auto" fontSize="sm">
+            Delete this recurring entry? Entries already added stay in your history.
+          </Text>
+          <Button
+            variant="ghost"
+            minH="44px"
+            onClick={() => setConfirmingDelete(false)}
+            disabled={deleteMutation.isPending}
+          >
+            Keep
+          </Button>
+          <Button
+            colorPalette="red"
+            minH="44px"
+            onClick={() => deleteMutation.mutate()}
+            loading={deleteMutation.isPending}
+            data-testid="edit-recurring-delete-confirm"
+          >
+            Delete
+          </Button>
+        </DialogFooter>
+      ) : (
+        <DialogFooter>
+          <Button variant="ghost" minH="44px" onClick={() => onOpenChange(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            colorPalette="brand"
+            minH="44px"
+            onClick={() => mutation.mutate()}
+            loading={mutation.isPending}
+            disabled={!isValid || busy}
+            data-testid="edit-recurring-save"
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      )}
     </>
   )
 }

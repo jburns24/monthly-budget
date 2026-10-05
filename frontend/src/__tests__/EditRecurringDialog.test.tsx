@@ -7,7 +7,10 @@ import EditRecurringDialog from '../components/recurring/EditRecurringDialog'
 import system from '../theme'
 import type { RecurringExpense } from '../types/recurring'
 
-vi.mock('../api/recurring', () => ({ updateRecurringExpense: vi.fn() }))
+vi.mock('../api/recurring', () => ({
+  updateRecurringExpense: vi.fn(),
+  deleteRecurringExpense: vi.fn(),
+}))
 vi.mock('../api/categories', () => ({
   getCategories: vi.fn(() =>
     Promise.resolve([
@@ -21,7 +24,7 @@ vi.mock('../components/ui/toaster', () => ({
   Toaster: vi.fn(() => null),
 }))
 
-import { updateRecurringExpense } from '../api/recurring'
+import { deleteRecurringExpense, updateRecurringExpense } from '../api/recurring'
 
 // Far enough in the future that "after today" holds whenever the suite runs.
 const NEXT = '2099-11-01'
@@ -177,5 +180,38 @@ describe('EditRecurringDialog', () => {
         end_date: '2099-12-31',
       })
     )
+  })
+
+  it('pauses an active rule from the dialog', async () => {
+    const onOpenChange = renderDialog(makeRule())
+    await userEvent.click(await screen.findByTestId('edit-recurring-toggle'))
+    await waitFor(() =>
+      expect(updateRecurringExpense).toHaveBeenCalledWith('fam-1', 'rule-1', { is_active: false })
+    )
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it('offers Resume for a paused rule', async () => {
+    renderDialog(makeRule({ is_active: false }))
+    expect(await screen.findByTestId('edit-recurring-toggle')).toHaveTextContent('Resume')
+  })
+
+  it('has no Pause/Resume for an ended rule', async () => {
+    renderDialog(makeRule({ is_active: false, end_date: '2099-10-01' }))
+    await screen.findByTestId('edit-recurring-amount')
+    expect(screen.queryByTestId('edit-recurring-toggle')).not.toBeInTheDocument()
+  })
+
+  it('only deletes after the inline confirmation', async () => {
+    vi.mocked(deleteRecurringExpense).mockResolvedValue()
+    const onOpenChange = renderDialog(makeRule())
+    await userEvent.click(await screen.findByTestId('edit-recurring-delete'))
+    expect(deleteRecurringExpense).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByText('Keep'))
+    expect(screen.getByTestId('edit-recurring-save')).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('edit-recurring-delete'))
+    await userEvent.click(screen.getByTestId('edit-recurring-delete-confirm'))
+    await waitFor(() => expect(deleteRecurringExpense).toHaveBeenCalledWith('fam-1', 'rule-1'))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 })
