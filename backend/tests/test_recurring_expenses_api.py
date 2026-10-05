@@ -324,7 +324,7 @@ async def test_update_next_due_date_must_be_after_today_and_before_end(
     user = await create_test_user(db_session)
     family, _ = await create_test_family(db_session, user)
     cat = await create_test_category(db_session, family, name="Rent")
-    today = date.today()
+    today = recurring_service.family_today(family.timezone)
 
     async with authenticated_client(user) as client:
         rule = await _make_rule(client, family, cat, end_date=(today + timedelta(days=60)).isoformat())
