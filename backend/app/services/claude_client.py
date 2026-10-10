@@ -24,21 +24,17 @@ from app.schemas.receipt import ExtractedReceipt
 
 logger = get_logger(__name__)
 
-_MODEL = "claude-haiku-4-5-20251001"
+_MODEL = "claude-haiku-5-5"
 # Headroom for the date_reasoning field below. The extracted JSON itself is
 # small, but truncating the tool input mid-object surfaces as a confusing
 # model_validate failure rather than an obvious cap-hit, so leave slack.
 _MAX_TOKENS = 2048
 
-# Pinned rather than left to the API default of 1.0. Tuning against a real
-# split-tender receipt showed this model's "which figure is the total" judgment
-# is marginal under sampling: correct on every run at 0.0, but at 0.5 it reports
-# the largest tender line instead of the amount charged - a confident wrong
-# number, which is the worst failure mode here because nothing downstream can
-# detect it. Only Haiku accepts this; Sonnet 5 rejects a non-default temperature
-# under a forced tool_choice and Opus 5 rejects the parameter outright, so
-# passing temperature=None omits the key entirely for those models.
-DEFAULT_TEMPERATURE = 0.0
+# Omitted from the request. Haiku 4.5 was pinned to 0.0 because its "which figure
+# is the total" judgment on split-tender receipts was marginal under sampling.
+# Haiku 5.5 returns a 400 for any temperature other than 1, so the key is left
+# out entirely (None); pass a float only for a model that accepts it.
+DEFAULT_TEMPERATURE: float | None = None
 
 # Must stay in lockstep with category_service._DEFAULT_CATEGORIES: the label the
 # model picks is fed to category_suggestion as a pg_trgm probe against the
@@ -283,7 +279,7 @@ async def _call_claude(
 
     ``model``/``usage_callback`` are probe-only overrides (see
     test-scripts/scan_receipt_probe.py); left as None the pinned default model
-    is used. ``temperature`` defaults to DEFAULT_TEMPERATURE; pass None to omit
+    is used. ``temperature`` defaults to DEFAULT_TEMPERATURE; None omits
     the key entirely, which is required for models that reject the parameter.
     """
     b64_data = base64.standard_b64encode(image_bytes).decode()
