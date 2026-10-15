@@ -3,7 +3,7 @@
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recurring_expense import RecurringExpense
@@ -44,6 +44,11 @@ class SqlAlchemyRecurringExpenseRepository:
             .execution_options(populate_existing=True)
         )
         return list(result.scalars().all())
+
+    async def clear_asset_link(self, asset_id: UUID) -> None:
+        await self._session.execute(
+            update(RecurringExpense).where(RecurringExpense.asset_id == asset_id).values(asset_id=None, asset_role=None)
+        )
 
     def add(self, rule: RecurringExpense) -> None:
         self._session.add(rule)

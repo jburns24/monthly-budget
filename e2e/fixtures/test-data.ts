@@ -217,3 +217,33 @@ export async function createRecurringViaApi(
   }
   return res.json() as Promise<{ id: string; next_due_date: string; is_active: boolean }>
 }
+
+/**
+ * Create an asset (optionally with a loan) via the backend API. Requires the caller to be a
+ * family admin. Dollar-valued fields are in cents; rates are decimals (0.0625 = 6.25%).
+ */
+export async function createAssetViaApi(
+  ctx: APIRequestContext,
+  familyId: string,
+  data: {
+    name: string
+    asset_type: 'house' | 'vehicle' | 'other'
+    purchase_date: string
+    purchase_price_cents: number
+    down_payment_cents?: number
+    state?: string
+    zip_code?: string
+    loan?: {
+      original_amount_cents: number
+      annual_interest_rate: number
+      term_months: number
+      first_payment_date: string
+    }
+  },
+): Promise<{ id: string; name: string }> {
+  const res = await ctx.post(`${API_BASE}/api/families/${familyId}/assets`, { data })
+  if (!res.ok()) {
+    throw new Error(`createAsset failed: ${res.status()} ${await res.text()}`)
+  }
+  return res.json() as Promise<{ id: string; name: string }>
+}

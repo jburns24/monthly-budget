@@ -7,6 +7,8 @@ import FamilyPage from './pages/FamilyPage'
 import CategoriesPage from './pages/CategoriesPage'
 import ExpensesPage from './pages/ExpensesPage'
 import RecurringPage from './pages/RecurringPage'
+import AssetsPage from './pages/AssetsPage'
+import AssetDetailPage from './pages/AssetDetailPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Header from './components/Header'
 import BottomNavigation from './components/BottomNavigation'
@@ -76,6 +78,26 @@ function App() {
             <ProtectedRoute>
               <ProtectedLayout>
                 <RecurringPage />
+              </ProtectedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assets"
+          element={
+            <ProtectedRoute>
+              <ProtectedLayout>
+                <AssetsPage />
+              </ProtectedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assets/:assetId"
+          element={
+            <ProtectedRoute>
+              <ProtectedLayout>
+                <AssetDetailPage />
               </ProtectedLayout>
             </ProtectedRoute>
           }

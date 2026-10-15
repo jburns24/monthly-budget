@@ -18,6 +18,9 @@ vi.mock('../api/recurring', () => ({
   deleteRecurringExpense: vi.fn(),
 }))
 
+// No assets in these tests; keeps the asset picker from making real HTTP calls
+vi.mock('../api/assets', () => ({ getAssets: vi.fn(() => Promise.resolve([])) }))
+
 vi.mock('../api/categories', () => ({
   getCategories: vi.fn(() => Promise.resolve([{ id: 'cat-1', name: 'Housing', icon: '🏠' }])),
 }))

@@ -12,6 +12,7 @@ through this port and hands them to the pure ``build_budget_summary``.
 """
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Protocol
 from uuid import UUID
 
@@ -29,6 +30,21 @@ class CategorySpendRow:
     icon: str | None
     spent_cents: int
     goal_cents: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class AssetExpenseLink:
+    """The few columns of an asset-linked expense the asset math needs.
+
+    A projection rather than an ``Expense``: loading the full aggregate drags in category, user and
+    receipt, which the summaries and charts never read.
+    """
+
+    asset_id: UUID
+    expense_date: date
+    amount_cents: int
+    asset_role: str
+    entry_type: str
 
 
 class BudgetQuery(Protocol):

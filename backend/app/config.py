@@ -114,6 +114,14 @@ class Settings(BaseSettings):
         description="Mock scenario to use when anthropic_mock=True (success, medium_confidence, low_confidence, non_receipt, api_error)",
     )
 
+    hpi_auto_refresh: bool = Field(
+        default=True,
+        description=(
+            "When True, asset requests schedule a background download of the FHFA house price index if the "
+            "local copy is missing or older than 7 days. Tests turn this off so nothing touches the network."
+        ),
+    )
+
     @model_validator(mode="after")
     def apply_database_migration_url_fallback(self) -> "Settings":
         """Default database_migration_url to database_url when unset."""

@@ -19,10 +19,17 @@ from contextlib import AbstractAsyncContextManager
 from typing import Protocol
 
 from app.ports.read_models import BudgetQuery
+from app.ports.repositories.asset import (
+    AssetContributionRepository,
+    AssetLoanRepository,
+    AssetRepository,
+    AssetValuationRepository,
+)
 from app.ports.repositories.category import CategoryRepository
 from app.ports.repositories.expense import ExpenseRepository
 from app.ports.repositories.family import FamilyRepository
 from app.ports.repositories.family_member import FamilyMemberRepository
+from app.ports.repositories.house_price_index import HpiRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
 from app.ports.repositories.receipt import ReceiptRepository
@@ -64,6 +71,11 @@ class UnitOfWork(Protocol):
     recurring: RecurringExpenseRepository
     tokens: RefreshTokenRepository
     budget: BudgetQuery
+    assets: AssetRepository
+    asset_loans: AssetLoanRepository
+    asset_valuations: AssetValuationRepository
+    asset_contributions: AssetContributionRepository
+    hpi: HpiRepository
 
     async def flush(self) -> None:
         """Push staged writes, assign primary keys, apply defaults.

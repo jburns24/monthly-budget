@@ -14,11 +14,18 @@ from typing import Any, Protocol
 import pytest
 
 import app.adapters.conformance  # noqa: F401 — importing it is the smoke test for the static assertions
+from app.adapters.memory.asset_repo import (
+    MemoryAssetContributionRepository,
+    MemoryAssetLoanRepository,
+    MemoryAssetRepository,
+    MemoryAssetValuationRepository,
+)
 from app.adapters.memory.budget_query import MemoryBudgetQuery
 from app.adapters.memory.category_repo import MemoryCategoryRepository
 from app.adapters.memory.expense_repo import MemoryExpenseRepository
 from app.adapters.memory.family_member_repo import MemoryFamilyMemberRepository
 from app.adapters.memory.family_repo import MemoryFamilyRepository
+from app.adapters.memory.hpi_repo import MemoryHpiRepository
 from app.adapters.memory.invite_repo import MemoryInviteRepository
 from app.adapters.memory.monthly_goal_repo import MemoryMonthlyGoalRepository
 from app.adapters.memory.receipt_repo import MemoryReceiptRepository
@@ -26,11 +33,18 @@ from app.adapters.memory.recurring_expense_repo import MemoryRecurringExpenseRep
 from app.adapters.memory.refresh_token_repo import MemoryRefreshTokenRepository
 from app.adapters.memory.unit_of_work import MemorySavepoint, MemoryUnitOfWork
 from app.adapters.memory.user_repo import MemoryUserRepository
+from app.adapters.sqlalchemy.asset_repo import (
+    SqlAlchemyAssetContributionRepository,
+    SqlAlchemyAssetLoanRepository,
+    SqlAlchemyAssetRepository,
+    SqlAlchemyAssetValuationRepository,
+)
 from app.adapters.sqlalchemy.budget_query import SqlAlchemyBudgetQuery
 from app.adapters.sqlalchemy.category_repo import SqlAlchemyCategoryRepository
 from app.adapters.sqlalchemy.expense_repo import SqlAlchemyExpenseRepository
 from app.adapters.sqlalchemy.family_member_repo import SqlAlchemyFamilyMemberRepository
 from app.adapters.sqlalchemy.family_repo import SqlAlchemyFamilyRepository
+from app.adapters.sqlalchemy.hpi_repo import SqlAlchemyHpiRepository
 from app.adapters.sqlalchemy.invite_repo import SqlAlchemyInviteRepository
 from app.adapters.sqlalchemy.monthly_goal_repo import SqlAlchemyMonthlyGoalRepository
 from app.adapters.sqlalchemy.receipt_repo import SqlAlchemyReceiptRepository
@@ -39,10 +53,17 @@ from app.adapters.sqlalchemy.refresh_token_repo import SqlAlchemyRefreshTokenRep
 from app.adapters.sqlalchemy.unit_of_work import SqlAlchemySavepoint, SqlAlchemyUnitOfWork
 from app.adapters.sqlalchemy.user_repo import SqlAlchemyUserRepository
 from app.ports.read_models import BudgetQuery
+from app.ports.repositories.asset import (
+    AssetContributionRepository,
+    AssetLoanRepository,
+    AssetRepository,
+    AssetValuationRepository,
+)
 from app.ports.repositories.category import CategoryRepository
 from app.ports.repositories.expense import ExpenseRepository
 from app.ports.repositories.family import FamilyRepository
 from app.ports.repositories.family_member import FamilyMemberRepository
+from app.ports.repositories.house_price_index import HpiRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
 from app.ports.repositories.receipt import ReceiptRepository
@@ -75,6 +96,11 @@ _PORTS_AND_ADAPTERS = [
     (ReceiptRepository, SqlAlchemyReceiptRepository, MemoryReceiptRepository),
     (RecurringExpenseRepository, SqlAlchemyRecurringExpenseRepository, MemoryRecurringExpenseRepository),
     (RefreshTokenRepository, SqlAlchemyRefreshTokenRepository, MemoryRefreshTokenRepository),
+    (AssetRepository, SqlAlchemyAssetRepository, MemoryAssetRepository),
+    (AssetLoanRepository, SqlAlchemyAssetLoanRepository, MemoryAssetLoanRepository),
+    (AssetValuationRepository, SqlAlchemyAssetValuationRepository, MemoryAssetValuationRepository),
+    (AssetContributionRepository, SqlAlchemyAssetContributionRepository, MemoryAssetContributionRepository),
+    (HpiRepository, SqlAlchemyHpiRepository, MemoryHpiRepository),
     (UnitOfWork, SqlAlchemyUnitOfWork, MemoryUnitOfWork),
     (Savepoint, SqlAlchemySavepoint, MemorySavepoint),
 ]
@@ -116,6 +142,11 @@ def test_unit_of_work_implementations_expose_the_same_repositories() -> None:
         "recurring",
         "tokens",
         "budget",
+        "assets",
+        "asset_loans",
+        "asset_valuations",
+        "asset_contributions",
+        "hpi",
     }
     assert declared <= set(SqlAlchemyUnitOfWork.__annotations__)
     assert declared <= set(MemoryUnitOfWork.__annotations__)

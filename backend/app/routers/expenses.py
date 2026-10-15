@@ -18,6 +18,7 @@ from app.schemas.expense import (
     ExpenseUpdate,
 )
 from app.services import expense_service, recurring_service
+from app.services.asset_links import UNSET
 from app.services.grace_period import is_within_grace_period
 
 logger = get_logger(__name__)
@@ -97,6 +98,8 @@ async def create_expense(
         expense_date=body.expense_date,
         entry_type=body.entry_type,
         is_starting_balance=body.is_starting_balance,
+        asset_id=body.asset_id,
+        asset_role=body.asset_role,
     )
     logger.info("expense_created_endpoint", expense_id=str(expense.id), user_id=str(current_user.id))
     return ExpenseResponse.model_validate(expense)
@@ -152,6 +155,8 @@ async def update_expense(
         expense_date=body.expense_date,
         entry_type=body.entry_type,
         is_starting_balance=body.is_starting_balance,
+        asset_id=body.asset_id if "asset_id" in body.model_fields_set else UNSET,
+        asset_role=body.asset_role if "asset_role" in body.model_fields_set else UNSET,
     )
     logger.info("expense_updated_endpoint", expense_id=str(expense_id), user_id=str(current_user.id))
     return ExpenseResponse.model_validate(expense)

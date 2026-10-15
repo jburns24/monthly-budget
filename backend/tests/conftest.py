@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.config import settings
+from app.models.asset import Asset
 from app.models.category import Category
 from app.models.expense import Expense
 from app.models.family import Family
@@ -54,6 +55,13 @@ _test_engine = create_async_engine(settings.database_url, echo=False, pool_pre_p
 # ---------------------------------------------------------------------------
 # Core fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_hpi_downloads() -> Any:
+    """Keep the lazy house-price-index refresh from ever reaching the network during tests."""
+    with patch.object(settings, "hpi_auto_refresh", False):
+        yield
 
 
 @pytest.fixture
@@ -391,6 +399,43 @@ async def create_test_expense(
     await db.flush()
     await db.refresh(expense)
     return expense
+
+
+# ---------------------------------------------------------------------------
+# Asset factory (plain async function, not a fixture — call it from any fixture
+# or test that already has a db_session)
+# ---------------------------------------------------------------------------
+
+
+async def create_test_asset(db: AsyncSession, family: Family, user: User, **overrides: Any) -> Asset:
+    """Insert an Asset (a house in Raleigh, NC by default) into the test database.
+
+    Pass any Asset column name as an override, e.g. ``asset_type="vehicle"``.
+    """
+    from datetime import date as date_type
+
+    now = datetime.now(tz=timezone.utc)
+    defaults: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "family_id": family.id,
+        "created_by_user_id": user.id,
+        "name": "Test House",
+        "asset_type": "house",
+        "purchase_date": date_type(2020, 6, 1),
+        "purchase_price_cents": 40000000,
+        "down_payment_cents": 0,
+        "closing_costs_cents": 0,
+        "state": "NC",
+        "zip_code": "27601",
+        "created_at": now,
+        "updated_at": now,
+    }
+    defaults.update(overrides)
+    asset = Asset(**defaults)
+    db.add(asset)
+    await db.flush()
+    await db.refresh(asset)
+    return asset
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,15 @@ class RecurringExpense(Base):
             "(entry_type = 'expense' AND category_id IS NOT NULL) OR (entry_type = 'income' AND category_id IS NULL)",
             name="ck_recurring_expenses_entry_type_category",
         ),
+        CheckConstraint(
+            "asset_role IS NULL OR asset_role IN ('loan_payment', 'improvement', 'maintenance', 'carrying_cost')",
+            name="ck_recurring_expenses_asset_role",
+        ),
+        CheckConstraint(
+            "asset_role IS NULL OR asset_id IS NOT NULL", name="ck_recurring_expenses_asset_role_requires_asset"
+        ),
         Index("idx_recurring_expenses_family", "family_id"),
+        Index("idx_recurring_expenses_asset", "asset_id"),
         Index("idx_recurring_expenses_due", "family_id", "is_active", "next_due_date"),
     )
 
@@ -61,6 +69,12 @@ class RecurringExpense(Base):
     next_due_date: Mapped[date] = mapped_column(Date, nullable=False)
     occurrences_created: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("assets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    asset_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

@@ -25,6 +25,11 @@ describe('BottomNavigation', () => {
     expect(screen.getByLabelText('Categories')).toBeInTheDocument()
   })
 
+  it('links the Assets tab to /assets', () => {
+    renderWithProviders(<BottomNavigation />)
+    expect(screen.getByLabelText('Assets')).toHaveAttribute('href', '/assets')
+  })
+
   it('marks Dashboard tab as active when on root path', () => {
     renderWithProviders(<BottomNavigation />, '/')
     // NavLink renders active styles; check the link is present

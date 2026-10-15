@@ -14,12 +14,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteExpense, updateExpense } from '../../api/expenses'
 import { createRecurringExpense } from '../../api/recurring'
 import { getCategories } from '../../api/categories'
+import { invalidateAssets } from '../../hooks/useAssets'
 import type { EntryType, Expense, ExpenseUpdate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
 import type { Frequency } from '../../types/recurring'
 import { nextOccurrence } from '../../utils/recurrence'
 import EntryTypeToggle from './EntryTypeToggle'
 import RepeatFields from './RepeatFields'
+import AssetLinkFields from '../assets/AssetLinkFields'
+import {
+  assetLinkChanges,
+  assetLinkFields,
+  linkFromEntry,
+  type AssetLink,
+} from '../assets/assetLink'
 
 interface EditExpenseDialogProps {
   open: boolean
@@ -44,6 +52,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
   const [repeat, setRepeat] = useState(false)
   const [frequency, setFrequency] = useState<Frequency>('monthly')
   const [endDate, setEndDate] = useState('')
+  const [assetLink, setAssetLink] = useState<AssetLink>(() => linkFromEntry(expense))
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const isIncome = entryType === 'income'
   const isRecurring = expense.recurring_expense_id != null
@@ -66,6 +75,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
       if (!isIncome) {
         payload.category_id = categoryId
       }
+      Object.assign(payload, assetLinkChanges(expense, assetLink, isIncome))
       const updated = await updateExpense(familyId, expense.id, payload)
       if (repeat && !isRecurring) {
         // This entry is the first occurrence; the rule starts at the next one.
@@ -77,6 +87,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
           start_date: nextOccurrence(expenseDate, frequency),
           end_date: endDate || null,
           ...(isIncome ? {} : { category_id: categoryId }),
+          ...assetLinkFields(assetLink, isIncome),
         })
       }
       return updated
@@ -85,6 +96,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
       if (repeat) queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
+      if (assetLink.assetId || expense.asset_id) invalidateAssets(queryClient, familyId)
       toaster.create({
         title: repeat
           ? isIncome
@@ -123,6 +135,7 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+      if (expense.asset_id) invalidateAssets(queryClient, familyId)
       toaster.create({
         title: isIncome ? 'Income deleted' : 'Expense deleted',
         type: 'success',
@@ -231,6 +244,15 @@ function EditForm({ expense, familyId, onOpenChange }: EditFormProps) {
                 </NativeSelectField>
               </NativeSelectRoot>
             </Stack>
+          )}
+          {!isIncome && (
+            <AssetLinkFields
+              familyId={familyId}
+              value={assetLink}
+              onChange={setAssetLink}
+              recurring={repeat}
+              disabled={mutation.isPending}
+            />
           )}
           <Stack gap={1}>
             <Text fontWeight="medium" fontSize="sm">

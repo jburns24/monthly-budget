@@ -27,6 +27,10 @@ export class ExpensesPage {
   readonly dateInput: Locator
   readonly submitButton: Locator
 
+  // Optional asset link (only shown when the family has an asset)
+  readonly assetSelect: Locator
+  readonly assetRoleSelect: Locator
+
   // Repeat (recurring) controls shared by the create and edit dialogs
   readonly repeatCheckbox: Locator
   readonly repeatFrequencySelect: Locator
@@ -64,6 +68,9 @@ export class ExpensesPage {
     this.categorySelect = page.getByTestId('expense-category-select')
     this.dateInput = page.getByTestId('expense-date-input')
     this.submitButton = page.getByTestId('expense-submit-btn')
+
+    this.assetSelect = page.getByTestId('asset-link-select')
+    this.assetRoleSelect = page.getByTestId('asset-role-select')
 
     this.repeatCheckbox = page.getByTestId('repeat-checkbox')
     this.repeatFrequencySelect = page.getByTestId('repeat-frequency-select')
@@ -109,6 +116,8 @@ export class ExpensesPage {
     description?: string
     categoryId?: string
     date?: string
+    /** Visible name of the asset to link, and how the expense counts toward it. */
+    asset?: { name: string; role: 'loan_payment' | 'improvement' | 'maintenance' | 'carrying_cost' }
   }): Promise<void> {
     await this.amountInput.fill(opts.amount)
     if (opts.description !== undefined) {
@@ -119,6 +128,10 @@ export class ExpensesPage {
     }
     if (opts.date !== undefined) {
       await this.dateInput.fill(opts.date)
+    }
+    if (opts.asset !== undefined) {
+      await this.assetSelect.selectOption({ label: opts.asset.name })
+      await this.assetRoleSelect.selectOption(opts.asset.role)
     }
     await this.submitButton.click()
   }

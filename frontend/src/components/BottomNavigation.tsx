@@ -83,6 +83,26 @@ function FamilyIcon() {
   )
 }
 
+function AssetsIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5 10v10h14V10" />
+      <path d="M10 20v-6h4v6" />
+    </svg>
+  )
+}
+
 interface NavItemProps {
   to: string
   icon: React.ReactNode
@@ -175,11 +195,12 @@ function BottomNavigation() {
       w={{ base: '100%', md: 'auto' }}
       aria-label="Bottom navigation"
     >
-      <Flex minW={{ base: 0, md: '540px' }}>
+      <Flex minW={{ base: 0, md: '620px' }}>
         <NavItem to="/" icon={<DashboardIcon />} label="Dashboard" />
         <NavItem to="/expenses" icon={<ExpensesIcon />} label="Expenses" />
         <NavItem to="/categories" icon={<CategoriesIcon />} label="Categories" />
         <NavItem to="/family" icon={<FamilyIcon />} label="Family" />
+        <NavItem to="/assets" icon={<AssetsIcon />} label="Assets" />
       </Flex>
     </Box>
   )

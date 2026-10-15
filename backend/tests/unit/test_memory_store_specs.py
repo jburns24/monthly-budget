@@ -16,6 +16,7 @@ from sqlalchemy import Column, String, text
 from app.adapters.memory.store import UniqueIndex, _server_default, model_spec
 from app.models.category import Category
 from app.models.expense import Expense
+from app.models.house_price_index import HousePriceIndex, HpiRefreshStatus
 
 
 def test_python_side_defaults_are_derived_from_the_model() -> None:
@@ -81,3 +82,10 @@ def test_an_unrecognised_server_default_fails_loudly() -> None:
 def test_specs_are_built_once_per_model() -> None:
     """The mapper walk is cached; repeated flushes must not redo it."""
     assert model_spec(Category) is model_spec(Category)
+
+
+def test_composite_and_integer_primary_keys_need_no_defaults_or_unique_entries() -> None:
+    """The store is keyed by the primary key itself, whatever its shape."""
+    assert model_spec(HousePriceIndex).defaults == {}
+    assert model_spec(HousePriceIndex).unique == ()
+    assert set(model_spec(HpiRefreshStatus).defaults) == {"id"}

@@ -1,3 +1,4 @@
+import type { AssetRole } from '@/types/asset'
 import type { ReceiptStatus } from '@/types/receipts'
 
 export type EntryType = 'expense' | 'income'
@@ -28,6 +29,8 @@ export interface Expense {
   receipt_id: string | null
   receipt_status: ReceiptStatus | null
   recurring_expense_id?: string | null
+  asset_id?: string | null
+  asset_role?: AssetRole | null
 }
 
 export interface ExpenseCreate {
@@ -37,6 +40,8 @@ export interface ExpenseCreate {
   expense_date: string
   entry_type?: EntryType
   is_starting_balance?: boolean
+  asset_id?: string | null
+  asset_role?: AssetRole | null
 }
 
 export interface ExpenseUpdate {
@@ -46,6 +51,9 @@ export interface ExpenseUpdate {
   expense_date?: string
   entry_type?: EntryType
   is_starting_balance?: boolean
+  /** Present and null unlinks; omitted leaves the link alone. */
+  asset_id?: string | null
+  asset_role?: AssetRole | null
   expected_updated_at: string
 }
 

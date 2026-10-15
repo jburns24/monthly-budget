@@ -21,6 +21,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createRecurringExpense } from '../../api/recurring'
 import { getCategories } from '../../api/categories'
+import { invalidateAssets } from '../../hooks/useAssets'
 import type { EntryType } from '../../types/expenses'
 import {
   FREQUENCY_LABELS,
@@ -29,6 +30,8 @@ import {
 } from '../../types/recurring'
 import { toaster } from '../ui/toaster'
 import EntryTypeToggle from '../expenses/EntryTypeToggle'
+import AssetLinkFields from '../assets/AssetLinkFields'
+import { NO_ASSET_LINK, assetLinkFields, type AssetLink } from '../assets/assetLink'
 
 interface CreateRecurringDialogProps {
   open: boolean
@@ -53,6 +56,7 @@ function CreateRecurringDialog({ open, onOpenChange, familyId }: CreateRecurring
   const [frequency, setFrequency] = useState<Frequency>('monthly')
   const [startDate, setStartDate] = useState(todayString)
   const [endDate, setEndDate] = useState('')
+  const [assetLink, setAssetLink] = useState<AssetLink>(NO_ASSET_LINK)
   const isIncome = entryType === 'income'
 
   const { data: categories = [] } = useQuery({
@@ -73,6 +77,7 @@ function CreateRecurringDialog({ open, onOpenChange, familyId }: CreateRecurring
         end_date: endDate || null,
       }
       if (!isIncome) payload.category_id = effectiveCategoryId
+      Object.assign(payload, assetLinkFields(assetLink, isIncome))
       return createRecurringExpense(familyId, payload)
     },
     onSuccess: () => {
@@ -80,6 +85,7 @@ function CreateRecurringDialog({ open, onOpenChange, familyId }: CreateRecurring
       queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+      if (assetLink.assetId && !isIncome) invalidateAssets(queryClient, familyId)
       toaster.create({
         title: 'Recurring entry saved',
         description: `${FREQUENCY_LABELS[frequency]} · $${parseFloat(amount).toFixed(2)}`,
@@ -106,6 +112,7 @@ function CreateRecurringDialog({ open, onOpenChange, familyId }: CreateRecurring
     setFrequency('monthly')
     setStartDate(todayString())
     setEndDate('')
+    setAssetLink(NO_ASSET_LINK)
     onOpenChange(false)
   }
 
@@ -196,6 +203,16 @@ function CreateRecurringDialog({ open, onOpenChange, familyId }: CreateRecurring
                     </NativeSelectField>
                   </NativeSelectRoot>
                 </Stack>
+              )}
+              {!isIncome && (
+                <AssetLinkFields
+                  familyId={familyId}
+                  value={assetLink}
+                  onChange={setAssetLink}
+                  recurring
+                  enabled={open}
+                  disabled={mutation.isPending}
+                />
               )}
               <SimpleGrid columns={2} gap={3}>
                 <Stack gap={1}>

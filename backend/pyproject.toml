@@ -29,6 +29,7 @@ dependencies = [
     "anthropic>=0.40",
     "tenacity>=8.2",
     "python-multipart>=0.0.26",
+    "openpyxl>=3.1.5",
 ]
 
 [tool.setuptools]
@@ -46,6 +47,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.1.0",
+    "types-openpyxl>=3.1.5.20260827",
 ]
 
 [tool.ruff]

@@ -20,6 +20,7 @@ from app.logging import get_logger
 from app.models.expense import Expense
 from app.models.recurring_expense import RecurringExpense
 from app.ports.unit_of_work import UnitOfWork
+from app.services.asset_links import UNSET, merge_asset_link, resolve_asset_link
 from app.services.expense_service import _validate_category
 
 logger = get_logger(__name__)
@@ -90,10 +91,13 @@ async def create_rule(
     start_date: date,
     end_date: date | None,
     today: date,
+    asset_id: uuid.UUID | None = None,
+    asset_role: str | None = None,
 ) -> RecurringExpense:
     """Create a rule and reconcile it, so occurrences on or before ``today`` appear at once.
 
-    Raises HTTPException(400) if an expense category is invalid.
+    Raises HTTPException(400) if an expense category is invalid, and 422/404 for an invalid
+    asset link (see :func:`~app.services.asset_links.resolve_asset_link`).
     """
     if entry_type == "expense":
         if category_id is None:
@@ -101,6 +105,9 @@ async def create_rule(
         await _validate_category(uow, family_id, category_id)
     else:
         category_id = None
+    asset_id, asset_role = await resolve_asset_link(
+        uow, family_id, entry_type=entry_type, asset_id=asset_id, asset_role=asset_role
+    )
 
     rule = RecurringExpense(
         family_id=family_id,
@@ -115,6 +122,8 @@ async def create_rule(
         next_due_date=start_date,
         occurrences_created=0,
         is_active=True,
+        asset_id=asset_id,
+        asset_role=asset_role,
     )
     uow.recurring.add(rule)
     await uow.flush()
@@ -145,7 +154,8 @@ async def update_rule(
     may already have generated entries. Extending the end date of a rule that had
     ended brings it back to life. Resuming a paused rule skips the periods it was
     paused for instead of back-filling them. Already-generated entries are never
-    touched.
+    touched, including their asset link; ``asset_id`` / ``asset_role`` in ``fields`` re-link
+    only the entries generated from now on (an explicit ``None`` unlinks).
     """
     rule = await _get_rule(uow, family_id, rule_id)
     was_active = rule.is_active
@@ -156,6 +166,17 @@ async def update_rule(
         if rule.entry_type == "income":
             raise HTTPException(status_code=400, detail="income must not have category_id")
         await _validate_category(uow, family_id, new_category_id)
+
+    if "asset_id" in fields or "asset_role" in fields:
+        rule.asset_id, rule.asset_role = await merge_asset_link(
+            uow,
+            family_id,
+            entry_type=rule.entry_type,
+            current_id=rule.asset_id,
+            current_role=rule.asset_role,
+            new_id=fields["asset_id"] if "asset_id" in fields else UNSET,
+            new_role=fields["asset_role"] if "asset_role" in fields else UNSET,
+        )
 
     new_next = fields.get("next_due_date")
     if new_next is not None and new_next <= today:
@@ -242,6 +263,8 @@ async def reconcile(uow: UnitOfWork, family_id: uuid.UUID, today: date) -> int:
                     entry_type=rule.entry_type,
                     is_starting_balance=False,
                     recurring_expense_id=rule.id,
+                    asset_id=rule.asset_id,
+                    asset_role=rule.asset_role,
                     created_at=now,
                     updated_at=now,
                 )
