@@ -3,11 +3,18 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from app.adapters.memory.asset_repo import (
+    MemoryAssetContributionRepository,
+    MemoryAssetLoanRepository,
+    MemoryAssetRepository,
+    MemoryAssetValuationRepository,
+)
 from app.adapters.memory.budget_query import MemoryBudgetQuery
 from app.adapters.memory.category_repo import MemoryCategoryRepository
 from app.adapters.memory.expense_repo import MemoryExpenseRepository
 from app.adapters.memory.family_member_repo import MemoryFamilyMemberRepository
 from app.adapters.memory.family_repo import MemoryFamilyRepository
+from app.adapters.memory.hpi_repo import MemoryHpiRepository
 from app.adapters.memory.invite_repo import MemoryInviteRepository
 from app.adapters.memory.monthly_goal_repo import MemoryMonthlyGoalRepository
 from app.adapters.memory.receipt_repo import MemoryReceiptRepository
@@ -16,10 +23,17 @@ from app.adapters.memory.refresh_token_repo import MemoryRefreshTokenRepository
 from app.adapters.memory.store import MemoryStore
 from app.adapters.memory.user_repo import MemoryUserRepository
 from app.ports.read_models import BudgetQuery
+from app.ports.repositories.asset import (
+    AssetContributionRepository,
+    AssetLoanRepository,
+    AssetRepository,
+    AssetValuationRepository,
+)
 from app.ports.repositories.category import CategoryRepository
 from app.ports.repositories.expense import ExpenseRepository
 from app.ports.repositories.family import FamilyRepository
 from app.ports.repositories.family_member import FamilyMemberRepository
+from app.ports.repositories.house_price_index import HpiRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
 from app.ports.repositories.receipt import ReceiptRepository
@@ -62,6 +76,11 @@ class MemoryUnitOfWork:
     recurring: RecurringExpenseRepository
     tokens: RefreshTokenRepository
     budget: BudgetQuery
+    assets: AssetRepository
+    asset_loans: AssetLoanRepository
+    asset_valuations: AssetValuationRepository
+    asset_contributions: AssetContributionRepository
+    hpi: HpiRepository
 
     def __init__(self, store: MemoryStore | None = None) -> None:
         self.store = store if store is not None else MemoryStore()
@@ -76,6 +95,11 @@ class MemoryUnitOfWork:
         self.recurring = MemoryRecurringExpenseRepository(self.store)
         self.tokens = MemoryRefreshTokenRepository(self.store)
         self.budget = MemoryBudgetQuery(self.store)
+        self.assets = MemoryAssetRepository(self.store)
+        self.asset_loans = MemoryAssetLoanRepository(self.store)
+        self.asset_valuations = MemoryAssetValuationRepository(self.store)
+        self.asset_contributions = MemoryAssetContributionRepository(self.store)
+        self.hpi = MemoryHpiRepository(self.store)
 
     async def flush(self) -> None:
         self.store.flush()

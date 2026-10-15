@@ -17,10 +17,12 @@ named for exactly what they load: ``get_in_family`` loads nothing extra,
 walks the same three relationships.
 """
 
+from collections.abc import Sequence
 from typing import Protocol
 from uuid import UUID
 
 from app.models.expense import Expense
+from app.ports.read_models import AssetExpenseLink
 
 
 class ExpenseRepository(Protocol):
@@ -75,6 +77,30 @@ class ExpenseRepository(Protocol):
 
     async def count_by_category(self, category_id: UUID) -> int:
         """Return how many expenses reference ``category_id``, across all months."""
+        ...
+
+    async def list_for_asset(self, asset_id: UUID, family_id: UUID) -> list[Expense]:
+        """Return every expense linked to ``asset_id``, newest first.
+
+        Ordered by ``(expense_date DESC, created_at DESC)`` with ``category``,
+        ``user`` and ``receipt`` eager-loaded, same as :meth:`list_for_month`.
+        """
+        ...
+
+    async def list_asset_links(self, family_id: UUID, asset_ids: Sequence[UUID]) -> list[AssetExpenseLink]:
+        """Return the light projection of every expense linked to any of ``asset_ids``.
+
+        One query for any number of assets, no relationships loaded, no particular order.
+        """
+        ...
+
+    async def clear_asset_link(self, asset_id: UUID) -> None:
+        """Set ``asset_id`` and ``asset_role`` to NULL on every expense linked to ``asset_id``.
+
+        Applied immediately in Postgres (a bulk UPDATE); the in-memory adapter
+        stages it as ordinary dirty-tracked writes. Called before the asset is
+        deleted, because the FK's SET NULL alone would leave the role dangling.
+        """
         ...
 
     def add(self, expense: Expense) -> None:

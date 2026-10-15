@@ -32,7 +32,13 @@ class Expense(Base):
             "(NOT is_starting_balance) OR (entry_type = 'income')",
             name="ck_expenses_starting_balance_income",
         ),
+        CheckConstraint(
+            "asset_role IS NULL OR asset_role IN ('loan_payment', 'improvement', 'maintenance', 'carrying_cost')",
+            name="ck_expenses_asset_role",
+        ),
+        CheckConstraint("asset_role IS NULL OR asset_id IS NOT NULL", name="ck_expenses_asset_role_requires_asset"),
         Index("idx_expenses_family", "family_id"),
+        Index("idx_expenses_asset", "asset_id"),
         Index("idx_expenses_family_year_month", "family_id", "year_month"),
         Index("idx_expenses_category", "category_id"),
         Index("idx_expenses_family_category_month", "family_id", "category_id", "year_month"),
@@ -84,6 +90,12 @@ class Expense(Base):
         ForeignKey("recurring_expenses.id", ondelete="SET NULL"),
         nullable=True,
     )
+    asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("assets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    asset_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

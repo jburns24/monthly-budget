@@ -22,10 +22,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteRecurringExpense, updateRecurringExpense } from '../../api/recurring'
 import { getCategories } from '../../api/categories'
+import { invalidateAssets } from '../../hooks/useAssets'
 import { FREQUENCY_LABELS, type Frequency, type RecurringExpense } from '../../types/recurring'
 import type { RecurringExpenseUpdate } from '../../types/recurring'
 import { toaster } from '../ui/toaster'
 import { isEnded } from '../../utils/recurrence'
+import AssetLinkFields from '../assets/AssetLinkFields'
+import { assetLinkChanges, linkFromEntry, type AssetLink } from '../assets/assetLink'
 
 interface EditRecurringDialogProps {
   open: boolean
@@ -56,6 +59,7 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
   const [frequency, setFrequency] = useState<Frequency>(rule.frequency)
   const [nextDate, setNextDate] = useState(rule.next_due_date)
   const [endDate, setEndDate] = useState(rule.end_date ?? '')
+  const [assetLink, setAssetLink] = useState<AssetLink>(() => linkFromEntry(rule))
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const { data: categories = [] } = useQuery({
@@ -76,12 +80,14 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
       if (frequency !== rule.frequency) payload.frequency = frequency
       if (nextDate !== rule.next_due_date) payload.next_due_date = nextDate
       if (endDate !== (rule.end_date ?? '')) payload.end_date = endDate || null
+      Object.assign(payload, assetLinkChanges(rule, assetLink, isIncome))
       return updateRecurringExpense(familyId, rule.id, payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+      if (assetLink.assetId || rule.asset_id) invalidateAssets(queryClient, familyId)
       toaster.create({ title: 'Recurring entry updated', type: 'success', duration: 4000 })
       onOpenChange(false)
     },
@@ -99,6 +105,7 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
     queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
     queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
     queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
+    if (rule.asset_id) invalidateAssets(queryClient, familyId)
   }
 
   const toggleMutation = useMutation({
@@ -225,6 +232,15 @@ function EditForm({ rule, familyId, onOpenChange }: EditFormProps) {
                 </Text>
               )}
             </Stack>
+          )}
+          {!isIncome && (
+            <AssetLinkFields
+              familyId={familyId}
+              value={assetLink}
+              onChange={setAssetLink}
+              recurring
+              disabled={mutation.isPending}
+            />
           )}
           <SimpleGrid columns={2} gap={3}>
             <Stack gap={1}>

@@ -155,8 +155,9 @@ async def test_reset(
 ) -> dict:
     """Truncate test data tables in FK-safe order.
 
-    Clears: invites → family_members → expenses → recurring_expenses → categories → families → users →
-    refresh_token_blacklist.
+    Clears: invites → family_members → expenses → recurring_expenses → asset tables → assets → categories →
+    families → users → refresh_token_blacklist. The cached FHFA house price index is global reference
+    data, not test data, so it is left alone (re-downloading it on every e2e run would hit fhfa.gov).
 
     This endpoint enables idempotent e2e test suites — call it in
     ``beforeAll`` / ``beforeEach`` to start from a clean slate.
@@ -166,6 +167,12 @@ async def test_reset(
     # expenses and monthly_goals have FKs to categories, so delete them first.
     await db.execute(text("DELETE FROM expenses"))
     await db.execute(text("DELETE FROM recurring_expenses"))
+    # asset children reference assets (CASCADE); expenses/recurring_expenses reference assets (SET NULL).
+    await db.execute(text("DELETE FROM asset_loan_balance_corrections"))
+    await db.execute(text("DELETE FROM asset_loans"))
+    await db.execute(text("DELETE FROM asset_valuations"))
+    await db.execute(text("DELETE FROM asset_contributions"))
+    await db.execute(text("DELETE FROM assets"))
     await db.execute(text("DELETE FROM monthly_goals"))
     # categories has FK to families (CASCADE), so delete categories before families.
     await db.execute(text("DELETE FROM categories"))

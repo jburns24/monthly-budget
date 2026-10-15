@@ -28,6 +28,10 @@ class RecurringExpenseRepository(Protocol):
         """
         ...
 
+    async def clear_asset_link(self, asset_id: UUID) -> None:
+        """Set ``asset_id`` and ``asset_role`` to NULL on every rule linked to ``asset_id``."""
+        ...
+
     def add(self, rule: RecurringExpense) -> None:
         """Stage a new rule. Not durable until ``UnitOfWork.flush``."""
         ...

@@ -6,7 +6,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.expense import EntryType
+from app.schemas.expense import AssetRole, EntryType, validate_asset_link_fields
 
 Frequency = Literal["weekly", "biweekly", "monthly", "yearly"]
 
@@ -21,6 +21,8 @@ class RecurringExpenseCreate(BaseModel):
     frequency: Frequency
     start_date: date
     end_date: date | None = None
+    asset_id: uuid.UUID | None = None
+    asset_role: AssetRole | None = None
 
     @model_validator(mode="after")
     def validate_rules(self) -> Self:
@@ -30,6 +32,7 @@ class RecurringExpenseCreate(BaseModel):
             raise ValueError("income must not have category_id")
         if self.end_date is not None and self.end_date < self.start_date:
             raise ValueError("end_date must not be before start_date")
+        validate_asset_link_fields(self.entry_type, self.asset_id, self.asset_role)
         return self
 
 
@@ -49,6 +52,9 @@ class RecurringExpenseUpdate(BaseModel):
     next_due_date: date | None = None
     end_date: date | None = None
     is_active: bool | None = None
+    # Present-and-null clears the link; omitted leaves it alone (the service reads ``exclude_unset`` fields).
+    asset_id: uuid.UUID | None = None
+    asset_role: AssetRole | None = None
 
 
 class RecurringExpenseResponse(BaseModel):
@@ -67,6 +73,8 @@ class RecurringExpenseResponse(BaseModel):
     end_date: date | None
     next_due_date: date
     is_active: bool
+    asset_id: uuid.UUID | None = None
+    asset_role: AssetRole | None = None
     created_at: datetime
     updated_at: datetime
 

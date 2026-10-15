@@ -70,6 +70,8 @@ async def create_recurring_expense(
         start_date=body.start_date,
         end_date=body.end_date,
         today=await _today(uow, family_id),
+        asset_id=body.asset_id,
+        asset_role=body.asset_role,
     )
     return RecurringExpenseResponse.model_validate(rule)
 

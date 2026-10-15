@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.adapters.memory.unit_of_work import MemoryUnitOfWork
+from app.models.asset import Asset
 from app.models.category import Category
 from app.models.expense import Expense
 from app.models.family import Family
@@ -77,6 +78,30 @@ def make_expense(
         receipt_id=receipt_id,
         entry_type=entry_type,
         is_starting_balance=is_starting_balance,
+    )
+
+
+def make_asset(
+    family_id: uuid.UUID,
+    created_by: uuid.UUID,
+    *,
+    name: str = "Test House",
+    asset_type: str = "house",
+    purchase_date: date = date(2020, 6, 1),
+    purchase_price_cents: int = 40000000,
+    **overrides: object,
+) -> Asset:
+    """Build an unattached Asset. ``id`` and ``created_at`` are left to flush()."""
+    fields: dict[str, object] = {"state": "NC", "zip_code": "27601"} if asset_type == "house" else {}
+    fields.update(overrides)
+    return Asset(
+        family_id=family_id,
+        created_by_user_id=created_by,
+        name=name,
+        asset_type=asset_type,
+        purchase_date=purchase_date,
+        purchase_price_cents=purchase_price_cents,
+        **fields,
     )
 
 

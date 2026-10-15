@@ -6,12 +6,19 @@ from contextlib import asynccontextmanager
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 
+from app.adapters.sqlalchemy.asset_repo import (
+    SqlAlchemyAssetContributionRepository,
+    SqlAlchemyAssetLoanRepository,
+    SqlAlchemyAssetRepository,
+    SqlAlchemyAssetValuationRepository,
+)
 from app.adapters.sqlalchemy.budget_query import SqlAlchemyBudgetQuery
 from app.adapters.sqlalchemy.category_repo import SqlAlchemyCategoryRepository
 from app.adapters.sqlalchemy.errors import translate_integrity_error
 from app.adapters.sqlalchemy.expense_repo import SqlAlchemyExpenseRepository
 from app.adapters.sqlalchemy.family_member_repo import SqlAlchemyFamilyMemberRepository
 from app.adapters.sqlalchemy.family_repo import SqlAlchemyFamilyRepository
+from app.adapters.sqlalchemy.hpi_repo import SqlAlchemyHpiRepository
 from app.adapters.sqlalchemy.invite_repo import SqlAlchemyInviteRepository
 from app.adapters.sqlalchemy.monthly_goal_repo import SqlAlchemyMonthlyGoalRepository
 from app.adapters.sqlalchemy.receipt_repo import SqlAlchemyReceiptRepository
@@ -19,10 +26,17 @@ from app.adapters.sqlalchemy.recurring_expense_repo import SqlAlchemyRecurringEx
 from app.adapters.sqlalchemy.refresh_token_repo import SqlAlchemyRefreshTokenRepository
 from app.adapters.sqlalchemy.user_repo import SqlAlchemyUserRepository
 from app.ports.read_models import BudgetQuery
+from app.ports.repositories.asset import (
+    AssetContributionRepository,
+    AssetLoanRepository,
+    AssetRepository,
+    AssetValuationRepository,
+)
 from app.ports.repositories.category import CategoryRepository
 from app.ports.repositories.expense import ExpenseRepository
 from app.ports.repositories.family import FamilyRepository
 from app.ports.repositories.family_member import FamilyMemberRepository
+from app.ports.repositories.house_price_index import HpiRepository
 from app.ports.repositories.invite import InviteRepository
 from app.ports.repositories.monthly_goal import MonthlyGoalRepository
 from app.ports.repositories.receipt import ReceiptRepository
@@ -70,6 +84,11 @@ class SqlAlchemyUnitOfWork:
     recurring: RecurringExpenseRepository
     tokens: RefreshTokenRepository
     budget: BudgetQuery
+    assets: AssetRepository
+    asset_loans: AssetLoanRepository
+    asset_valuations: AssetValuationRepository
+    asset_contributions: AssetContributionRepository
+    hpi: HpiRepository
 
     def __init__(self, session: AsyncSession, *, owns_transaction: bool = True) -> None:
         self._session = session
@@ -85,6 +104,11 @@ class SqlAlchemyUnitOfWork:
         self.recurring = SqlAlchemyRecurringExpenseRepository(session)
         self.tokens = SqlAlchemyRefreshTokenRepository(session)
         self.budget = SqlAlchemyBudgetQuery(session)
+        self.assets = SqlAlchemyAssetRepository(session)
+        self.asset_loans = SqlAlchemyAssetLoanRepository(session)
+        self.asset_valuations = SqlAlchemyAssetValuationRepository(session)
+        self.asset_contributions = SqlAlchemyAssetContributionRepository(session)
+        self.hpi = SqlAlchemyHpiRepository(session)
 
     async def flush(self) -> None:
         try:

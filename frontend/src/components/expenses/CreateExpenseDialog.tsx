@@ -14,11 +14,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createExpense } from '../../api/expenses'
 import { createRecurringExpense } from '../../api/recurring'
 import { getCategories } from '../../api/categories'
+import { invalidateAssets } from '../../hooks/useAssets'
 import type { EntryType, ExpenseCreate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
 import type { Frequency } from '../../types/recurring'
 import EntryTypeToggle from './EntryTypeToggle'
 import RepeatFields from './RepeatFields'
+import AssetLinkFields from '../assets/AssetLinkFields'
+import { NO_ASSET_LINK, assetLinkFields, type AssetLink } from '../assets/assetLink'
 
 const LAST_USED_CATEGORY_KEY = 'lastUsedCategoryId'
 
@@ -55,6 +58,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   const [repeat, setRepeat] = useState(false)
   const [frequency, setFrequency] = useState<Frequency>('monthly')
   const [endDate, setEndDate] = useState('')
+  const [assetLink, setAssetLink] = useState<AssetLink>(NO_ASSET_LINK)
   const isIncome = entryType === 'income'
 
   const { data: categories = [] } = useQuery({
@@ -87,6 +91,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
           start_date: expenseDate,
           end_date: endDate || null,
           ...(isIncome ? {} : { category_id: effectiveCategoryId }),
+          ...assetLinkFields(assetLink, isIncome),
         })
         return
       }
@@ -99,6 +104,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
       if (!isIncome) {
         payload.category_id = effectiveCategoryId
       }
+      Object.assign(payload, assetLinkFields(assetLink, isIncome))
       await createExpense(familyId, payload)
     },
     onSuccess: () => {
@@ -108,6 +114,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
       queryClient.invalidateQueries({ queryKey: ['expenses', familyId] })
       queryClient.invalidateQueries({ queryKey: ['budget-summary', familyId] })
       if (repeat) queryClient.invalidateQueries({ queryKey: ['recurring', familyId] })
+      if (assetLink.assetId && !isIncome) invalidateAssets(queryClient, familyId)
       toaster.create({
         title: repeat ? 'Recurring entry saved' : isIncome ? 'Income added' : 'Expense added',
         description: `$${parseFloat(amount).toFixed(2)} recorded successfully.`,
@@ -137,6 +144,7 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
     setRepeat(false)
     setFrequency('monthly')
     setEndDate('')
+    setAssetLink(NO_ASSET_LINK)
     onOpenChange(false)
   }
 
@@ -238,6 +246,16 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
                     </NativeSelectField>
                   </NativeSelectRoot>
                 </Stack>
+              )}
+              {!isIncome && (
+                <AssetLinkFields
+                  familyId={familyId}
+                  value={assetLink}
+                  onChange={setAssetLink}
+                  recurring={repeat}
+                  enabled={open}
+                  disabled={mutation.isPending}
+                />
               )}
               <Stack gap={1}>
                 <Text fontWeight="medium" fontSize="sm">

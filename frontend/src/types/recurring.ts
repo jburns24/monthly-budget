@@ -1,3 +1,4 @@
+import type { AssetRole } from './asset'
 import type { EntryType } from './expenses'
 
 export type Frequency = 'weekly' | 'biweekly' | 'monthly' | 'yearly'
@@ -21,6 +22,8 @@ export interface RecurringExpense {
   end_date: string | null
   next_due_date: string
   is_active: boolean
+  asset_id?: string | null
+  asset_role?: AssetRole | null
   created_at: string
   updated_at: string
 }
@@ -33,6 +36,8 @@ export interface RecurringExpenseCreate {
   frequency: Frequency
   start_date: string
   end_date?: string | null
+  asset_id?: string | null
+  asset_role?: AssetRole | null
 }
 
 export interface RecurringExpenseUpdate {
@@ -43,6 +48,9 @@ export interface RecurringExpenseUpdate {
   next_due_date?: string
   end_date?: string | null
   is_active?: boolean
+  /** Present and null unlinks; omitted leaves the link alone. */
+  asset_id?: string | null
+  asset_role?: AssetRole | null
 }
 
 export interface RecurringExpenseListResponse {

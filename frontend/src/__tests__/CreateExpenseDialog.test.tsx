@@ -25,6 +25,9 @@ vi.mock('../api/categories', () => ({
   seedCategories: vi.fn(() => new Promise(() => {})),
 }))
 
+// No assets in these tests; keeps the asset picker from making real HTTP calls
+vi.mock('../api/assets', () => ({ getAssets: vi.fn(() => Promise.resolve([])) }))
+
 vi.mock('../api/recurring', () => ({
   createRecurringExpense: vi.fn(() => new Promise(() => {})),
 }))

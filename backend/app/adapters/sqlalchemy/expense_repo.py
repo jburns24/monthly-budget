@@ -1,13 +1,15 @@
 """SQLAlchemy implementation of :class:`~app.ports.repositories.expense.ExpenseRepository`."""
 
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.expense import Expense
+from app.ports.read_models import AssetExpenseLink
 
 _EAGER = (selectinload(Expense.category), selectinload(Expense.user), selectinload(Expense.receipt))
 
@@ -82,6 +84,30 @@ class SqlAlchemyExpenseRepository:
             select(func.count()).select_from(Expense).where(Expense.category_id == category_id)
         )
         return result.scalar_one()
+
+    async def list_for_asset(self, asset_id: UUID, family_id: UUID) -> list[Expense]:
+        result = await self._session.execute(
+            select(Expense)
+            .options(*_EAGER)
+            .where(Expense.asset_id == asset_id, Expense.family_id == family_id)
+            .order_by(Expense.expense_date.desc(), Expense.created_at.desc(), Expense.id)
+        )
+        return list(result.scalars().all())
+
+    async def list_asset_links(self, family_id: UUID, asset_ids: Sequence[UUID]) -> list[AssetExpenseLink]:
+        if not asset_ids:
+            return []
+        result = await self._session.execute(
+            select(
+                Expense.asset_id, Expense.expense_date, Expense.amount_cents, Expense.asset_role, Expense.entry_type
+            ).where(Expense.family_id == family_id, Expense.asset_id.in_(asset_ids))
+        )
+        return [AssetExpenseLink(*row) for row in result.all()]
+
+    async def clear_asset_link(self, asset_id: UUID) -> None:
+        await self._session.execute(
+            update(Expense).where(Expense.asset_id == asset_id).values(asset_id=None, asset_role=None)
+        )
 
     def add(self, expense: Expense) -> None:
         self._session.add(expense)

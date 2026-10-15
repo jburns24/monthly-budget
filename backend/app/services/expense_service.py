@@ -25,6 +25,7 @@ from app.ports.errors import UniqueViolation
 from app.ports.read_models import CategorySpendRow
 from app.ports.unit_of_work import UnitOfWork
 from app.schemas.expense import BudgetCategorySummary, BudgetSummaryResponse
+from app.services.asset_links import UNSET, _Unset, merge_asset_link, resolve_asset_link
 
 logger = get_logger(__name__)
 
@@ -74,6 +75,8 @@ async def create_expense(
     *,
     entry_type: str = "expense",
     is_starting_balance: bool = False,
+    asset_id: uuid.UUID | None = None,
+    asset_role: str | None = None,
 ) -> Expense:
     """Create a new expense or income entry for a family.
 
@@ -85,6 +88,8 @@ async def create_expense(
     Raises HTTPException(400) if an expense category is invalid.
     Raises HTTPException(409) if a second starting balance is created for the
     same family/month.
+    Raises HTTPException(422)/(404) for an invalid asset link (see
+    :func:`~app.services.asset_links.resolve_asset_link`).
     """
     if entry_type == "expense":
         if category_id is None:
@@ -92,6 +97,9 @@ async def create_expense(
         await _validate_category(uow, family_id, category_id)
     else:
         category_id = None
+    asset_id, asset_role = await resolve_asset_link(
+        uow, family_id, entry_type=entry_type, asset_id=asset_id, asset_role=asset_role
+    )
 
     year_month = expense_date.strftime("%Y-%m")
     now = datetime.now(tz=timezone.utc)
@@ -106,6 +114,8 @@ async def create_expense(
         year_month=year_month,
         entry_type=entry_type,
         is_starting_balance=is_starting_balance,
+        asset_id=asset_id,
+        asset_role=asset_role,
         created_at=now,
         updated_at=now,
     )
@@ -183,11 +193,14 @@ async def update_expense(
     family_id: uuid.UUID,
     expense_id: uuid.UUID,
     expected_updated_at: datetime,
+    asset_id: uuid.UUID | None | _Unset = UNSET,
+    asset_role: str | None | _Unset = UNSET,
     **fields: Any,
 ) -> Expense:
     """Partially update an expense with optimistic locking.
 
-    Only updates non-None fields from **fields.
+    Only updates non-None fields from **fields. The asset link is the exception: ``asset_id`` /
+    ``asset_role`` left as ``UNSET`` stay as they are, while an explicit ``None`` clears them.
     Raises HTTPException(404) if not found or not in the family.
     Raises HTTPException(409) if expense.updated_at != expected_updated_at (optimistic locking).
     Re-validates category if category_id is changed.
@@ -222,6 +235,17 @@ async def update_expense(
         expense.category_id = None
     elif fields.get("category_id") is not None:
         await _validate_category(uow, family_id, fields["category_id"])
+
+    # Also rejects switching a linked expense to income: the unchanged link fails the income check.
+    expense.asset_id, expense.asset_role = await merge_asset_link(
+        uow,
+        family_id,
+        entry_type=resulting_entry_type,
+        current_id=expense.asset_id,
+        current_role=expense.asset_role,
+        new_id=asset_id,
+        new_role=asset_role,
+    )
 
     # Re-compute year_month if expense_date changed
     if fields.get("expense_date") is not None:

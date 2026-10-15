@@ -32,6 +32,12 @@ class MemoryRecurringExpenseRepository:
         ]
         return sorted(due, key=lambda r: r.created_at)
 
+    async def clear_asset_link(self, asset_id: UUID) -> None:
+        for rule in self._store.rows(RecurringExpense):
+            if rule.asset_id == asset_id:
+                rule.asset_id = None
+                rule.asset_role = None
+
     def add(self, rule: RecurringExpense) -> None:
         self._store.add(rule)
 

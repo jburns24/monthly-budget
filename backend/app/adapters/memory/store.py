@@ -22,7 +22,6 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, NoReturn, TypeVar
-from uuid import UUID
 
 from sqlalchemy import UniqueConstraint
 from sqlalchemy import inspect as sa_inspect
@@ -54,7 +53,7 @@ def postgres_tier(qualname: str, capability: str) -> NoReturn:
 
 
 # type -> primary key -> instance
-_Snapshot = dict[type[Any], dict[UUID, Any]]
+_Snapshot = dict[type[Any], dict[Any, Any]]
 
 
 def _utcnow() -> datetime:
@@ -236,6 +235,7 @@ def _mark_stale(row: Any) -> None:
 
 
 _COLUMN_NAMES: dict[type[Any], tuple[str, ...]] = {}
+_PK_NAMES: dict[type[Any], tuple[str, ...]] = {}
 
 
 def _column_names(model: type[Any]) -> tuple[str, ...]:
@@ -245,6 +245,19 @@ def _column_names(model: type[Any]) -> tuple[str, ...]:
         cached = tuple(attr.key for attr in sa_inspect(model).column_attrs)
         _COLUMN_NAMES[model] = cached
     return cached
+
+
+def _pk(row: Any) -> Any:
+    """Return ``row``'s primary key: the bare value, or a tuple for a composite key."""
+    model = type(row)
+    names = _PK_NAMES.get(model)
+    if names is None:
+        mapper = sa_inspect(model)
+        names = tuple(mapper.get_property_by_column(column).key for column in mapper.primary_key)
+        _PK_NAMES[model] = names
+    if len(names) == 1:
+        return getattr(row, names[0])
+    return tuple(getattr(row, name) for name in names)
 
 
 def _clone(row: T) -> T:
@@ -297,8 +310,8 @@ class MemoryStore:
         """
         return list(self._rows.get(model, {}).values())
 
-    def get(self, model: type[T], primary_key: UUID) -> T | None:
-        """Return the flushed instance with that primary key, or None."""
+    def get(self, model: type[T], primary_key: Any) -> T | None:
+        """Return the flushed instance with that primary key (a tuple if composite), or None."""
         found: T | None = self._rows.get(model, {}).get(primary_key)
         return found
 
@@ -313,12 +326,12 @@ class MemoryStore:
         and the caller is expected to roll back.
         """
         for row in self._pending_deletes:
-            self._rows.get(type(row), {}).pop(row.id, None)
+            self._rows.get(type(row), {}).pop(_pk(row), None)
         self._pending_deletes.clear()
 
         for row in self._pending_adds:
             self._apply_defaults(row)
-            self._rows.setdefault(type(row), {})[row.id] = row
+            self._rows.setdefault(type(row), {})[_pk(row)] = row
         self._pending_adds.clear()
 
         self._enforce_unique()

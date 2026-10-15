@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.schemas.receipt import ReceiptStatus
 
 EntryType = Literal["expense", "income"]
+AssetRole = Literal["loan_payment", "improvement", "maintenance", "carrying_cost"]
 
 
 def _coerce_starting_balance_entry_type(data: object) -> object:
@@ -23,6 +24,18 @@ def _coerce_starting_balance_entry_type(data: object) -> object:
     return data
 
 
+def validate_asset_link_fields(entry_type: str | None, asset_id: uuid.UUID | None, asset_role: str | None) -> None:
+    """Shape rules for an expense/rule's asset link; the family check lives in the service."""
+    if asset_id is None:
+        if asset_role is not None:
+            raise ValueError("asset_role requires asset_id")
+        return
+    if entry_type == "income":
+        raise ValueError("income entries cannot be linked to an asset")
+    if asset_role is None:
+        raise ValueError("asset_id requires asset_role")
+
+
 class ExpenseCreate(BaseModel):
     """Request body for POST /api/expenses."""
 
@@ -32,6 +45,8 @@ class ExpenseCreate(BaseModel):
     expense_date: date
     entry_type: EntryType = "expense"
     is_starting_balance: bool = False
+    asset_id: uuid.UUID | None = None
+    asset_role: AssetRole | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -44,6 +59,7 @@ class ExpenseCreate(BaseModel):
             raise ValueError("expense requires category_id")
         if self.entry_type == "income" and self.category_id is not None:
             raise ValueError("income must not have category_id")
+        validate_asset_link_fields(self.entry_type, self.asset_id, self.asset_role)
         return self
 
 
@@ -56,6 +72,9 @@ class ExpenseUpdate(BaseModel):
     expense_date: date | None = None
     entry_type: EntryType | None = None
     is_starting_balance: bool | None = None
+    # Present-and-null clears the link; omitted leaves it alone (the router checks model_fields_set).
+    asset_id: uuid.UUID | None = None
+    asset_role: AssetRole | None = None
     expected_updated_at: datetime  # Required for optimistic locking
 
     @model_validator(mode="before")
@@ -67,6 +86,8 @@ class ExpenseUpdate(BaseModel):
     def validate_entry_category_rules(self) -> Self:
         if self.entry_type == "income" and self.category_id is not None:
             raise ValueError("income must not have category_id")
+        if self.entry_type == "income" and self.asset_id is not None:
+            raise ValueError("income entries cannot be linked to an asset")
         if self.entry_type == "expense" and "category_id" in self.model_fields_set and self.category_id is None:
             raise ValueError("expense requires category_id")
         return self
@@ -110,6 +131,8 @@ class ExpenseResponse(BaseModel):
     receipt_id: uuid.UUID | None = None
     receipt_status: ReceiptStatus | None = None
     recurring_expense_id: uuid.UUID | None = None
+    asset_id: uuid.UUID | None = None
+    asset_role: AssetRole | None = None
 
 
 class ExpenseListResponse(BaseModel):
