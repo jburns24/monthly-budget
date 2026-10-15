@@ -11,7 +11,7 @@ from app.ports.unit_of_work import UnitOfWork
 from app.services.hpi_fetcher import HttpxHpiFetcher
 from app.services.hpi_service import HpiRefresher
 
-# Arbitrary constant naming the refresh's cross-worker lock (pg_try_advisory_lock takes a bigint).
+# Arbitrary constant naming the refresh's cross-worker lock (pg_try_advisory_xact_lock takes a bigint).
 HPI_REFRESH_LOCK_KEY = 7_240_317_001
 
 
@@ -19,18 +19,21 @@ HPI_REFRESH_LOCK_KEY = 7_240_317_001
 async def pg_advisory_lock(key: int = HPI_REFRESH_LOCK_KEY) -> AsyncIterator[bool]:
     """Try to take a Postgres advisory lock on a connection of its own; yields whether it was acquired.
 
-    Session-level, so the lock survives the commits the refresh makes in between, and it is released
-    when the block ends (or the connection dies). Held on a dedicated autocommit connection because a
-    pooled one could be handed to another task mid-refresh.
+    Transaction-scoped (``pg_try_advisory_xact_lock``), not session-scoped: behind a transaction pooler
+    (Supabase Supavisor, port 6543) the server connection can change between statements, so a session
+    lock could leak or be unlocked from another backend. Inside an explicit transaction the pooler pins
+    one server connection, so the lock holds, and it is released by the transaction ending (commit,
+    rollback or a dead connection), with no unlock call to get wrong.
+
+    The lock lives on a dedicated connection that does nothing else: it sits idle in transaction for the
+    whole refresh, while the refresh itself runs on its own sessions (which commit independently).
     """
     async with engine.connect() as connection:
-        connection = await connection.execution_options(isolation_level="AUTOCOMMIT")
-        acquired = bool((await connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key})).scalar())
-        try:
+        async with connection.begin():
+            acquired = bool(
+                (await connection.execute(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": key})).scalar()
+            )
             yield acquired
-        finally:
-            if acquired:
-                await connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
 
 
 @asynccontextmanager
