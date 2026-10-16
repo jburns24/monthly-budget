@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve .env relative to this file so it works regardless of CWD.
@@ -97,21 +97,35 @@ class Settings(BaseSettings):
         default="http://localhost:5173/auth/callback",
         description="Google OAuth 2.0 redirect URI (must match frontend callback route)",
     )
-    anthropic_api_key: str = Field(
+    openrouter_api_key: str = Field(
         default="",
-        description="Anthropic API key for receipt scanning",
+        description="OpenRouter API key for receipt scanning",
     )
-    anthropic_workspace_id: str = Field(
+    llm_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        description="Base URL of the OpenAI-compatible chat completions API used for receipt scanning",
+    )
+    llm_model: str = Field(
+        default="anthropic/claude-haiku-5.5",
+        description="Model slug sent to the LLM provider for receipt extraction",
+    )
+    llm_http_referer: str = Field(
         default="",
-        description="Optional Anthropic workspace ID for identity-linked API keys",
+        description="Optional HTTP-Referer header (OpenRouter app attribution)",
     )
-    anthropic_mock: bool = Field(
+    llm_app_title: str = Field(
+        default="",
+        description="Optional X-Title header (OpenRouter app attribution)",
+    )
+    llm_mock: bool = Field(
         default=False,
-        description="When True, skip real Anthropic calls and return deterministic mock responses",
+        validation_alias=AliasChoices("llm_mock", "anthropic_mock"),
+        description="When True, skip real LLM calls and return deterministic mock responses",
     )
-    anthropic_mock_scenario: str = Field(
+    llm_mock_scenario: str = Field(
         default="success",
-        description="Mock scenario to use when anthropic_mock=True (success, medium_confidence, low_confidence, non_receipt, api_error)",
+        validation_alias=AliasChoices("llm_mock_scenario", "anthropic_mock_scenario"),
+        description="Mock scenario to use when llm_mock=True (success, medium_confidence, low_confidence, non_receipt, api_error)",
     )
 
     hpi_auto_refresh: bool = Field(

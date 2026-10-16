@@ -70,6 +70,7 @@ async def test_sensitive_filter_redacts_keys() -> None:
     event_dict = {
         "event": "startup",
         "anthropic_api_key": "test-anthropic-key-not-real",  # pragma: allowlist secret
+        "openrouter_api_key": "test-openrouter-key-not-real",  # pragma: allowlist secret
         "jwt_secret": "test-jwt-secret-not-real",  # pragma: allowlist secret
         "password": "test-password-not-real",  # pragma: allowlist secret
         "authorization": "Bearer test-token-not-real",
@@ -78,6 +79,7 @@ async def test_sensitive_filter_redacts_keys() -> None:
     }
     result = _sensitive_filter(None, "info", event_dict)
     assert result["anthropic_api_key"] == "[REDACTED]"
+    assert result["openrouter_api_key"] == "[REDACTED]"
     assert result["jwt_secret"] == "[REDACTED]"
     assert result["password"] == "[REDACTED]"
     assert result["authorization"] == "[REDACTED]"

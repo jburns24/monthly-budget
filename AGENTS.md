@@ -77,7 +77,7 @@ kubectl -n monthly-budget exec deploy/backend -- alembic upgrade head   # Apply 
 ## Manual Test Scripts
 
 ```bash
-uv run python test-scripts/scan_receipt_probe.py [IMAGE]  # From backend/. Runs a receipt through the real pipeline with a LIVE Anthropic call — use when touching receipt scanning, the Claude prompt/tool schema, or category suggestion, since tests/ and the e2e suite all mock AsyncAnthropic. See backend/test-scripts/README.md.
+uv run python test-scripts/scan_receipt_probe.py [IMAGE]  # From backend/. Runs a receipt through the real pipeline with a LIVE OpenRouter call (OPENROUTER_API_KEY) — use when touching receipt scanning, the Claude prompt/tool schema, or category suggestion, since tests/ and the e2e suite all mock AsyncOpenAI. See backend/test-scripts/README.md.
 ```
 
 ## Architecture

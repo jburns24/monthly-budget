@@ -40,7 +40,7 @@ from sqlalchemy.pool import NullPool
 from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from app.config import settings
 from app.database import get_db
-from app.dependencies import get_anthropic_client
+from app.dependencies import get_llm_client
 from app.deps.provider import get_uow
 from app.models.family import Family  # noqa: F401
 from app.models.family_member import FamilyMember
@@ -154,15 +154,15 @@ def patch_jwt_secret():
 
 
 @pytest.fixture(autouse=True)
-def mock_anthropic():
-    """Override the get_anthropic_client dependency so no real Anthropic client is needed."""
+def mock_llm():
+    """Override the get_llm_client dependency so no real LLM client is needed."""
     from app.main import app
 
     mock_client = MagicMock()
-    mock_client.messages = MagicMock()
-    app.dependency_overrides[get_anthropic_client] = lambda: mock_client
+    mock_client.chat.completions = MagicMock()
+    app.dependency_overrides[get_llm_client] = lambda: mock_client
     yield mock_client
-    app.dependency_overrides.pop(get_anthropic_client, None)
+    app.dependency_overrides.pop(get_llm_client, None)
 
 
 # ---------------------------------------------------------------------------

@@ -3,8 +3,8 @@
 import uuid
 
 import jwt
-from anthropic import AsyncAnthropic
 from fastapi import Cookie, Depends, HTTPException, Request, status
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.deps.provider import get_uow
@@ -19,9 +19,9 @@ logger = get_logger(__name__)
 _GENERIC_AUTH_ERROR = "Authentication required"
 
 
-def get_anthropic_client(request: Request) -> AsyncAnthropic:
-    """FastAPI dependency: return the AsyncAnthropic singleton from app state."""
-    return request.app.state.anthropic
+def get_llm_client(request: Request) -> AsyncOpenAI:
+    """FastAPI dependency: return the AsyncOpenAI (OpenRouter) singleton from app state."""
+    return request.app.state.llm
 
 
 def _auth_error(detail: str) -> HTTPException:

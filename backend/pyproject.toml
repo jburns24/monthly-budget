@@ -27,6 +27,7 @@ dependencies = [
     "pillow-heif>=0.16",
     "python-magic>=0.4.27",
     "anthropic>=0.40",
+    "openai>=1.50",
     "tenacity>=8.2",
     "python-multipart>=0.0.26",
     "openpyxl>=3.1.5",

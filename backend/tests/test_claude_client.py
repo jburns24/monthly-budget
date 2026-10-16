@@ -1,39 +1,43 @@
 """Tests for T02.2: extract_receipt function — request builder, parser, tenacity retry."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from anthropic import APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError
 
 from app.schemas.receipt import ExtractedReceipt
 from app.services.claude_client import _MODEL, CATEGORY_LABELS, extract_receipt
 
-_ANTHROPIC_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+_LLM_REQUEST = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
 
 
 def _make_tool_use_response(tool_input: dict) -> MagicMock:
-    """Build a mock AsyncAnthropic messages.create response with a tool_use block."""
-    block = MagicMock()
-    block.type = "tool_use"
-    block.input = tool_input
+    """Build a mock chat.completions.create response whose first choice carries one tool call."""
+    tool_call = MagicMock()
+    tool_call.type = "function"
+    tool_call.function.name = "extract_receipt"
+    tool_call.function.arguments = json.dumps(tool_input)
+
+    choice = MagicMock()
+    choice.message.tool_calls = [tool_call]
+    choice.finish_reason = "tool_calls"
 
     usage = MagicMock()
-    usage.input_tokens = 100
-    usage.output_tokens = 50
+    usage.prompt_tokens = 100
+    usage.completion_tokens = 50
 
     response = MagicMock()
-    response.content = [block]
-    response.stop_reason = "tool_use"
+    response.choices = [choice]
     response.usage = usage
     return response
 
 
-def _make_client(response: MagicMock) -> AsyncMock:
-    """Return a mock AsyncAnthropic client whose messages.create returns response."""
+def _make_client(response: MagicMock) -> MagicMock:
+    """Return a mock AsyncOpenAI client whose chat.completions.create returns response."""
     client = MagicMock()
-    client.messages = MagicMock()
-    client.messages.create = AsyncMock(return_value=response)
+    client.chat.completions.create = AsyncMock(return_value=response)
     return client
 
 
@@ -139,7 +143,7 @@ async def test_extract_receipt_optional_fields_permit_null_in_schema() -> None:
 
     await extract_receipt(client, b"fake-image-bytes")
 
-    props = client.messages.create.call_args.kwargs["tools"][0]["input_schema"]["properties"]
+    props = client.chat.completions.create.call_args.kwargs["tools"][0]["function"]["parameters"]["properties"]
     for field in ("total", "date", "name", "category"):
         assert "null" in props[field]["type"], f"{field} cannot express 'unreadable'"
 
@@ -151,7 +155,7 @@ async def test_extract_receipt_tool_schema_uses_wire_names_and_category_enum() -
 
     await extract_receipt(client, b"fake-image-bytes")
 
-    props = client.messages.create.call_args.kwargs["tools"][0]["input_schema"]["properties"]
+    props = client.chat.completions.create.call_args.kwargs["tools"][0]["function"]["parameters"]["properties"]
     assert set(props) == {
         "date_reasoning",
         "is_receipt",
@@ -173,7 +177,7 @@ async def test_extract_receipt_system_prompt_is_phased() -> None:
 
     await extract_receipt(client, b"fake-image-bytes")
 
-    system = client.messages.create.call_args.kwargs["system"]
+    system = client.chat.completions.create.call_args.kwargs["messages"][0]["content"]
     for phase in ("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"):
         assert phase in system
     # Every category the schema allows must also be described in the prompt,
@@ -200,7 +204,7 @@ async def test_extract_receipt_tells_the_model_todays_date() -> None:
 
     await extract_receipt(client, b"fake-image-bytes")
 
-    system = client.messages.create.call_args.kwargs["system"]
+    system = client.chat.completions.create.call_args.kwargs["messages"][0]["content"]
     assert date.today().isoformat() in system
 
 
@@ -246,14 +250,17 @@ async def test_extract_receipt_uses_correct_model_and_tool() -> None:
 
     await extract_receipt(client, b"fake-image-bytes")
 
-    call_kwargs = client.messages.create.call_args.kwargs
+    call_kwargs = client.chat.completions.create.call_args.kwargs
     assert call_kwargs["model"] == _MODEL
-    assert call_kwargs["tool_choice"] == {"type": "tool", "name": "extract_receipt"}
+    assert call_kwargs["tool_choice"] == {"type": "function", "function": {"name": "extract_receipt"}}
+    assert "extra_body" not in call_kwargs
+    assert "temperature" not in call_kwargs
     tools = call_kwargs["tools"]
     assert len(tools) == 1
-    assert tools[0]["name"] == "extract_receipt"
-    assert "is_receipt" in tools[0]["input_schema"]["properties"]
-    assert "confidence" in tools[0]["input_schema"]["properties"]
+    assert tools[0]["type"] == "function"
+    assert tools[0]["function"]["name"] == "extract_receipt"
+    assert "is_receipt" in tools[0]["function"]["parameters"]["properties"]
+    assert "confidence" in tools[0]["function"]["parameters"]["properties"]
 
 
 @pytest.mark.asyncio
@@ -270,15 +277,13 @@ async def test_extract_receipt_sends_base64_image() -> None:
 
     await extract_receipt(client, image_bytes, media_type="image/png")
 
-    call_kwargs = client.messages.create.call_args.kwargs
+    call_kwargs = client.chat.completions.create.call_args.kwargs
     messages = call_kwargs["messages"]
-    assert len(messages) == 1
-    assert messages[0]["role"] == "user"
-    content = messages[0]["content"]
-    image_block = next(b for b in content if b.get("type") == "image")
-    assert image_block["source"]["type"] == "base64"
-    assert image_block["source"]["media_type"] == "image/png"
-    assert image_block["source"]["data"] == expected_b64
+    assert len(messages) == 2
+    assert messages[1]["role"] == "user"
+    content = messages[1]["content"]
+    image_block = next(b for b in content if b.get("type") == "image_url")
+    assert image_block["image_url"]["url"] == f"data:image/png;base64,{expected_b64}"
 
 
 @pytest.mark.asyncio
@@ -312,23 +317,42 @@ async def test_extract_receipt_non_receipt_image() -> None:
 
 @pytest.mark.asyncio
 async def test_extract_receipt_raises_value_error_on_no_tool_block() -> None:
-    """extract_receipt raises ValueError if Claude returns no tool_use block."""
-    text_block = MagicMock()
-    text_block.type = "text"
-
-    usage = MagicMock()
-    usage.input_tokens = 50
-    usage.output_tokens = 10
+    """extract_receipt raises ValueError if the model returns no tool call."""
+    choice = MagicMock()
+    choice.message.tool_calls = None
+    choice.finish_reason = "stop"
 
     response = MagicMock()
-    response.content = [text_block]
-    response.stop_reason = "end_turn"
-    response.usage = usage
+    response.choices = [choice]
 
     client = _make_client(response)
 
-    with pytest.raises(ValueError, match="no tool_use block"):
+    with pytest.raises(ValueError, match="no tool call"):
         await extract_receipt(client, b"weird-response")
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_raises_value_error_on_invalid_arguments() -> None:
+    """Unparseable tool-call arguments surface as a ValueError, not a JSONDecodeError."""
+    response = _make_tool_use_response({})
+    response.choices[0].message.tool_calls[0].function.arguments = "{not json"
+    client = _make_client(response)
+
+    with pytest.raises(ValueError, match="invalid tool call arguments"):
+        await extract_receipt(client, b"weird-response")
+
+
+@pytest.mark.asyncio
+async def test_extract_receipt_reports_usage() -> None:
+    """usage_callback receives the OpenAI-shaped usage (prompt/completion tokens)."""
+    response = _make_tool_use_response({"is_receipt": True, "confidence": "high"})
+    client = _make_client(response)
+    seen: list = []
+
+    await extract_receipt(client, b"image", usage_callback=seen.append)
+
+    assert seen == [response.usage]
+    assert seen[0].prompt_tokens == 100
 
 
 @pytest.mark.asyncio
@@ -336,18 +360,17 @@ async def test_extract_receipt_retries_on_500() -> None:
     """extract_receipt retries up to 3 times on APIStatusError 500."""
     good_response = _make_tool_use_response({"is_receipt": True, "confidence": "high"})
 
-    httpx_response = httpx.Response(500, request=_ANTHROPIC_REQUEST)
+    httpx_response = httpx.Response(500, request=_LLM_REQUEST)
     error = APIStatusError("server error", response=httpx_response, body=None)
 
     client = MagicMock()
-    client.messages = MagicMock()
-    client.messages.create = AsyncMock(side_effect=[error, error, good_response])
+    client.chat.completions.create = AsyncMock(side_effect=[error, error, good_response])
 
     with patch("asyncio.sleep"):
         result = await extract_receipt(client, b"image")
 
     assert result.is_receipt is True
-    assert client.messages.create.call_count == 3
+    assert client.chat.completions.create.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -355,76 +378,72 @@ async def test_extract_receipt_retries_on_429() -> None:
     """extract_receipt retries on rate-limit (429) errors."""
     good_response = _make_tool_use_response({"is_receipt": True, "confidence": "medium"})
 
-    httpx_response = httpx.Response(429, request=_ANTHROPIC_REQUEST)
+    httpx_response = httpx.Response(429, request=_LLM_REQUEST)
     error = APIStatusError("rate limited", response=httpx_response, body=None)
 
     client = MagicMock()
-    client.messages = MagicMock()
-    client.messages.create = AsyncMock(side_effect=[error, good_response])
+    client.chat.completions.create = AsyncMock(side_effect=[error, good_response])
 
     with patch("asyncio.sleep"):
         result = await extract_receipt(client, b"image")
 
-    assert client.messages.create.call_count == 2
+    assert client.chat.completions.create.call_count == 2
     assert result.confidence == "medium"
 
 
 @pytest.mark.asyncio
 async def test_extract_receipt_raises_after_max_retries() -> None:
     """extract_receipt raises APIStatusError after exhausting 3 attempts."""
-    httpx_response = httpx.Response(503, request=_ANTHROPIC_REQUEST)
+    httpx_response = httpx.Response(503, request=_LLM_REQUEST)
     error = APIStatusError("unavailable", response=httpx_response, body=None)
 
     client = MagicMock()
-    client.messages = MagicMock()
-    client.messages.create = AsyncMock(side_effect=error)
+    client.chat.completions.create = AsyncMock(side_effect=error)
 
     with patch("asyncio.sleep"):
         with pytest.raises(APIStatusError):
             await extract_receipt(client, b"image")
 
-    assert client.messages.create.call_count == 3
+    assert client.chat.completions.create.call_count == 3
 
 
 @pytest.mark.asyncio
 async def test_extract_receipt_retries_on_connection_error() -> None:
     """extract_receipt retries on APIConnectionError."""
     good_response = _make_tool_use_response({"is_receipt": True, "confidence": "high"})
-    conn_error = APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com"))
+    conn_error = APIConnectionError(request=httpx.Request("POST", "https://openrouter.ai/api/v1"))
 
     client = MagicMock()
-    client.messages = MagicMock()
-    client.messages.create = AsyncMock(side_effect=[conn_error, good_response])
+    client.chat.completions.create = AsyncMock(side_effect=[conn_error, good_response])
 
     with patch("asyncio.sleep"):
         result = await extract_receipt(client, b"image")
 
-    assert client.messages.create.call_count == 2
+    assert client.chat.completions.create.call_count == 2
     assert result.is_receipt is True
 
 
 @pytest.mark.asyncio
 async def test_extract_receipt_does_not_retry_on_400() -> None:
     """extract_receipt does NOT retry on 400 bad request (client error)."""
-    httpx_response = httpx.Response(400, request=_ANTHROPIC_REQUEST)
+    httpx_response = httpx.Response(400, request=_LLM_REQUEST)
     error = APIStatusError("bad request", response=httpx_response, body=None)
 
     client = MagicMock()
-    client.messages = MagicMock()
-    client.messages.create = AsyncMock(side_effect=error)
+    client.chat.completions.create = AsyncMock(side_effect=error)
 
     with pytest.raises(APIStatusError):
         await extract_receipt(client, b"image")
 
-    assert client.messages.create.call_count == 1
+    assert client.chat.completions.create.call_count == 1
 
 
 @pytest.mark.asyncio
 async def test_extract_receipt_builds_correct_request() -> None:
     """extract_receipt builds the exact PRD §13 request shape.
 
-    User message content must be a list of exactly [image_block, text_block]:
-      - image_block: {"type": "image", "source": {"type": "base64", "media_type": ..., "data": <b64>}}
+    Messages are [system, user]; user content is exactly [image_block, text_block]:
+      - image_block: {"type": "image_url", "image_url": {"url": "data:<media_type>;base64,<b64>"}}
       - text_block:  {"type": "text", "text": "Extract structured data from this receipt image."}
     """
     import base64
@@ -441,29 +460,25 @@ async def test_extract_receipt_builds_correct_request() -> None:
 
     await extract_receipt(client, image_bytes, media_type="image/jpeg")
 
-    call_kwargs = client.messages.create.call_args.kwargs
+    call_kwargs = client.chat.completions.create.call_args.kwargs
 
     assert call_kwargs["model"] == _MODEL
     assert call_kwargs["max_tokens"] == _MAX_TOKENS
-    assert call_kwargs["system"] == _build_system_prompt(date.today())
-    assert call_kwargs["tool_choice"] == {"type": "tool", "name": "extract_receipt"}
+    assert call_kwargs["tool_choice"] == {"type": "function", "function": {"name": "extract_receipt"}}
 
     messages = call_kwargs["messages"]
-    assert len(messages) == 1
-    assert messages[0]["role"] == "user"
+    assert len(messages) == 2
+    assert messages[0] == {"role": "system", "content": _build_system_prompt(date.today())}
+    assert messages[1]["role"] == "user"
 
-    content = messages[0]["content"]
+    content = messages[1]["content"]
     assert isinstance(content, list)
     assert len(content) == 2, f"Expected [image_block, text_block]; got {content!r}"
 
     image_block, text_block = content
     assert image_block == {
-        "type": "image",
-        "source": {
-            "type": "base64",
-            "media_type": "image/jpeg",
-            "data": expected_b64,
-        },
+        "type": "image_url",
+        "image_url": {"url": f"data:image/jpeg;base64,{expected_b64}"},
     }
     assert text_block == {"type": "text", "text": _USER_TEXT_PROMPT}
     assert text_block["text"] == "Extract structured data from this receipt image."
@@ -478,7 +493,7 @@ async def test_extract_receipt_default_media_type_is_jpeg() -> None:
 
     await extract_receipt(client, b"jpeg-bytes")
 
-    call_kwargs = client.messages.create.call_args.kwargs
+    call_kwargs = client.chat.completions.create.call_args.kwargs
     messages = call_kwargs["messages"]
-    image_block = next(b for b in messages[0]["content"] if b.get("type") == "image")
-    assert image_block["source"]["media_type"] == "image/jpeg"
+    image_block = next(b for b in messages[1]["content"] if b.get("type") == "image_url")
+    assert image_block["image_url"]["url"].startswith("data:image/jpeg;base64,")
