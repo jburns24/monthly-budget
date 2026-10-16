@@ -44,7 +44,7 @@ Edit the `.env` files with your actual configuration values:
 The services **inside** the dev cluster do not read any of these. Their environment
 comes from `manifests/overlays/dev/config/`:
 
-- `app-config.env` → generated `ConfigMap/app-config` (non-secret settings, including `ANTHROPIC_MOCK=true`, which is why receipt scanning is deterministic locally and needs no Anthropic key)
+- `app-config.env` → generated `ConfigMap/app-config` (non-secret settings, including `ANTHROPIC_MOCK=true`, which is why receipt scanning is deterministic locally and needs no OpenRouter key; `ANTHROPIC_MOCK` is a legacy alias of `LLM_MOCK`)
 - `app-secrets.env` → generated `Secret/app-secrets` (`DATABASE_URL`, `REDIS_URL`, JWT/session secrets)
 
 Every value in those two files is a throwaway placeholder for a local-only k3d

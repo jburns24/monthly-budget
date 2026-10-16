@@ -7,10 +7,10 @@ and are not run in CI — they are developer tools you invoke by hand.
 ## scan_receipt_probe.py
 
 Runs a receipt image through the real receipt-scanning pipeline, **including a
-live call to the Anthropic API**, and prints what the backend would return to
+live call to the OpenRouter API** (Claude Haiku via its OpenAI-compatible endpoint), and prints what the backend would return to
 the frontend.
 
-The whole automated suite mocks `AsyncAnthropic`, so nothing in `tests/` or the
+The whole automated suite mocks `AsyncOpenAI`, so nothing in `tests/` or the
 Playwright e2e suite ever proves the real Claude call works. This script is how
 you check that.
 
@@ -25,9 +25,9 @@ uv run python test-scripts/scan_receipt_probe.py --family-id <uuid> # use one of
 ### Requirements
 
 - Postgres and Redis running (`task up`).
-- A real `ANTHROPIC_API_KEY` in the repo-root `.env`. The committed placeholder
+- A real `OPENROUTER_API_KEY` in the repo-root `.env`. The committed placeholder
   produces a 401, which the pipeline surfaces as a generic HTTP 503.
-- `ANTHROPIC_MOCK` unset or `false`. The script refuses to run under mock mode
+- `LLM_MOCK` (or the legacy `ANTHROPIC_MOCK`) unset or `false`. The script refuses to run under mock mode
   unless you pass `--allow-mock`, since canned data defeats the point.
 
 ### What it exercises

@@ -19,12 +19,12 @@ async def set_mock_scenario(scenario: str = "success") -> dict:
     """Set the active Claude mock scenario for this process.
 
     Raises HTTP 404 unless running in development or test environment.
-    Updates settings.anthropic_mock_scenario in-process so subsequent
+    Updates settings.llm_mock_scenario in-process so subsequent
     receipt uploads use the specified mock branch without a restart.
     """
     if settings.environment.lower() not in ("development", "test"):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
-    settings.anthropic_mock_scenario = scenario
+    settings.llm_mock_scenario = scenario
     logger.info("mock_claude_scenario_set", scenario=scenario)
     return {"scenario": scenario}

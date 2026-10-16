@@ -7,9 +7,9 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import httpx
-from anthropic import AsyncAnthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from openai import AsyncOpenAI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
@@ -46,12 +46,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         environment=settings.environment,
     )
 
-    anthropic_headers = (
-        {"anthropic-workspace-id": settings.anthropic_workspace_id} if settings.anthropic_workspace_id else None
-    )
-    app.state.anthropic = AsyncAnthropic(
-        api_key=settings.anthropic_api_key,
-        default_headers=anthropic_headers,
+    # OpenRouter's optional app-attribution headers; only sent when configured.
+    llm_headers = {
+        name: value
+        for name, value in (("HTTP-Referer", settings.llm_http_referer), ("X-Title", settings.llm_app_title))
+        if value
+    }
+    app.state.llm = AsyncOpenAI(
+        base_url=settings.llm_base_url,
+        api_key=settings.openrouter_api_key,
+        default_headers=llm_headers or None,
         max_retries=2,
         timeout=httpx.Timeout(connect=10.0, read=45.0, write=10.0, pool=5.0),
     )
@@ -60,7 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # --- Shutdown ---
     logger.info("application_shutdown", app_name=settings.app_name)
-    await app.state.anthropic.close()
+    await app.state.llm.close()
     await engine.dispose()
 
 

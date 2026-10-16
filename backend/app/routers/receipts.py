@@ -4,10 +4,10 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from anthropic import AsyncAnthropic
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from openai import AsyncOpenAI
 
-from app.dependencies import get_anthropic_client, require_family_member
+from app.dependencies import get_llm_client, require_family_member
 from app.deps.provider import get_uow
 from app.logging import get_logger
 from app.models.family_member import FamilyMember
@@ -60,7 +60,7 @@ async def upload_receipt(
     family_id: uuid.UUID,
     file: UploadFile,
     membership: Annotated[tuple[User, FamilyMember], Depends(require_family_member)],
-    anthropic: Annotated[AsyncAnthropic, Depends(get_anthropic_client)],
+    llm: Annotated[AsyncOpenAI, Depends(get_llm_client)],
     uow: Annotated[UnitOfWork, Depends(get_uow)],
     _rate_limit: Annotated[None, Depends(_check_rate_limit)],
 ) -> ReceiptUploadResponse:
@@ -74,9 +74,7 @@ async def upload_receipt(
             detail="File too large. Maximum size is 5MB.",
         )
 
-    receipt, expense, needs_edit = await receipt_service.process_upload(
-        uow, anthropic, family_id, current_user.id, raw_bytes
-    )
+    receipt, expense, needs_edit = await receipt_service.process_upload(uow, llm, family_id, current_user.id, raw_bytes)
 
     logger.info(
         "receipt_upload_complete",

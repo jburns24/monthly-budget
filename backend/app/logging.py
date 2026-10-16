@@ -8,7 +8,9 @@ import structlog
 
 from app.config import settings
 
-_SENSITIVE_KEYS = frozenset({"anthropic_api_key", "jwt_secret", "google_client_secret", "password", "authorization"})
+_SENSITIVE_KEYS = frozenset(
+    {"anthropic_api_key", "openrouter_api_key", "jwt_secret", "google_client_secret", "password", "authorization"}
+)
 
 
 def _sensitive_filter(logger: Any, method: str, event_dict: dict[str, Any]) -> dict[str, Any]:

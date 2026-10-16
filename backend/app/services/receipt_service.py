@@ -2,7 +2,7 @@
 
 Phase 1 (savepoint): validate MIME, sanitize image, insert
   Receipt(status='processing').
-Phase 2 (non-atomic): call extract_receipt via AsyncAnthropic.
+Phase 2 (non-atomic): call extract_receipt via AsyncOpenAI (OpenRouter).
 Phase 3 (savepoint): update Receipt + create Expense with suggested category.
 
 The image itself is never stored — only the extraction result. Any failure marks
@@ -16,9 +16,9 @@ from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from typing import cast
 
-from anthropic import AsyncAnthropic
-from anthropic.types import Usage
 from fastapi import HTTPException
+from openai import AsyncOpenAI
+from openai.types import CompletionUsage
 
 from app.logging import get_logger
 from app.models.expense import Expense
@@ -229,14 +229,14 @@ async def _run_phase3(
 
 async def process_upload(
     uow: UnitOfWork,
-    anthropic_client_inst: AsyncAnthropic,
+    llm_client: AsyncOpenAI,
     family_id: uuid.UUID,
     uploader_id: uuid.UUID,
     raw_bytes: bytes,
     *,
     model: str | None = None,
     temperature: float | None = claude_client.DEFAULT_TEMPERATURE,
-    usage_callback: Callable[[Usage], None] | None = None,
+    usage_callback: Callable[[CompletionUsage], None] | None = None,
 ) -> tuple[Receipt, Expense, bool]:
     """Process a receipt image upload through the three-phase pipeline.
 
@@ -309,7 +309,7 @@ async def process_upload(
 
     try:
         extracted = await claude_client.extract_receipt(
-            anthropic_client_inst,
+            llm_client,
             sanitized_bytes,
             media_type="image/jpeg",
             model=model,

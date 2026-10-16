@@ -1,21 +1,23 @@
-"""Claude API client for receipt data extraction.
+"""LLM client for receipt data extraction (Claude via OpenRouter).
 
-Wraps the AsyncAnthropic SDK with tenacity retry logic layered on top of the
-SDK's built-in retries (max_retries=2). Tenacity handles transient server errors
-(5xx, 429) with exponential back-off; the SDK handles connection-level retries.
+Talks to OpenRouter's OpenAI-compatible chat completions API through the
+AsyncOpenAI SDK, with tenacity retry logic layered on top of the SDK's built-in
+retries (max_retries=2). Tenacity handles transient server errors (5xx, 429)
+with exponential back-off; the SDK handles connection-level retries.
 
-When settings.anthropic_mock is True, extract_receipt returns a deterministic
-ExtractedReceipt based on settings.anthropic_mock_scenario without calling the API.
+When settings.llm_mock is True, extract_receipt returns a deterministic
+ExtractedReceipt based on settings.llm_mock_scenario without calling the API.
 """
 
 import base64
+import json
 from collections.abc import Callable
 from datetime import date
 from typing import Literal
 
 import httpx
-from anthropic import APIConnectionError, APIStatusError, AsyncAnthropic
-from anthropic.types import Usage
+from openai import APIConnectionError, APIStatusError, AsyncOpenAI
+from openai.types import CompletionUsage
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from app.config import settings
@@ -24,7 +26,9 @@ from app.schemas.receipt import ExtractedReceipt
 
 logger = get_logger(__name__)
 
-_MODEL = "claude-haiku-5-5"
+# The model slug now lives in settings.llm_model (default anthropic/claude-haiku-5.5)
+# so it can be changed per environment without a code change.
+_MODEL = settings.llm_model
 # Headroom for the date_reasoning field below. The extracted JSON itself is
 # small, but truncating the tool input mid-object surfaces as a confusing
 # model_validate failure rather than an obvious cap-hit, so leave slack.
@@ -137,50 +141,53 @@ field out is always the correct way to report something you cannot read."""
 
 _USER_TEXT_PROMPT = "Extract structured data from this receipt image."
 _TOOL_DEFINITION = {
-    "name": "extract_receipt",
-    "description": "Extract structured data from a receipt image",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            # First on purpose. Tool input is generated in schema order, and the
-            # forced tool_choice means the model cannot emit a text block before
-            # the tool call — so without a field to think in, Phase 3's year
-            # resolution has to happen in one forward pass with no intermediate
-            # tokens. This buys that room, and it is what gets logged when a date
-            # still comes back wrong.
-            "date_reasoning": {
-                "type": ["string", "null"],
-                "description": (
-                    "One sentence: which field you read the date from, how you "
-                    "resolved its year against today's date, and why the result "
-                    "is in or near this month"
-                ),
+    "type": "function",
+    "function": {
+        "name": "extract_receipt",
+        "description": "Extract structured data from a receipt image",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                # First on purpose. Tool input is generated in schema order, and the
+                # forced tool_choice means the model cannot emit a text block before
+                # the tool call — so without a field to think in, Phase 3's year
+                # resolution has to happen in one forward pass with no intermediate
+                # tokens. This buys that room, and it is what gets logged when a date
+                # still comes back wrong.
+                "date_reasoning": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "One sentence: which field you read the date from, how you "
+                        "resolved its year against today's date, and why the result "
+                        "is in or near this month"
+                    ),
+                },
+                "is_receipt": {"type": "boolean"},
+                "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+                # Each optional field is typed as a union with "null" rather than a
+                # bare scalar. With "type": "number" the model has no legal way to
+                # say "unreadable" and emits the *string* "null", which fails
+                # validation and 503s the upload.
+                "total": {
+                    "type": ["number", "null"],
+                    "description": "Final amount paid; omit if not legible",
+                },
+                "date": {
+                    "type": ["string", "null"],
+                    "description": "Transaction date as YYYY-MM-DD; omit if not legible",
+                },
+                "name": {
+                    "type": ["string", "null"],
+                    "description": "Merchant brand name; omit if not identifiable",
+                },
+                "category": {
+                    "type": ["string", "null"],
+                    "enum": [*CATEGORY_LABELS, None],
+                    "description": "Spending category for the purchase; omit if not a receipt",
+                },
             },
-            "is_receipt": {"type": "boolean"},
-            "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
-            # Each optional field is typed as a union with "null" rather than a
-            # bare scalar. With "type": "number" the model has no legal way to
-            # say "unreadable" and emits the *string* "null", which fails
-            # validation and 503s the upload.
-            "total": {
-                "type": ["number", "null"],
-                "description": "Final amount paid; omit if not legible",
-            },
-            "date": {
-                "type": ["string", "null"],
-                "description": "Transaction date as YYYY-MM-DD; omit if not legible",
-            },
-            "name": {
-                "type": ["string", "null"],
-                "description": "Merchant brand name; omit if not identifiable",
-            },
-            "category": {
-                "type": ["string", "null"],
-                "enum": [*CATEGORY_LABELS, None],
-                "description": "Spending category for the purchase; omit if not a receipt",
-            },
+            "required": ["is_receipt", "confidence"],
         },
-        "required": ["is_receipt", "confidence"],
     },
 }
 
@@ -226,7 +233,7 @@ def _mock_scenarios() -> dict[str, ExtractedReceipt]:
     }
 
 
-_MOCK_API_ERROR_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+_MOCK_API_ERROR_REQUEST = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
 
 
 def _get_mock_response(scenario: str) -> ExtractedReceipt:
@@ -237,7 +244,7 @@ def _get_mock_response(scenario: str) -> ExtractedReceipt:
     """
     if scenario == "api_error":
         raise APIStatusError(
-            "Mock Anthropic API error (scenario: api_error)",
+            "Mock LLM API error (scenario: api_error)",
             response=httpx.Response(503, request=_MOCK_API_ERROR_REQUEST),
             body=None,
         )
@@ -267,13 +274,13 @@ _retry = retry(
 
 @_retry
 async def _call_claude(
-    client: AsyncAnthropic,
+    client: AsyncOpenAI,
     image_bytes: bytes,
     media_type: MediaType,
     *,
     model: str | None = None,
     temperature: float | None = DEFAULT_TEMPERATURE,
-    usage_callback: Callable[[Usage], None] | None = None,
+    usage_callback: Callable[[CompletionUsage], None] | None = None,
 ) -> ExtractedReceipt:
     """Send an image to Claude and parse the tool-use response. Wrapped by tenacity.
 
@@ -290,39 +297,46 @@ async def _call_claude(
     if temperature is not None:
         create_kwargs["temperature"] = temperature
 
-    response = await client.messages.create(
-        model=model or _MODEL,
+    response = await client.chat.completions.create(
+        model=model or settings.llm_model,
         max_tokens=_MAX_TOKENS,
-        system=_build_system_prompt(date.today()),
         tools=[_TOOL_DEFINITION],
-        tool_choice={"type": "tool", "name": "extract_receipt"},
+        tool_choice={"type": "function", "function": {"name": "extract_receipt"}},
         messages=[
+            {"role": "system", "content": _build_system_prompt(date.today())},
             {
                 "role": "user",
                 "content": [
                     {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": b64_data,
-                        },
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{media_type};base64,{b64_data}"},
                     },
                     {"type": "text", "text": _USER_TEXT_PROMPT},
                 ],
-            }
+            },
         ],
+        # Deliberately no provider.require_parameters: as of 2026-10 OpenRouter's
+        # tool-compatibility filter rejects a *named* tool_choice for
+        # anthropic/claude-haiku-5.5 on every endpoint (404 "No endpoints found
+        # that support the provided 'tool_choice' value"), while the same request
+        # without it is served by a first-party Claude host that honors the
+        # forced tool. A provider that ignored it would surface as the
+        # "no tool call" ValueError below, not as bad data.
         **create_kwargs,
     )
 
-    tool_block = next(
-        (block for block in response.content if block.type == "tool_use"),
-        None,
-    )
-    if tool_block is None:
-        raise ValueError(f"Claude returned no tool_use block; stop_reason={response.stop_reason!r}")
+    choice = response.choices[0] if response.choices else None
+    tool_calls = (choice.message.tool_calls if choice is not None else None) or []
+    if not tool_calls:
+        finish_reason = choice.finish_reason if choice is not None else None
+        raise ValueError(f"LLM returned no tool call; finish_reason={finish_reason!r}")
 
-    extracted = ExtractedReceipt.model_validate(tool_block.input)
+    try:
+        tool_input = json.loads(tool_calls[0].function.arguments)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ValueError(f"LLM returned invalid tool call arguments: {exc}") from exc
+
+    extracted = ExtractedReceipt.model_validate(tool_input)
 
     logger.info(
         "claude_extract_receipt_complete",
@@ -335,35 +349,35 @@ async def _call_claude(
         # Not persisted on the Receipt — it is scaffolding for the model, not
         # data — but it is the only way to tell a misread year from a mis-picked
         # one when a date comes back wrong.
-        date_reasoning=tool_block.input.get("date_reasoning") if isinstance(tool_block.input, dict) else None,
-        input_tokens=response.usage.input_tokens,
-        output_tokens=response.usage.output_tokens,
+        date_reasoning=tool_input.get("date_reasoning") if isinstance(tool_input, dict) else None,
+        input_tokens=response.usage.prompt_tokens if response.usage else None,
+        output_tokens=response.usage.completion_tokens if response.usage else None,
     )
 
-    if usage_callback is not None:
+    if usage_callback is not None and response.usage is not None:
         usage_callback(response.usage)
 
     return extracted
 
 
 async def extract_receipt(
-    client: AsyncAnthropic,
+    client: AsyncOpenAI,
     image_bytes: bytes,
     media_type: MediaType = "image/jpeg",
     *,
     model: str | None = None,
     temperature: float | None = DEFAULT_TEMPERATURE,
-    usage_callback: Callable[[Usage], None] | None = None,
+    usage_callback: Callable[[CompletionUsage], None] | None = None,
 ) -> ExtractedReceipt:
     """Call Claude to extract structured data from a receipt image.
 
-    When settings.anthropic_mock is True, returns a deterministic response
-    for the scenario in settings.anthropic_mock_scenario without calling the API.
+    When settings.llm_mock is True, returns a deterministic response
+    for the scenario in settings.llm_mock_scenario without calling the API.
 
     Parameters
     ----------
     client:
-        The AsyncAnthropic singleton from app.state.
+        The AsyncOpenAI (OpenRouter) singleton from app.state.
     image_bytes:
         Raw image bytes (already sanitized/re-encoded by receipt_storage).
     media_type:
@@ -386,10 +400,10 @@ async def extract_receipt(
     APIStatusError
         On unretryable 4xx errors or when mock scenario is 'api_error'.
     ValueError
-        If Claude returns no tool_use block in the response (unexpected schema).
+        If the model returns no tool call, or unparseable tool arguments.
     """
-    if settings.anthropic_mock:
-        scenario = settings.anthropic_mock_scenario
+    if settings.llm_mock:
+        scenario = settings.llm_mock_scenario
         logger.info("claude_extract_receipt_mock", scenario=scenario)
         return _get_mock_response(scenario)
 

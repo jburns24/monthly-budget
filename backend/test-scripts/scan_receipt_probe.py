@@ -3,7 +3,7 @@
 
 Bypasses the frontend and the HTTP layer — calls receipt_service.process_upload
 directly, which is the exact code path POST /api/families/{id}/receipts uses.
-Hits the real Anthropic API unless ANTHROPIC_MOCK=true.
+Hits the real OpenRouter API (OpenAI-compatible) unless LLM_MOCK=true.
 
 Prints what the frontend would receive: the ReceiptUploadResponse body, plus the
 Expense the backend created (category, cost, description/merchant, date).
@@ -14,9 +14,9 @@ Usage (from backend/):
     IMAGE                 path to a receipt image (default: e2e/fixtures/sample-receipt.jpg)
     --family-id UUID      use an existing family instead of the scratch one
     --keep                don't delete the rows this script created
-    --allow-mock          proceed even when ANTHROPIC_MOCK=true
-    --model ID            override the Claude model id for this run only (default:
-                           claude_client._MODEL — production behavior otherwise)
+    --allow-mock          proceed even when LLM_MOCK=true
+    --model ID            override the OpenRouter model slug for this run only (default:
+                           settings.llm_model — production behavior otherwise)
     --temperature FLOAT   sampling temperature for this run (default: the pinned
                            production value, claude_client.DEFAULT_TEMPERATURE)
     --no-temperature      omit the temperature key entirely — required for models
@@ -24,7 +24,7 @@ Usage (from backend/):
     --revision LABEL      free-text label echoed in the output/summary, to tag runs
 
 Requires Postgres reachable at DATABASE_URL (i.e. `task up` running), and a real
-ANTHROPIC_API_KEY in the repo-root .env. Each run costs a fraction of a cent.
+OPENROUTER_API_KEY in the repo-root .env (or the environment). Each run costs a fraction of a cent.
 """
 
 import argparse
@@ -43,10 +43,11 @@ REPO_ROOT = BACKEND_ROOT.parent
 # the script is invoked from the repo root rather than from backend/.
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from anthropic import AsyncAnthropic  # noqa: E402
 from fastapi import HTTPException  # noqa: E402
+from openai import AsyncOpenAI  # noqa: E402
 from sqlalchemy import delete, select  # noqa: E402
 
+from app.adapters.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.database import AsyncSessionLocal  # noqa: E402
 from app.models.category import Category  # noqa: E402
@@ -56,7 +57,7 @@ from app.models.family_member import FamilyMember  # noqa: E402
 from app.models.receipt import Receipt  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.services import receipt_service  # noqa: E402
-from app.services.claude_client import _MODEL, CATEGORY_LABELS, DEFAULT_TEMPERATURE  # noqa: E402
+from app.services.claude_client import CATEGORY_LABELS, DEFAULT_TEMPERATURE  # noqa: E402
 
 PROBE_EMAIL = "receipt-probe@local.test"
 # The labels the extractor is allowed to emit, which are also the names a real
@@ -157,7 +158,7 @@ async def main() -> int:
     ap.add_argument("--family-id", type=uuid.UUID, default=None)
     ap.add_argument("--keep", action="store_true", help="keep the receipt/expense rows this run created")
     ap.add_argument("--allow-mock", action="store_true")
-    ap.add_argument("--model", default=None, help="override the Claude model id for this run only")
+    ap.add_argument("--model", default=None, help="override the OpenRouter model slug for this run only")
     ap.add_argument(
         "--temperature",
         type=float,
@@ -177,10 +178,10 @@ async def main() -> int:
     usage: dict[str, int] = {}
 
     def _capture_usage(u) -> None:
-        usage["input_tokens"] = u.input_tokens
-        usage["output_tokens"] = u.output_tokens
+        usage["input_tokens"] = u.prompt_tokens
+        usage["output_tokens"] = u.completion_tokens
 
-    effective_model = args.model or _MODEL
+    effective_model = args.model or settings.llm_model
 
     def print_summary(name=None, total=None, date_=None, category=None) -> None:
         """Compact, grep/parse-friendly summary block, printed at the end of every run."""
@@ -208,27 +209,28 @@ async def main() -> int:
     raw = image_path.read_bytes()
 
     rule("Configuration")
-    key = settings.anthropic_api_key
-    key_desc = f"{key[:7]}…({len(key)} chars)" if key else "<empty>"
+    key = settings.openrouter_api_key
+    key_desc = f"<set> ({len(key)} chars)" if key else "<empty>"
     if args.model:
-        print(f"  model             {effective_model}  (override, default is {_MODEL})")
+        print(f"  model             {effective_model}  (override, default is {settings.llm_model})")
     else:
-        print(f"  model             {effective_model}  (from claude_client._MODEL)")
+        print(f"  model             {effective_model}  (from settings.llm_model)")
     if effective_temperature is None:
         print("  temperature       omitted (not sent)")
     else:
         print(f"  temperature       {effective_temperature}  (production default is {DEFAULT_TEMPERATURE})")
     print(f"  revision          {args.revision or '—'}")
-    print(f"  ANTHROPIC_MOCK    {settings.anthropic_mock}")
-    print(f"  ANTHROPIC_API_KEY {key_desc}")
+    print(f"  LLM_MOCK          {settings.llm_mock}")
+    print(f"  LLM_BASE_URL      {settings.llm_base_url}")
+    print(f"  OPENROUTER_API_KEY {key_desc}")
     print(f"  image             {image_path}  ({len(raw):,} bytes)")
 
-    if settings.anthropic_mock and not args.allow_mock:
-        sys.exit("\nANTHROPIC_MOCK=true — this would return canned data. Set it false, or pass --allow-mock.")
-    if not settings.anthropic_mock and not key.startswith("sk-ant-"):
-        print("\n\033[33m  warning: key does not look like a real sk-ant-… key; expect a 401 → 503\033[0m")
+    if settings.llm_mock and not args.allow_mock:
+        sys.exit("\nLLM_MOCK=true — this would return canned data. Set it false, or pass --allow-mock.")
+    if not settings.llm_mock and not key.startswith("sk-" + "or-"):
+        print("\n\033[33m  warning: key does not look like a real OpenRouter API key; expect a 401 → 503\033[0m")
 
-    client = AsyncAnthropic(api_key=key)
+    client = AsyncOpenAI(base_url=settings.llm_base_url, api_key=key)
     created: dict[str, uuid.UUID] = {}
 
     async with AsyncSessionLocal() as db:
@@ -238,8 +240,10 @@ async def main() -> int:
 
         rule("Calling receipt_service.process_upload()")
         try:
+            # process_upload takes a UnitOfWork (it calls uow.savepoint()); wrap
+            # the probe's session the same way get_uow does for a request.
             receipt, expense, needs_edit = await receipt_service.process_upload(
-                db,
+                SqlAlchemyUnitOfWork(db, owns_transaction=True),
                 client,
                 family_id,
                 uploader_id,
