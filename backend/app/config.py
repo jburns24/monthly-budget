@@ -128,6 +128,30 @@ class Settings(BaseSettings):
         description="Mock scenario to use when llm_mock=True (success, medium_confidence, low_confidence, non_receipt, api_error)",
     )
 
+    decision_model: str = Field(
+        default="microsoft/microsoft-decision-1",
+        description="OpenRouter System One decision model used to suggest an expense category from its description",
+    )
+    decision_min_confidence: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Minimum decision-model confidence for a category suggestion to be returned",
+    )
+    decision_timeout_seconds: float = Field(
+        default=3.0,
+        gt=0.0,
+        description="Timeout for the category-suggestion decision call; it is never retried",
+    )
+    decision_mock: bool = Field(
+        default=False,
+        description="When True, skip the real decision-model call and return a deterministic suggestion",
+    )
+    decision_mock_scenario: str = Field(
+        default="success",
+        description="Mock scenario when decision_mock=True (success, low_confidence, api_error)",
+    )
+
     hpi_auto_refresh: bool = Field(
         default=True,
         description=(

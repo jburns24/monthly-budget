@@ -53,3 +53,29 @@ async def check_and_increment_receipt_upload(
             error=str(exc),
         )
         return True, 0
+
+
+async def check_and_increment_category_suggest(
+    family_id: uuid.UUID,
+    limit: int = 500,
+) -> tuple[bool, int]:
+    """Daily per-family counter for category suggestions; same semantics as receipts.
+
+    Suggestions fire on every Description blur, so the cap is far higher than
+    the receipt one; it exists to bound decision-model spend, not normal use.
+    Fails open on Redis errors.
+    """
+    today = date.today().strftime("%Y-%m-%d")
+    key = f"categories:suggest:{family_id}:{today}"
+
+    try:
+        client = _get_redis_client()
+        pipe = client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, 86400)
+        results = await pipe.execute()
+        count: int = results[0]
+        return count <= limit, count
+    except Exception as exc:
+        logger.warning("rate_limiter_redis_error", family_id=str(family_id), error=str(exc))
+        return True, 0

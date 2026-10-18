@@ -31,3 +31,8 @@ export interface SeedResponse {
   message: string
   created_count: number
 }
+
+export interface CategorySuggestion {
+  category_id: string | null
+  category_name: string | null
+}

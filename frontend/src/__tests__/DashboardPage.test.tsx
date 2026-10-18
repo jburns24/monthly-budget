@@ -33,6 +33,7 @@ vi.mock('../api/goals', () => ({
 
 // Mock categories API to prevent real HTTP calls
 vi.mock('../api/categories', () => ({
+  suggestCategory: vi.fn(() => Promise.resolve(null)),
   getCategories: vi.fn(() => new Promise(() => {})),
   createCategory: vi.fn(() => new Promise(() => {})),
   updateCategory: vi.fn(() => new Promise(() => {})),

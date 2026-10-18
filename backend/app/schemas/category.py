@@ -50,3 +50,16 @@ class SeedResponse(BaseModel):
 
     message: str
     created_count: int
+
+
+class CategorySuggestRequest(BaseModel):
+    """Request body for POST /api/families/{family_id}/categories/suggest."""
+
+    description: str = Field(min_length=1, max_length=200)
+
+
+class CategorySuggestResponse(BaseModel):
+    """Suggested category for an expense description; both fields null when there is none."""
+
+    category_id: uuid.UUID | None = None
+    category_name: str | None = None

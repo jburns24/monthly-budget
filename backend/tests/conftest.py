@@ -638,3 +638,13 @@ def mock_google_oauth() -> Any:
         return patch("google.oauth2.id_token.verify_oauth2_token", return_value=user_info)
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _decision_mock_on() -> Any:
+    """Keep every test off the real decision model; tests that exercise the live
+    request path switch it back off themselves (see test_category_classifier)."""
+    from app.config import settings
+
+    with patch.object(settings, "decision_mock", True):
+        yield

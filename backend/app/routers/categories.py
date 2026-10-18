@@ -2,16 +2,25 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from openai import AsyncOpenAI
 
-from app.dependencies import require_family_admin, require_family_member
+from app.dependencies import get_llm_client, require_family_admin, require_family_member
 from app.deps.provider import get_uow
 from app.logging import get_logger
 from app.models.family_member import FamilyMember
 from app.models.user import User
 from app.ports.unit_of_work import UnitOfWork
-from app.schemas.category import CategoryCreate, CategoryDeleteResponse, CategoryResponse, CategoryUpdate, SeedResponse
-from app.services import category_service
+from app.schemas.category import (
+    CategoryCreate,
+    CategoryDeleteResponse,
+    CategoryResponse,
+    CategorySuggestRequest,
+    CategorySuggestResponse,
+    CategoryUpdate,
+    SeedResponse,
+)
+from app.services import category_classifier, category_service, rate_limiter
 
 logger = get_logger(__name__)
 
@@ -124,3 +133,37 @@ async def seed_categories(
         message=f"Seeded {created_count} default categories",
         created_count=created_count,
     )
+
+
+async def _check_suggest_rate_limit(family_id: uuid.UUID) -> None:
+    allowed, _ = await rate_limiter.check_and_increment_category_suggest(family_id)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Daily category suggestion limit reached. Try again tomorrow.",
+            headers={"Retry-After": "86400"},
+        )
+
+
+@router.post(
+    "/families/{family_id}/categories/suggest",
+    response_model=CategorySuggestResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def suggest_category(
+    family_id: uuid.UUID,
+    body: CategorySuggestRequest,
+    membership: tuple[User, FamilyMember] = Depends(require_family_member),
+    uow: UnitOfWork = Depends(get_uow),
+    llm: AsyncOpenAI = Depends(get_llm_client),
+    _rate_limit: None = Depends(_check_suggest_rate_limit),
+) -> CategorySuggestResponse:
+    """Suggest an active category for an expense description (any member).
+
+    Always 200: "no suggestion" is a normal answer (both fields null), including
+    when the decision model is slow, unsure, or unavailable.
+    """
+    category = await category_classifier.suggest_category(llm, uow.categories, family_id, body.description)
+    if category is None:
+        return CategorySuggestResponse()
+    return CategorySuggestResponse(category_id=category.id, category_name=category.name)
