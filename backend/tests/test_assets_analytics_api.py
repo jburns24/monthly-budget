@@ -671,3 +671,24 @@ async def test_the_advisory_lock_is_single_flight() -> None:
             assert (first, second) == (True, False)
     async with pg_advisory_lock(918273) as again:
         assert again is True
+
+
+async def test_the_advisory_lock_is_transaction_scoped_and_leaves_nothing_behind() -> None:
+    """Held, the lock sits on a backend that is idle in a transaction (safe behind a transaction pooler);
+    once the block exits no advisory lock for the key remains."""
+    from sqlalchemy import text
+
+    from app.database import engine
+    from app.deps.hpi import pg_advisory_lock
+
+    key = 918274  # fits the lower 32 bits: classid 0, objid == key
+    holders = text(
+        "SELECT a.state FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid "
+        "WHERE l.locktype = 'advisory' AND l.classid = 0 AND l.objid = :key AND l.granted"
+    )
+    async with pg_advisory_lock(key) as acquired:
+        assert acquired is True
+        async with engine.connect() as observer:
+            assert [r[0] for r in await observer.execute(holders, {"key": key})] == ["idle in transaction"]
+    async with engine.connect() as observer:
+        assert list(await observer.execute(holders, {"key": key})) == []
