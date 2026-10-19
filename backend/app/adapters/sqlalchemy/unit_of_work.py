@@ -67,10 +67,11 @@ class SqlAlchemyUnitOfWork:
     outer transaction survives.
 
     Note: the session is expected to be built with ``expire_on_commit=False``
-    (``AsyncSessionLocal`` and every test fixture do). That is load-bearing for
-    the receipt retry path, which hand-syncs an attribute after committing —
-    see ``docs/data-layer-ports-design.md`` risk (e). The UoW deliberately does
-    not mutate the caller's session to enforce it.
+    (``AsyncSessionLocal`` and every test fixture do), so ORM instances stay
+    readable after a mid-request commit such as ``receipt_service._mark_failed``.
+    It was load-bearing for the receipt retry path removed in #18 — see
+    ``docs/data-layer-ports-design.md`` risk (e). The UoW deliberately does not
+    mutate the caller's session to enforce it.
     """
 
     categories: CategoryRepository

@@ -61,16 +61,3 @@ export async function deleteReceipt(familyId: string, receiptId: string): Promis
     throw new Error('Failed to delete receipt')
   }
 }
-
-export async function retryReceipt(
-  familyId: string,
-  receiptId: string
-): Promise<ReceiptUploadResponse> {
-  const response = await apiClient(`/api/families/${familyId}/receipts/${receiptId}/retry`, {
-    method: 'POST',
-  })
-  if (!response.ok) {
-    throw new Error(String(response.status))
-  }
-  return response.json() as Promise<ReceiptUploadResponse>
-}
