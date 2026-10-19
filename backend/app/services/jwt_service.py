@@ -41,7 +41,7 @@ def create_access_token(user: User) -> str:
 def create_refresh_token(user: User) -> str:
     """Return a signed refresh JWT for *user*.
 
-    Lifetime comes from ``settings.jwt_refresh_token_expire_days`` (default 7).
+    Lifetime comes from ``settings.jwt_refresh_token_expire_days`` (default 30).
     """
     payload = _build_payload(user, timedelta(days=settings.jwt_refresh_token_expire_days))
     token = jwt.encode(payload, settings.jwt_secret, algorithm=_ALGORITHM)

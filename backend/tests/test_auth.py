@@ -90,6 +90,14 @@ async def test_callback_success_new_user(db_session: AsyncSession) -> None:
     assert resp.json()["is_new_user"] is True
     assert "access_token" in resp.cookies
     assert "refresh_token" in resp.cookies
+    # Persistent cookies: each lives as long as its JWT, so a 30-day session
+    # survives a browser restart.
+    set_cookies = resp.headers.get_list("set-cookie")
+    access = next(c for c in set_cookies if c.startswith("access_token="))
+    refresh = next(c for c in set_cookies if c.startswith("refresh_token="))
+    assert f"Max-Age={settings.jwt_access_token_expire_minutes * 60}" in access
+    assert f"Max-Age={settings.jwt_refresh_token_expire_days * 86400}" in refresh
+    assert "HttpOnly" in refresh and "Path=/api/auth" in refresh
 
 
 @pytest.mark.asyncio

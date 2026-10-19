@@ -82,8 +82,8 @@ class Settings(BaseSettings):
         description="Access JWT lifetime in minutes (short-lived; refreshed via refresh cookie)",
     )
     jwt_refresh_token_expire_days: int = Field(
-        default=7,
-        description="Refresh JWT lifetime in days (bounds the overall signed-in session)",
+        default=30,
+        description="Refresh JWT lifetime in days (bounds the overall signed-in session; also the cookie Max-Age)",
     )
     google_client_id: str = Field(
         default="",
