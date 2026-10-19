@@ -93,6 +93,7 @@ Taskfile as the CLI entry point.
 - Database: `app/database.py` — async engine, session factory (`AsyncSessionLocal`), `Base` declarative base, `get_db()` dependency
 - Migrations: `alembic/` — async Alembic setup, `env.py` reads `database_url` from app config
 - Structured logging via `structlog` (`app/logging.py`)
+- Category auto-suggest: `POST /api/families/{id}/categories/suggest` → `app/services/category_classifier.py`, which asks OpenRouter's System One decision model (`DECISION_MODEL`, default `microsoft/microsoft-decision-1`) a `choice` question over the family's active category names via the shared AsyncOpenAI client's `/systemone` endpoint. Returns a category only at `confidence >= DECISION_MIN_CONFIDENCE` (0.5); 3s timeout, no retries, trigram fallback, never errors. The frontend calls it on Description blur in `CreateExpenseDialog`.
 - Layout: `app/routers/`, `app/models/`, `app/schemas/`, `app/services/` (mostly stubs currently)
 - Tests: `tests/` — pytest with `asyncio_mode = "auto"`, uses httpx for async test client
 
@@ -164,7 +165,7 @@ For anything else, run `task skills -- --help`.
 
 ### Config and secrets
 
-In-cluster env comes from `manifests/overlays/dev/config/` — `app-config.env` → `ConfigMap/app-config`, `app-secrets.env` → `Secret/app-secrets`, both consumed wholesale via `envFrom`. Every value is a throwaway local-only placeholder, not a real credential. `ANTHROPIC_MOCK=true` is set there, which is why the e2e receipt specs are deterministic and no Anthropic key is needed.
+In-cluster env comes from `manifests/overlays/dev/config/` — `app-config.env` → `ConfigMap/app-config`, `app-secrets.env` → `Secret/app-secrets`, both consumed wholesale via `envFrom`. Every value is a throwaway local-only placeholder, not a real credential. `ANTHROPIC_MOCK=true` is set there, which is why the e2e receipt specs are deterministic and no OpenRouter key is needed. `DECISION_MOCK=true` does the same for category auto-suggest (its `success` scenario picks the family's first active category).
 
 kustomize does **not** strip trailing comments from env files (`FOO=bar # x` yields the literal `bar # x`) — keep comments on their own line. `app-secrets.env` trips detect-secrets; re-baseline rather than adding inline pragmas.
 

@@ -13,7 +13,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createExpense } from '../../api/expenses'
 import { createRecurringExpense } from '../../api/recurring'
-import { getCategories } from '../../api/categories'
+import { getCategories, suggestCategory } from '../../api/categories'
 import { invalidateAssets } from '../../hooks/useAssets'
 import type { EntryType, ExpenseCreate } from '../../types/expenses'
 import { toaster } from '../ui/toaster'
@@ -24,6 +24,8 @@ import AssetLinkFields from '../assets/AssetLinkFields'
 import { NO_ASSET_LINK, assetLinkFields, type AssetLink } from '../assets/assetLink'
 
 const LAST_USED_CATEGORY_KEY = 'lastUsedCategoryId'
+// Shorter descriptions are too ambiguous to be worth a suggestion round-trip.
+const MIN_SUGGEST_LENGTH = 3
 
 interface CreateExpenseDialogProps {
   open: boolean
@@ -48,7 +50,12 @@ function getDefaultCategoryId(categories: { id: string }[]): string {
 
 function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDialogProps) {
   const queryClient = useQueryClient()
-  const amountRef = useRef<HTMLInputElement>(null)
+  const descriptionRef = useRef<HTMLInputElement>(null)
+  // In-flight suggestion request, aborted when a newer one starts or the dialog closes.
+  const suggestAbortRef = useRef<AbortController | null>(null)
+  const lastSuggestedRef = useRef('')
+  // Once the user picks a category by hand, suggestions never override it this session.
+  const userPickedCategoryRef = useRef(false)
 
   const [entryType, setEntryType] = useState<EntryType>('expense')
   const [amount, setAmount] = useState('')
@@ -70,14 +77,42 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   // Derive effective category ID: prefer controlled state, fall back to default
   const effectiveCategoryId = categoryId || getDefaultCategoryId(categories)
 
-  // Auto-focus amount input when dialog opens
+  // Auto-focus the description input when the dialog opens: it is typed first so
+  // its category suggestion can land while the user enters the amount.
   useEffect(() => {
     if (open) {
       setTimeout(() => {
-        amountRef.current?.focus()
+        descriptionRef.current?.focus()
       }, 50)
     }
   }, [open])
+
+  // Never let a late suggestion apply after the dialog has gone away.
+  useEffect(() => () => suggestAbortRef.current?.abort(), [])
+
+  function handleDescriptionBlur() {
+    const text = description.trim()
+    if (isIncome || userPickedCategoryRef.current) return
+    if (text.length < MIN_SUGGEST_LENGTH || text === lastSuggestedRef.current) return
+    lastSuggestedRef.current = text
+
+    suggestAbortRef.current?.abort()
+    const controller = new AbortController()
+    suggestAbortRef.current = controller
+
+    suggestCategory(familyId, text, controller.signal)
+      .then((suggestion) => {
+        if (controller.signal.aborted || userPickedCategoryRef.current) return
+        const id = suggestion?.category_id
+        if (id && categories.some((c) => c.id === id)) {
+          // Replaces the default, including the localStorage last-used one.
+          setCategoryId(id)
+        }
+      })
+      .catch(() => {
+        // No suggestion (network error, abort, rate limit): keep the current default.
+      })
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -136,6 +171,10 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
   })
 
   function handleClose() {
+    suggestAbortRef.current?.abort()
+    suggestAbortRef.current = null
+    lastSuggestedRef.current = ''
+    userPickedCategoryRef.current = false
     setEntryType('expense')
     setAmount('')
     setDescription('')
@@ -194,13 +233,27 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
               />
               <Stack gap={1}>
                 <Text fontWeight="medium" fontSize="sm">
+                  Description
+                </Text>
+                <Input
+                  placeholder={isIncome ? 'e.g. Paycheck' : 'e.g. Weekly groceries'}
+                  value={description}
+                  ref={descriptionRef}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={handleDescriptionBlur}
+                  maxLength={500}
+                  disabled={mutation.isPending}
+                  data-testid="expense-description-input"
+                />
+              </Stack>
+              <Stack gap={1}>
+                <Text fontWeight="medium" fontSize="sm">
                   Amount{' '}
                   <Text as="span" color="red.500">
                     *
                   </Text>
                 </Text>
                 <Input
-                  ref={amountRef}
                   placeholder="0.00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -208,19 +261,6 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
                   autoComplete="off"
                   disabled={mutation.isPending}
                   data-testid="expense-amount-input"
-                />
-              </Stack>
-              <Stack gap={1}>
-                <Text fontWeight="medium" fontSize="sm">
-                  Description
-                </Text>
-                <Input
-                  placeholder={isIncome ? 'e.g. Paycheck' : 'e.g. Weekly groceries'}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  maxLength={500}
-                  disabled={mutation.isPending}
-                  data-testid="expense-description-input"
                 />
               </Stack>
               {!isIncome && (
@@ -234,7 +274,11 @@ function CreateExpenseDialog({ open, onOpenChange, familyId }: CreateExpenseDial
                   <NativeSelectRoot disabled={mutation.isPending}>
                     <NativeSelectField
                       value={effectiveCategoryId}
-                      onChange={(e) => setCategoryId(e.target.value)}
+                      onChange={(e) => {
+                        userPickedCategoryRef.current = true
+                        suggestAbortRef.current?.abort()
+                        setCategoryId(e.target.value)
+                      }}
                       data-testid="expense-category-select"
                     >
                       {categories.map((cat) => (

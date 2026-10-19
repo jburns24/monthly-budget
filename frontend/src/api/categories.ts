@@ -4,6 +4,7 @@ import type {
   CategoryCreate,
   CategoryUpdate,
   CategoryDeleteResponse,
+  CategorySuggestion,
   SeedResponse,
 } from '../types/categories'
 
@@ -64,4 +65,27 @@ export async function seedCategories(familyId: string): Promise<SeedResponse> {
     throw new Error('Failed to seed categories')
   }
   return response.json() as Promise<SeedResponse>
+}
+
+/**
+ * Ask the backend which active category an expense description belongs to.
+ * Resolves to null when there is no confident suggestion. Pass an AbortSignal
+ * so a newer request can cancel a stale one.
+ */
+export async function suggestCategory(
+  familyId: string,
+  description: string,
+  signal?: AbortSignal
+): Promise<CategorySuggestion | null> {
+  const response = await apiClient(`/api/families/${familyId}/categories/suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description: description.slice(0, 200) }),
+    signal,
+  })
+  if (!response.ok) {
+    throw new Error('Failed to suggest category')
+  }
+  const body = (await response.json()) as CategorySuggestion
+  return body.category_id ? body : null
 }

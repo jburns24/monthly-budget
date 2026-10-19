@@ -154,3 +154,29 @@ async def test_default_limit_is_50(family_id: uuid.UUID) -> None:
 
     assert allowed is False
     assert count == 51
+
+
+# ---------------------------------------------------------------------------
+# Category suggestion limiter
+# ---------------------------------------------------------------------------
+
+
+async def test_category_suggest_uses_its_own_key_and_limit(family_id: uuid.UUID) -> None:
+    from app.services.rate_limiter import check_and_increment_category_suggest
+
+    pipe = await _make_pipeline_mock(501)
+    client_mock = AsyncMock()
+    client_mock.pipeline = MagicMock(return_value=pipe)
+
+    with patch("app.services.rate_limiter._get_redis_client", return_value=client_mock):
+        allowed, count = await check_and_increment_category_suggest(family_id)
+
+    assert (allowed, count) == (False, 501)
+    pipe.incr.assert_called_once_with(f"categories:suggest:{family_id}:{date.today().strftime('%Y-%m-%d')}")
+
+
+async def test_category_suggest_fails_open(family_id: uuid.UUID) -> None:
+    from app.services.rate_limiter import check_and_increment_category_suggest
+
+    with patch("app.services.rate_limiter._get_redis_client", side_effect=ConnectionError("down")):
+        assert await check_and_increment_category_suggest(family_id) == (True, 0)

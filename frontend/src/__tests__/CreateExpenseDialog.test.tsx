@@ -18,6 +18,7 @@ vi.mock('../api/expenses', () => ({
 
 // Mock categories API to prevent real HTTP calls
 vi.mock('../api/categories', () => ({
+  suggestCategory: vi.fn(() => Promise.resolve(null)),
   getCategories: vi.fn(() => new Promise(() => {})),
   createCategory: vi.fn(() => new Promise(() => {})),
   updateCategory: vi.fn(() => new Promise(() => {})),
@@ -42,7 +43,7 @@ vi.mock('../components/ui/toaster', () => ({
 
 import { createExpense } from '../api/expenses'
 import { createRecurringExpense } from '../api/recurring'
-import { getCategories } from '../api/categories'
+import { getCategories, suggestCategory } from '../api/categories'
 import { toaster } from '../components/ui/toaster'
 
 // Polyfill localStorage for happy-dom environment
@@ -120,6 +121,12 @@ function renderCreateDialog(open = true, onOpenChange = vi.fn()) {
   )
 }
 
+function waitForDescriptionFocus() {
+  // The dialog focuses Description 50ms after opening; typing elsewhere before
+  // that would have the focus jump mid-keystroke.
+  return waitFor(() => expect(screen.getByTestId('expense-description-input')).toHaveFocus())
+}
+
 describe('CreateExpenseDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -130,6 +137,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
     renderCreateDialog()
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -151,6 +159,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
     renderCreateDialog()
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
@@ -164,6 +173,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
     renderCreateDialog()
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByTestId('expense-date-input')).toBeInTheDocument()
@@ -184,6 +194,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
     renderCreateDialog()
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       const select = screen.getByTestId('expense-category-select')
@@ -198,6 +209,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
     renderCreateDialog()
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByTestId('expense-submit-btn')).toBeInTheDocument()
@@ -212,6 +224,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
     renderCreateDialog()
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
@@ -238,6 +251,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(createExpense).mockResolvedValue(mockExpense)
 
     renderCreateDialog()
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
@@ -285,6 +299,7 @@ describe('CreateExpenseDialog', () => {
         </QueryClientProvider>
       </ChakraProvider>
     )
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
@@ -328,6 +343,7 @@ describe('CreateExpenseDialog', () => {
     vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
     renderCreateDialog(true, onOpenChange)
+    await waitForDescriptionFocus()
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
@@ -343,6 +359,7 @@ describe('CreateExpenseDialog', () => {
       vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await waitFor(() => {
         expect(screen.getByTestId('entry-type-toggle')).toBeInTheDocument()
@@ -360,6 +377,7 @@ describe('CreateExpenseDialog', () => {
       vi.mocked(getCategories).mockResolvedValue(sampleCategories)
 
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await waitFor(() => {
         expect(screen.getByTestId('expense-category-select')).toBeInTheDocument()
@@ -383,6 +401,7 @@ describe('CreateExpenseDialog', () => {
       vi.mocked(createExpense).mockResolvedValue(mockExpense)
 
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await waitFor(() => {
         expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
@@ -424,6 +443,7 @@ describe('CreateExpenseDialog', () => {
       vi.mocked(createExpense).mockResolvedValue(mockExpense)
 
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await waitFor(() => {
         expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
@@ -457,6 +477,7 @@ describe('CreateExpenseDialog', () => {
       )
 
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await waitFor(() => {
         expect(screen.getByTestId('expense-amount-input')).toBeInTheDocument()
@@ -486,6 +507,7 @@ describe('CreateExpenseDialog', () => {
       const user = userEvent.setup()
       vi.mocked(getCategories).mockResolvedValue(sampleCategories)
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       const checkbox = await screen.findByTestId('repeat-checkbox')
       expect(checkbox).not.toBeChecked()
@@ -508,6 +530,7 @@ describe('CreateExpenseDialog', () => {
       vi.mocked(createRecurringExpense).mockResolvedValue({} as never)
       const onOpenChange = vi.fn()
       renderCreateDialog(true, onOpenChange)
+      await waitForDescriptionFocus()
 
       await user.click(await screen.findByTestId('repeat-checkbox'))
       await user.selectOptions(screen.getByTestId('repeat-frequency-select'), 'weekly')
@@ -546,6 +569,7 @@ describe('CreateExpenseDialog', () => {
       vi.mocked(getCategories).mockResolvedValue(sampleCategories)
       vi.mocked(createExpense).mockResolvedValue(makeExpense())
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await user.type(await screen.findByTestId('expense-amount-input'), '5')
       await waitFor(() =>
@@ -561,6 +585,7 @@ describe('CreateExpenseDialog', () => {
       const user = userEvent.setup()
       vi.mocked(getCategories).mockResolvedValue(sampleCategories)
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await user.click(await screen.findByTestId('repeat-checkbox'))
       await user.type(screen.getByTestId('expense-amount-input'), '5')
@@ -580,6 +605,7 @@ describe('CreateExpenseDialog', () => {
       vi.mocked(getCategories).mockResolvedValue(sampleCategories)
       vi.mocked(createRecurringExpense).mockResolvedValue({} as never)
       renderCreateDialog()
+      await waitForDescriptionFocus()
 
       await user.click(within(await screen.findByTestId('entry-type-toggle')).getByText('Income'))
       await user.click(screen.getByTestId('repeat-checkbox'))
@@ -591,6 +617,157 @@ describe('CreateExpenseDialog', () => {
       expect(vi.mocked(createRecurringExpense).mock.calls[0][1]).toMatchObject({
         entry_type: 'income',
       })
+    })
+  })
+
+  describe('category auto-suggest', () => {
+    async function openWithCategories() {
+      vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+      renderCreateDialog()
+      await waitForDescriptionFocus()
+      await waitFor(() => {
+        const select = screen.getByTestId('expense-category-select') as HTMLSelectElement
+        expect(select.querySelectorAll('option').length).toBe(2)
+      })
+    }
+
+    function select(): HTMLSelectElement {
+      return screen.getByTestId('expense-category-select') as HTMLSelectElement
+    }
+
+    async function typeDescriptionAndTab(text: string) {
+      const user = userEvent.setup()
+      await user.click(screen.getByTestId('expense-description-input'))
+      await user.type(screen.getByTestId('expense-description-input'), text)
+      await user.tab()
+      return user
+    }
+
+    it('places Description above Amount and focuses it on open', async () => {
+      await openWithCategories()
+
+      const description = screen.getByTestId('expense-description-input')
+      const amount = screen.getByTestId('expense-amount-input')
+      expect(
+        description.compareDocumentPosition(amount) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      await waitFor(() => expect(description).toHaveFocus())
+    })
+
+    it('applies the suggested category when Description loses focus', async () => {
+      vi.mocked(suggestCategory).mockResolvedValue({
+        category_id: 'cat-2',
+        category_name: 'Transport',
+      })
+      await openWithCategories()
+      expect(select().value).toBe('cat-1')
+
+      await typeDescriptionAndTab('Uber to airport')
+
+      expect(suggestCategory).toHaveBeenCalledWith(
+        FAMILY_ID,
+        'Uber to airport',
+        expect.any(AbortSignal)
+      )
+      await waitFor(() => expect(select().value).toBe('cat-2'))
+    })
+
+    it('replaces the localStorage last-used default', async () => {
+      localStorageMock.setItem('lastUsedCategoryId', 'cat-2')
+      vi.mocked(suggestCategory).mockResolvedValue({
+        category_id: 'cat-1',
+        category_name: 'Groceries',
+      })
+      await openWithCategories()
+      expect(select().value).toBe('cat-2')
+
+      await typeDescriptionAndTab('Safeway run')
+
+      await waitFor(() => expect(select().value).toBe('cat-1'))
+    })
+
+    it('does not ask for descriptions shorter than 3 characters', async () => {
+      await openWithCategories()
+
+      await typeDescriptionAndTab('ab')
+
+      expect(suggestCategory).not.toHaveBeenCalled()
+    })
+
+    it('never overrides a category the user picked by hand', async () => {
+      vi.mocked(suggestCategory).mockResolvedValue({
+        category_id: 'cat-1',
+        category_name: 'Groceries',
+      })
+      await openWithCategories()
+      const user = userEvent.setup()
+      await user.selectOptions(select(), 'cat-2')
+
+      await typeDescriptionAndTab('Trader Joes')
+
+      expect(suggestCategory).not.toHaveBeenCalled()
+      expect(select().value).toBe('cat-2')
+    })
+
+    it('ignores a suggestion that resolves after the user picked a category', async () => {
+      let resolve: (v: { category_id: string; category_name: string }) => void = () => {}
+      vi.mocked(suggestCategory).mockReturnValue(new Promise((r) => (resolve = r)))
+      await openWithCategories()
+
+      const user = await typeDescriptionAndTab('Trader Joes')
+      await user.selectOptions(select(), 'cat-2')
+      resolve({ category_id: 'cat-1', category_name: 'Groceries' })
+
+      await new Promise((r) => setTimeout(r, 0))
+      expect(select().value).toBe('cat-2')
+    })
+
+    it('keeps the default when there is no suggestion or the request fails', async () => {
+      vi.mocked(suggestCategory)
+        .mockResolvedValueOnce(null)
+        .mockRejectedValueOnce(new Error('boom'))
+      await openWithCategories()
+
+      const user = await typeDescriptionAndTab('Mystery thing')
+      await user.click(screen.getByTestId('expense-description-input'))
+      await user.type(screen.getByTestId('expense-description-input'), ' again')
+      await user.tab()
+
+      await waitFor(() => expect(suggestCategory).toHaveBeenCalledTimes(2))
+      expect(select().value).toBe('cat-1')
+    })
+
+    it('aborts a stale request so only the latest suggestion applies', async () => {
+      const resolvers: Array<(v: { category_id: string; category_name: string }) => void> = []
+      const signals: AbortSignal[] = []
+      vi.mocked(suggestCategory).mockImplementation((_f, _d, signal) => {
+        signals.push(signal as AbortSignal)
+        return new Promise((r) => resolvers.push(r))
+      })
+      await openWithCategories()
+
+      const user = await typeDescriptionAndTab('Shell gas')
+      await user.click(screen.getByTestId('expense-description-input'))
+      await user.type(screen.getByTestId('expense-description-input'), ' and snacks at Safeway')
+      await user.tab()
+
+      await waitFor(() => expect(resolvers).toHaveLength(2))
+      expect(signals[0].aborted).toBe(true)
+      resolvers[1]({ category_id: 'cat-1', category_name: 'Groceries' })
+      resolvers[0]({ category_id: 'cat-2', category_name: 'Transport' })
+
+      await new Promise((r) => setTimeout(r, 0))
+      expect(select().value).toBe('cat-1')
+    })
+
+    it('does not suggest for income', async () => {
+      await openWithCategories()
+      const user = userEvent.setup()
+      await user.click(within(screen.getByTestId('entry-type-toggle')).getByText('Income'))
+
+      await typeDescriptionAndTab('Paycheck October')
+
+      expect(suggestCategory).not.toHaveBeenCalled()
     })
   })
 })

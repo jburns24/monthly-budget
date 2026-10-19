@@ -23,6 +23,7 @@ vi.mock('../api/recurring', () => ({
   deleteRecurringExpense: vi.fn(),
 }))
 vi.mock('../api/categories', () => ({
+  suggestCategory: vi.fn(() => Promise.resolve(null)),
   getCategories: vi.fn(() =>
     Promise.resolve([
       { id: 'cat-1', name: 'Housing', icon: '🏠' },
@@ -168,6 +169,9 @@ describe('asset link on the expense and recurring dialogs', () => {
 
   describe('CreateExpenseDialog', () => {
     async function fillAmount() {
+      // The dialog focuses Description 50ms after opening; wait so it cannot
+      // steal focus mid-keystroke.
+      await waitFor(() => expect(screen.getByTestId('expense-description-input')).toHaveFocus())
       await userEvent.type(await screen.findByTestId('expense-amount-input'), '85')
       await waitFor(() => expect(screen.getByTestId('expense-submit-btn')).toBeEnabled())
     }
