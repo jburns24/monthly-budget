@@ -34,7 +34,7 @@ uv run python test-scripts/scan_receipt_probe.py --family-id <uuid> # use one of
 
 Calls `receipt_service.process_upload()` directly — the same function
 `POST /api/families/{family_id}/receipts` calls — so it covers MIME validation,
-EXIF stripping and JPEG re-encoding, disk persistence, the Claude extraction
+EXIF stripping and JPEG re-encoding (images are never persisted), the Claude extraction
 call, category suggestion, and Expense creation. It skips only the HTTP and auth
 layers.
 
@@ -49,11 +49,12 @@ choice to make instead of trivially falling back to the only option. The user an
 family persist between runs; the receipt and expense rows are deleted afterward
 unless you pass `--keep`.
 
-Note that a Phase-2 failure intentionally commits a `status='failed'` receipt and
-keeps the image on disk for the retry endpoint. The script sweeps those too, so
-repeated failed runs don't accumulate.
+Note that a Phase-2 failure intentionally commits a `status='failed'` receipt row
+as an audit trail (the image itself is never stored; the user re-uploads). The
+script sweeps those too, so repeated failed runs don't accumulate.
 
 ### Cost
 
-One receipt is roughly 1,300 visual tokens against `claude-haiku-4-5-20251001`
-($1/M input) — a fraction of a cent per run.
+One receipt is roughly 1,300 visual tokens against `LLM_MODEL` (default
+`anthropic/claude-haiku-5.5`) — a fraction of a cent per run at Haiku-class
+pricing. Check OpenRouter's activity page for the exact charge.

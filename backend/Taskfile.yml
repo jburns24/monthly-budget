@@ -36,6 +36,11 @@ tasks:
       # the cluster and Tilt does not publish it, the helper supplies the port.
       - ../scripts/dev/pg_port_forward.sh uv run pytest {{.CLI_ARGS}}
 
+  api-contract:
+    desc: Regenerate docs/openapi.json and docs/api-contract.md from the FastAPI schema
+    cmds:
+      - uv run python scripts/gen_api_contract.py {{.CLI_ARGS}}
+
   # --- Database ---------------------------------------------------------------
   # Postgres is a StatefulSet in the k3d cluster (namespace monthly-budget) and
   # is not published on a host port, which splits the alembic tasks in two:
