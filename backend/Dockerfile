@@ -63,6 +63,12 @@ COPY entrypoint.sh ./
 # Make entrypoint executable
 RUN chmod +x entrypoint.sh
 
+# Release version reported by GET /api/version. build-push.yaml passes the
+# backend/vX.Y.Z tag's X.Y.Z; local builds report "dev". Declared late so a
+# version bump does not invalidate the cached layers above.
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 # Switch to non-root user
 USER appuser
 

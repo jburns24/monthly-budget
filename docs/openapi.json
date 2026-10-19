@@ -3433,6 +3433,20 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "VersionResponse": {
+        "description": "The backend release version, e.g. ``0.12.0`` (``dev`` outside released images).",
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "VersionResponse",
+        "type": "object"
       }
     }
   },
@@ -7523,6 +7537,28 @@
         "summary": "Update Me",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "description": "Return the release version baked into the image (``APP_VERSION``), or ``dev``.\n\nPublic on purpose: it carries no user data, and the frontend footer shows it.",
+        "operationId": "get_version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Version",
+        "tags": [
+          "meta"
         ]
       }
     },

@@ -152,6 +152,14 @@ class Settings(BaseSettings):
         description="Mock scenario when decision_mock=True (success, low_confidence, api_error)",
     )
 
+    app_version: str = Field(
+        default="dev",
+        description=(
+            "Release version reported by GET /api/version. Baked into the image as APP_VERSION from the "
+            "backend/vX.Y.Z tag by build-push.yaml; 'dev' for local and test runs."
+        ),
+    )
+
     hpi_auto_refresh: bool = Field(
         default=True,
         description=(

@@ -68,6 +68,7 @@ The frontend column is a static scan of `frontend/src/api/*.ts`; it matches path
 | POST | `/api/invites/{invite_id}/respond` | InviteAction | 200 GenericMessage | `api/family.ts` |
 | GET | `/api/me` | — | 200 UserResponse | `api/auth.ts` |
 | PUT | `/api/me` | UserUpdate | 200 UserResponse | `api/auth.ts` |
+| GET | `/api/version` | — | 200 VersionResponse | `api/version.ts` |
 | GET | `/metrics` | — | 200 — | — |
 
 ## Frontend paths with no backend route
