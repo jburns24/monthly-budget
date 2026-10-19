@@ -74,8 +74,8 @@ Traefik ingress controller, and then runs `tilt up`. Tilt applies
 source into the running pods.
 
 Workloads: `postgres`, `redis`, `backend-migrate` (Alembic Job), `backend`,
-`frontend`, plus a `cluster-config` group for the namespace, ConfigMap, Secret,
-ingress, and receipts PVC.
+`frontend`, plus a `cluster-config` group for the namespace, ConfigMap, Secret, and
+ingress.
 
 **Use http://localhost:8080 — that is the app.** It is the Traefik ingress:
 `/api`, `/docs`, `/redoc`, `/openapi.json`, and `/metrics` route to the backend,
