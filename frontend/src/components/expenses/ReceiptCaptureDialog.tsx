@@ -43,6 +43,8 @@ interface State {
   categoryId: string
   /** Empty until the user edits the date; the persisted value is the default. */
   expenseDate: string
+  /** Null until the user edits it; the persisted (extracted) description is the default. */
+  description: string | null
 }
 
 type Action =
@@ -52,6 +54,7 @@ type Action =
   | { type: 'UPLOAD_FAILED' }
   | { type: 'SET_CATEGORY'; categoryId: string }
   | { type: 'SET_DATE'; expenseDate: string }
+  | { type: 'SET_DESCRIPTION'; description: string }
   | { type: 'CONFIRM' }
   | { type: 'RESET' }
 
@@ -62,6 +65,7 @@ const initialState: State = {
   uploadResponse: null,
   categoryId: '',
   expenseDate: '',
+  description: null,
 }
 
 function reducer(state: State, action: Action): State {
@@ -78,6 +82,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, categoryId: action.categoryId }
     case 'SET_DATE':
       return { ...state, expenseDate: action.expenseDate }
+    case 'SET_DESCRIPTION':
+      return { ...state, description: action.description }
     case 'CONFIRM':
       return { ...state, phase: 'done' }
     case 'RESET':
@@ -160,6 +166,11 @@ export default function ReceiptCaptureDialog({
         patch.expense_date = state.expenseDate
         dirty = true
       }
+      if (state.description !== null && state.description.trim() !== expense.description) {
+        patch.description = state.description.trim()
+        dirty = true
+      }
+      // The upload's category came from the decision model; a pick made here wins.
       if (state.categoryId && state.categoryId !== expense.category?.id) {
         patch.category_id = state.categoryId
         dirty = true
@@ -238,6 +249,9 @@ export default function ReceiptCaptureDialog({
   // parsed_date is null when Claude could not read a date; the backend fell back
   // to today, which is what the expense actually holds.
   const effectiveDate = state.expenseDate || expense?.expense_date || receipt?.parsed_date || ''
+  // The extractor's "what was bought and where" line, which the backend already
+  // saved as the expense description and used to pick the category.
+  const effectiveDescription = state.description ?? expense?.description ?? ''
   const fieldsDisabled = expense == null || confirmMutation.isPending
 
   return (
@@ -331,6 +345,20 @@ export default function ReceiptCaptureDialog({
                     Merchant
                   </Text>
                   <Text data-testid="receipt-merchant">{receipt.parsed_merchant ?? '—'}</Text>
+                </Stack>
+                <Stack gap={1}>
+                  <Text fontWeight="medium" fontSize="sm">
+                    Description
+                  </Text>
+                  <Input
+                    value={effectiveDescription}
+                    onChange={(e) =>
+                      dispatch({ type: 'SET_DESCRIPTION', description: e.target.value })
+                    }
+                    maxLength={500}
+                    disabled={fieldsDisabled}
+                    data-testid="receipt-description-input"
+                  />
                 </Stack>
                 <Stack gap={1}>
                   <Text fontWeight="medium" fontSize="sm">

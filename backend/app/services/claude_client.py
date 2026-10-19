@@ -40,18 +40,10 @@ _MAX_TOKENS = 2048
 # out entirely (None); pass a float only for a model that accepts it.
 DEFAULT_TEMPERATURE: float | None = None
 
-# Must stay in lockstep with category_service._DEFAULT_CATEGORIES: the label the
-# model picks is fed to category_suggestion as a pg_trgm probe against the
-# family's own category names, and families start from exactly these six.
-CATEGORY_LABELS = ["Groceries", "Dining", "Transport", "Entertainment", "Bills", "Other"]
-
-_CATEGORY_GUIDE = """\
-  Groceries - supermarkets, food markets, butchers, produce
-  Dining - restaurants, cafes, bars, coffee shops, takeout, delivery
-  Transport - fuel, parking, tolls, transit, rideshare, vehicle service
-  Entertainment - streaming, cinema, games, events, hobbies, books
-  Bills - utilities, phone, internet, insurance, rent, subscriptions, medical
-  Other - anything that does not clearly fit above, including general merchandise and clothing"""
+# Cap on the purchase description the model writes. It becomes the Expense
+# description (String(500)) and the decision model's input (200-char request
+# limit on the suggest endpoint), so keep it to one short line.
+DESCRIPTION_MAX_CHARS = 120
 
 
 def _build_system_prompt(today: date) -> str:
@@ -120,12 +112,15 @@ register or lane identifiers: "WM SUPERCENTER #1234" becomes "Walmart", "SAFEWAY
 0421" becomes "Safeway", "TRADER JOE'S #453" becomes "Trader Joe's". If the merchant is \
 not identifiable, omit the name field entirely.
 
-Phase 5 - Category.
-Choose exactly one label based on what was actually bought, not on the store's official \
-industry - an all-food run at a big-box store is Groceries, an all-clothing one is Other. \
-Use the itemized lines to decide when the store is mixed-use.
-{_CATEGORY_GUIDE}
-For a genuine receipt you cannot classify, use "Other" rather than omitting the field.
+Phase 5 - Description.
+Write one short line, under 100 characters, saying what was bought and where: the kind \
+of purchase, up to three representative items in parentheses, then "at" and the store \
+name from Phase 4. Base it on the itemized lines, not on the store's industry. Examples: \
+"Groceries (milk, eggs, bread) at Safeway", "Dinner for two at Olive Garden", \
+"Gas fill-up at Shell", "Kids' shoes and socks at Target". Leave out prices, totals, \
+dates, card numbers, and loyalty details. If no items are legible, describe the \
+purchase from the store alone ("Purchase at Home Depot"). Do not choose a budget \
+category - that is decided separately from this description.
 
 Phase 6 - Confidence.
 Report one overall confidence, anchored on the total:
@@ -180,10 +175,12 @@ _TOOL_DEFINITION = {
                     "type": ["string", "null"],
                     "description": "Merchant brand name; omit if not identifiable",
                 },
-                "category": {
+                "description": {
                     "type": ["string", "null"],
-                    "enum": [*CATEGORY_LABELS, None],
-                    "description": "Spending category for the purchase; omit if not a receipt",
+                    "description": (
+                        "Short line saying what was bought and where, e.g. "
+                        "'Groceries (milk, eggs, bread) at Safeway'; omit if not a receipt"
+                    ),
                 },
             },
             "required": ["is_receipt", "confidence"],
@@ -209,7 +206,7 @@ def _mock_scenarios() -> dict[str, ExtractedReceipt]:
             total_amount=42.50,
             date=date.today().isoformat(),
             store_name="Test Market",
-            category="Groceries",
+            description="Groceries (milk, eggs, bread) at Test Market",
         ),
         "medium_confidence": ExtractedReceipt(
             is_receipt=True,
@@ -217,7 +214,7 @@ def _mock_scenarios() -> dict[str, ExtractedReceipt]:
             total_amount=42.50,
             date=None,
             store_name="Test Market",
-            category="Groceries",
+            description="Groceries (milk, eggs, bread) at Test Market",
         ),
         "low_confidence": ExtractedReceipt(
             is_receipt=True,
@@ -345,7 +342,7 @@ async def _call_claude(
         has_total=extracted.total_amount is not None,
         has_date=extracted.date is not None,
         has_store=extracted.store_name is not None,
-        category=extracted.category,
+        has_description=extracted.description is not None,
         # Not persisted on the Receipt — it is scaffolding for the model, not
         # data — but it is the only way to tell a misread year from a mis-picked
         # one when a date comes back wrong.

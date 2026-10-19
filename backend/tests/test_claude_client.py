@@ -8,7 +8,7 @@ import pytest
 from openai import APIConnectionError, APIStatusError
 
 from app.schemas.receipt import ExtractedReceipt
-from app.services.claude_client import _MODEL, CATEGORY_LABELS, extract_receipt
+from app.services.claude_client import _MODEL, extract_receipt
 
 _LLM_REQUEST = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
 
@@ -50,7 +50,7 @@ async def test_extract_receipt_success_full_fields() -> None:
         "total": 47.23,
         "date": "2026-03-21",
         "name": "Whole Foods Market",
-        "category": "Groceries",
+        "description": "Groceries (milk, eggs, bread) at Whole Foods Market",
     }
     response = _make_tool_use_response(tool_input)
     client = _make_client(response)
@@ -63,7 +63,7 @@ async def test_extract_receipt_success_full_fields() -> None:
     assert result.total_amount == 47.23
     assert result.date == "2026-03-21"
     assert result.store_name == "Whole Foods Market"
-    assert result.category == "Groceries"
+    assert result.description == "Groceries (milk, eggs, bread) at Whole Foods Market"
 
 
 @pytest.mark.asyncio
@@ -104,7 +104,7 @@ async def test_extract_receipt_coerces_stringified_null_to_none() -> None:
         "total": "null",
         "date": "null",
         "name": "N/A",
-        "category": "",
+        "description": "",
     }
     client = _make_client(_make_tool_use_response(tool_input))
 
@@ -113,7 +113,7 @@ async def test_extract_receipt_coerces_stringified_null_to_none() -> None:
     assert result.total_amount is None
     assert result.date is None
     assert result.store_name is None
-    assert result.category is None
+    assert result.description is None
 
 
 @pytest.mark.asyncio
@@ -125,7 +125,7 @@ async def test_extract_receipt_accepts_real_json_null() -> None:
         "total": None,
         "date": None,
         "name": None,
-        "category": None,
+        "description": None,
     }
     client = _make_client(_make_tool_use_response(tool_input))
 
@@ -144,13 +144,17 @@ async def test_extract_receipt_optional_fields_permit_null_in_schema() -> None:
     await extract_receipt(client, b"fake-image-bytes")
 
     props = client.chat.completions.create.call_args.kwargs["tools"][0]["function"]["parameters"]["properties"]
-    for field in ("total", "date", "name", "category"):
+    for field in ("total", "date", "name", "description"):
         assert "null" in props[field]["type"], f"{field} cannot express 'unreadable'"
 
 
 @pytest.mark.asyncio
-async def test_extract_receipt_tool_schema_uses_wire_names_and_category_enum() -> None:
-    """The tool schema advertises name/total/category, with category constrained."""
+async def test_extract_receipt_tool_schema_asks_for_a_description_not_a_category() -> None:
+    """The tool schema advertises name/total/description and no longer asks for a category.
+
+    Categorization moved to the decision model, which picks from the family's own
+    categories; the extractor only describes what was bought and where.
+    """
     client = _make_client(_make_tool_use_response({"is_receipt": True, "confidence": "high"}))
 
     await extract_receipt(client, b"fake-image-bytes")
@@ -163,11 +167,9 @@ async def test_extract_receipt_tool_schema_uses_wire_names_and_category_enum() -
         "total",
         "date",
         "name",
-        "category",
+        "description",
     }
-    # None is a permitted enum member so a non-receipt can leave the field unset
-    # without violating the schema it was handed.
-    assert props["category"]["enum"] == [*CATEGORY_LABELS, None]
+    assert "category" not in props
 
 
 @pytest.mark.asyncio
@@ -180,10 +182,9 @@ async def test_extract_receipt_system_prompt_is_phased() -> None:
     system = client.chat.completions.create.call_args.kwargs["messages"][0]["content"]
     for phase in ("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"):
         assert phase in system
-    # Every category the schema allows must also be described in the prompt,
-    # or the model is choosing from a list it was never shown.
-    for label in CATEGORY_LABELS:
-        assert label in system
+    # Phase 5 asks for the what-and-where description, with a worked example.
+    assert "Phase 5 - Description." in system
+    assert "Groceries (milk, eggs, bread) at Safeway" in system
 
 
 @pytest.mark.asyncio

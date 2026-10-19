@@ -396,6 +396,31 @@ describe('confirming edits', () => {
     )
   })
 
+  it('shows the extracted description in an editable input', async () => {
+    vi.mocked(getExpense).mockResolvedValue(
+      makeExpense({ description: 'Groceries (milk, eggs) at Safeway' })
+    )
+    await reachLoadedReviewing()
+    expect(screen.getByTestId('receipt-description-input')).toHaveValue(
+      'Groceries (milk, eggs) at Safeway'
+    )
+  })
+
+  it('saves an edited description on Confirm', async () => {
+    vi.mocked(updateExpense).mockResolvedValue(makeExpense())
+    await reachLoadedReviewing()
+    fireEvent.change(screen.getByTestId('receipt-description-input'), {
+      target: { value: '  Weekly shop at Safeway  ' },
+    })
+    await userEvent.click(screen.getByTestId('receipt-confirm-btn'))
+    await waitFor(() =>
+      expect(updateExpense).toHaveBeenCalledWith(FAMILY_ID, 'exp-1', {
+        expected_updated_at: '2026-04-19T10:00:00Z',
+        description: 'Weekly shop at Safeway',
+      })
+    )
+  })
+
   it('skips the update call when nothing was edited', async () => {
     await reachLoadedReviewing()
     await userEvent.click(screen.getByTestId('receipt-confirm-btn'))

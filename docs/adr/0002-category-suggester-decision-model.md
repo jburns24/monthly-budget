@@ -41,6 +41,18 @@ is unavailable, like the receipt limiter.
 user has not changed the category select in this dialog session. A suggestion does replace the
 localStorage last-used default. Edit and income dialogs do not suggest.
 
+**Scanned receipts use the same path.** The receipt extractor (`claude_client`, chat model) no
+longer chooses a category. Its forced tool call returns a short "what was bought and where" line
+(`description`, e.g. "Groceries (milk, eggs, bread) at Safeway", capped at 120 characters). That
+line becomes the Expense description and is passed to `suggest_category`, with the same threshold,
+fallback and timeout. A classifier miss or error never fails the upload: the extraction is kept and
+the expense lands on the first active category with `needs_edit=True`. This replaces the old
+heuristic: trigram on the extractor's fixed six-label category, then the store name, then the most
+used category in 90 days. That heuristic could not use a family's custom categories. The receipt
+call is not counted against the suggest limit. The 50-per-day receipt-upload limit already caps it
+at one decision call per upload, and charging it to the suggest budget would let scanning use up
+the typing budget.
+
 **Privacy / logging.** The description is never logged; logs carry outcome, confidence,
 category id, latency and model.
 

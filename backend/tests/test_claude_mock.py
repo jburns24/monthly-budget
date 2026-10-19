@@ -33,6 +33,7 @@ async def test_mock_success_scenario() -> None:
     # Expense in a month the UI is not showing.
     assert result.date == date.today().isoformat()
     assert result.store_name == "Test Market"
+    assert result.description == "Groceries (milk, eggs, bread) at Test Market"
     client.chat.completions.create.assert_not_called()
 
 

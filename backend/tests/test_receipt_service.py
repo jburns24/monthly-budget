@@ -5,9 +5,9 @@ Covers:
 - Phase 1: storage save failure → 500
 - Phase 2: Claude API error → 503, receipt marked failed, image deleted
 - Phase 2: non-receipt → 422, receipt marked failed, image deleted
-- Phase 3: happy path (high confidence + category) → receipt+expense, needs_edit=False
+- Phase 3: happy path (high confidence; description categorized by the decision model) → receipt+expense, needs_edit=False
 - Phase 3: low confidence → needs_edit=True, expense persists with amount_cents=0
-- Phase 3: no suggestion match → falls back to any active category, needs_edit=True
+- Phase 3: classifier miss or error → falls back to any active category, needs_edit=True
   with the extracted amount preserved
 - Phase 3: family has no active categories → 409, receipt failed, image kept
 - Phase 3: no total amount → needs_edit=True
@@ -36,6 +36,7 @@ from app.models.receipt import Receipt
 from app.models.refresh_token_blacklist import RefreshTokenBlacklist  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.schemas.receipt import ExtractedReceipt
+from app.services import category_classifier
 from app.services.receipt_service import _amount_cents, _parse_expense_date, process_upload
 from tests.conftest import create_test_category, create_test_family, create_test_user
 
@@ -90,7 +91,7 @@ def _extracted(**overrides) -> ExtractedReceipt:
         total_amount=42.50,
         date="2026-03-21",
         store_name="Test Market",
-        category="Groceries",
+        description="Groceries (milk, eggs) at Test Market",
     )
     defaults.update(overrides)
     return ExtractedReceipt(**defaults)
@@ -234,7 +235,7 @@ async def test_success_high_confidence_creates_expense(db_session: AsyncSession,
             AsyncMock(return_value=_extracted()),
         ),
         patch(
-            "app.services.receipt_service.category_suggestion.suggest_for_store",
+            "app.services.receipt_service.category_classifier.suggest_category",
             AsyncMock(return_value=category),
         ),
     ):
@@ -247,27 +248,24 @@ async def test_success_high_confidence_creates_expense(db_session: AsyncSession,
     assert expense is not None
     assert expense.amount_cents == 4250
     assert expense.category_id == category.id
-    assert expense.description == "Test Market"
+    assert expense.description == "Groceries (milk, eggs) at Test Market"
     assert expense.family_id == family.id
     assert needs_edit is False
 
 
 @pytest.mark.asyncio
-async def test_extracted_category_resolves_against_real_categories(db_session: AsyncSession, uow_factory) -> None:
-    """Claude's category label routes the expense without needing a store-name match.
+async def test_description_is_categorized_by_the_decision_model(db_session: AsyncSession, uow_factory) -> None:
+    """The extracted description goes to the classifier; its pick becomes the category.
 
-    suggest_for_store is deliberately *not* patched here: the point is that a real
-    merchant name ("Safeway") trigram-matches no category at all, so before the
-    category hint existed this receipt landed on the arbitrary first_active_category
-    pick and reported needs_edit=True. The label carries it to the right row.
+    ``suggest_category`` is called for real (not patched) in mock mode, with the
+    decision mock answering with the family's first active category at 0.95.
     """
     user = await create_test_user(db_session)
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
-    # Ordered so first_active_category would pick Bills, not Groceries — that way
-    # a passing assertion can only mean the hint matched, not that we got lucky.
-    await create_test_category(db_session, family, name="Bills", sort_order=0)
-    groceries = await create_test_category(db_session, family, name="Groceries", sort_order=1)
+    groceries = await create_test_category(db_session, family, name="Groceries", sort_order=0)
+    await create_test_category(db_session, family, name="Bills", sort_order=1)
+    llm_client = MagicMock()
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -277,16 +275,117 @@ async def test_extracted_category_resolves_against_real_categories(db_session: A
         ),
         patch(
             "app.services.receipt_service.claude_client.extract_receipt",
-            AsyncMock(return_value=_extracted(store_name="Safeway", category="Groceries")),
+            AsyncMock(return_value=_extracted(store_name="Safeway", description="Groceries (milk) at Safeway")),
+        ),
+        patch(
+            "app.services.receipt_service.category_classifier.suggest_category",
+            AsyncMock(side_effect=category_classifier.suggest_category),
+        ) as classify,
+    ):
+        receipt, expense, needs_edit = await process_upload(uow, llm_client, family.id, user.id, FAKE_BYTES)
+
+    classify.assert_awaited_once()
+    assert classify.await_args is not None
+    args = classify.await_args.args
+    assert args[0] is llm_client
+    assert args[2] == family.id
+    assert args[3] == "Groceries (milk) at Safeway"
+    assert expense.category_id == groceries.id
+    assert expense.description == "Groceries (milk) at Safeway"
+    assert needs_edit is False
+    assert receipt.raw_response["description"] == "Groceries (milk) at Safeway"
+    assert "category" not in receipt.raw_response
+
+
+@pytest.mark.asyncio
+async def test_classifier_failure_keeps_extraction_and_flags_review(
+    db_session: AsyncSession, uow_factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A decision-model error still completes the upload, on the fallback category."""
+    monkeypatch.setattr(settings, "decision_mock_scenario", "api_error")
+    user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
+    family, _ = await create_test_family(db_session, user)
+    first = await create_test_category(db_session, family, name="Bills", sort_order=0)
+    await create_test_category(db_session, family, name="Groceries", sort_order=1)
+
+    with (
+        patch("app.services.receipt_service.receipt_storage.validate_mime"),
+        patch(
+            "app.services.receipt_service.receipt_storage.sanitize_image",
+            return_value=(b"sanitized", (100, 100)),
+        ),
+        patch(
+            "app.services.receipt_service.claude_client.extract_receipt",
+            AsyncMock(return_value=_extracted(description="Weekly shop at Test Market")),
         ),
     ):
         receipt, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
 
-    assert expense.category_id == groceries.id
+    assert receipt.status == "completed"
+    assert expense.amount_cents == 4250
+    assert expense.description == "Weekly shop at Test Market"
+    assert expense.category_id == first.id
+    assert needs_edit is True
+
+
+@pytest.mark.asyncio
+async def test_missing_description_falls_back_to_store_name(db_session: AsyncSession, uow_factory) -> None:
+    """With no description, the store name is both the classifier input and the expense text."""
+    user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
+    family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family, name="Dining")
+
+    with (
+        patch("app.services.receipt_service.receipt_storage.validate_mime"),
+        patch(
+            "app.services.receipt_service.receipt_storage.sanitize_image",
+            return_value=(b"sanitized", (100, 100)),
+        ),
+        patch(
+            "app.services.receipt_service.claude_client.extract_receipt",
+            AsyncMock(return_value=_extracted(store_name="Chipotle", description=None)),
+        ),
+        patch(
+            "app.services.receipt_service.category_classifier.suggest_category",
+            AsyncMock(return_value=category),
+        ) as classify,
+    ):
+        _, expense, needs_edit = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
+
+    assert classify.await_args is not None
+    assert classify.await_args.args[3] == "Chipotle"
+    assert expense.description == "Chipotle"
+    assert expense.category_id == category.id
     assert needs_edit is False
-    # The label is persisted for later auditing / prompt tuning.
-    assert receipt.raw_response["category"] == "Groceries"
-    assert receipt.raw_response["store_name"] == "Safeway"
+
+
+@pytest.mark.asyncio
+async def test_long_description_is_truncated(db_session: AsyncSession, uow_factory) -> None:
+    user = await create_test_user(db_session)
+    uow = uow_factory(db_session)
+    family, _ = await create_test_family(db_session, user)
+    category = await create_test_category(db_session, family, name="Other")
+
+    with (
+        patch("app.services.receipt_service.receipt_storage.validate_mime"),
+        patch(
+            "app.services.receipt_service.receipt_storage.sanitize_image",
+            return_value=(b"sanitized", (100, 100)),
+        ),
+        patch(
+            "app.services.receipt_service.claude_client.extract_receipt",
+            AsyncMock(return_value=_extracted(description="x" * 400)),
+        ),
+        patch(
+            "app.services.receipt_service.category_classifier.suggest_category",
+            AsyncMock(return_value=category),
+        ),
+    ):
+        _, expense, _ = await process_upload(uow, MagicMock(), family.id, user.id, FAKE_BYTES)
+
+    assert len(expense.description) == 120
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +411,7 @@ async def test_success_low_confidence_needs_edit_true(db_session: AsyncSession, 
             AsyncMock(return_value=_extracted(confidence="low", total_amount=None, date=None, store_name=None)),
         ),
         patch(
-            "app.services.receipt_service.category_suggestion.suggest_for_store",
+            "app.services.receipt_service.category_classifier.suggest_category",
             AsyncMock(return_value=category),
         ),
     ):
@@ -352,7 +451,7 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
             AsyncMock(return_value=_extracted(confidence="low", total_amount=42.50)),
         ),
         patch(
-            "app.services.receipt_service.category_suggestion.suggest_for_store",
+            "app.services.receipt_service.category_classifier.suggest_category",
             AsyncMock(return_value=category),
         ),
     ):
@@ -367,13 +466,13 @@ async def test_low_confidence_with_valid_total_still_persists_amount_zero(
 
 
 # ---------------------------------------------------------------------------
-# Phase 3: no suggestion match → falls back to any active category
+# Phase 3: classifier miss → falls back to any active category
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_no_suggestion_falls_back_to_first_active_category(db_session: AsyncSession, uow_factory) -> None:
-    """When suggest_for_store finds nothing, the expense still gets created.
+    """When the classifier finds nothing, the expense still gets created.
 
     Regression: previously the expense was silently skipped, so the upload
     returned 201 with nothing in the family's expense list.
@@ -398,7 +497,7 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
             AsyncMock(return_value=_extracted()),
         ),
         patch(
-            "app.services.receipt_service.category_suggestion.suggest_for_store",
+            "app.services.receipt_service.category_classifier.suggest_category",
             AsyncMock(return_value=None),
         ),
     ):
@@ -418,16 +517,16 @@ async def test_no_suggestion_falls_back_to_first_active_category(db_session: Asy
 async def test_low_confidence_no_store_name_still_creates_expense(db_session: AsyncSession, uow_factory) -> None:
     """A low-confidence extraction with no store name still produces an expense.
 
-    Regression: ``suggest_for_store(family, "")`` never matches on similarity, and
-    a family with no expenses in the last 90 days has no usage fallback either —
-    which used to mean the receipt completed with no expense at all.
+    Regression: an extraction with no description or store name gives the
+    classifier nothing to work with, which used to mean the receipt completed
+    with no expense at all. It must still land on the fallback category.
     """
     user = await create_test_user(db_session)
     uow = uow_factory(db_session)
     family, _ = await create_test_family(db_session, user)
     category = await create_test_category(db_session, family, name="Groceries")
 
-    extracted = _extracted(confidence="low", total_amount=None, date=None, store_name=None)
+    extracted = _extracted(confidence="low", total_amount=None, date=None, store_name=None, description=None)
 
     with (
         patch("app.services.receipt_service.receipt_storage.validate_mime"),
@@ -507,7 +606,7 @@ async def test_success_no_total_needs_edit_true(db_session: AsyncSession, uow_fa
             AsyncMock(return_value=_extracted(total_amount=None)),
         ),
         patch(
-            "app.services.receipt_service.category_suggestion.suggest_for_store",
+            "app.services.receipt_service.category_classifier.suggest_category",
             AsyncMock(return_value=category),
         ),
     ):

@@ -59,7 +59,10 @@ class ExtractedReceipt(BaseModel):
     total_amount: NullableFloat = Field(default=None, validation_alias="total")
     date: NullableStr = None
     store_name: NullableStr = Field(default=None, validation_alias="name")
-    category: NullableStr = None
+    # What was bought and where ("Groceries (milk, eggs, bread) at Safeway"). It is
+    # the Expense description and the input the decision model categorizes; the
+    # extractor no longer picks a category itself.
+    description: NullableStr = None
 
 
 class ReceiptResponse(BaseModel):
