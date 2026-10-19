@@ -108,6 +108,13 @@ def _response(op: dict[str, Any]) -> str:
     return "—"
 
 
+def frontend_orphans(schema: dict[str, Any], calls: dict[str, set[str]] | None = None) -> list[str]:
+    """Frontend ``/api`` paths that no (non-dev) backend route serves."""
+    calls = frontend_calls() if calls is None else calls
+    backend_paths = {_normalize(p) for p in schema["paths"]}
+    return sorted(p for p in calls if p not in backend_paths)
+
+
 def render_contract(schema: dict[str, Any]) -> str:
     calls = frontend_calls()
     lines = [
@@ -132,7 +139,7 @@ def render_contract(schema: dict[str, Any]) -> str:
             op = schema["paths"][path].get(method)
             if op:
                 lines.append(f"| {method.upper()} | `{path}` | {_request(op)} | {_response(op)} | {modules} |")
-    orphans = sorted(p for p in calls if p not in backend_paths)
+    orphans = frontend_orphans(schema, calls)
     lines += ["", "## Frontend paths with no backend route", ""]
     if orphans:
         lines += [f"- `{p}` ({', '.join(sorted(calls[p]))})" for p in orphans]

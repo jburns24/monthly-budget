@@ -108,8 +108,9 @@ async def _mark_failed(uow: UnitOfWork, receipt: Receipt, reason: str) -> None:
     Commits the unit of work so the audit row persists even though the caller is
     about to raise an HTTPException (which would otherwise trigger ``get_db``'s
     rollback and wipe both the Phase-1 insert and this status update). The spec
-    requires that the Receipt row is durable with ``status='failed'`` so the
-    retry flow and audit trail can function.
+    requires that the Receipt row is durable with ``status='failed'`` as an audit
+    trail. There is no server-side retry: images are not stored (#18), so the
+    user re-uploads.
 
     This is the only place in the codebase that calls
     ``UnitOfWork.commit`` — the rule everywhere else is that ``get_db``'s
@@ -168,7 +169,7 @@ async def _run_phase3(
         logger.warning("receipt_phase3_no_active_categories", receipt_id=str(receipt.id), family_id=str(family_id))
         raise HTTPException(
             status_code=409,
-            detail="No active categories. Create a category, then retry this receipt.",
+            detail="No active categories. Create a category, then scan the receipt again.",
         )
 
     # first_active is an arbitrary pick, not a classifier match, so the

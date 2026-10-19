@@ -22,6 +22,8 @@ regenerate, then update `frontend/src/types/*` and `frontend/src/api/*` to match
   `client = Depends(get_llm_client)`.
 - Set `response_model` and explicit `status_code` so the generated contract is accurate.
 - Rate-limited routes (`receipts` upload, `categories/suggest`) return 429 with `Retry-After`.
+- Receipts have no retry route: images are not stored (#18), so a failed scan is retried by
+  re-uploading. `tests/test_api_contract.py` fails if `frontend/src/api` calls a path with no route.
 - `dev_auth.py` / `dev_receipts.py` are tagged `dev` and only mounted in development/test;
   they are excluded from the generated contract.
 

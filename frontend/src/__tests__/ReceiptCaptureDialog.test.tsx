@@ -13,7 +13,6 @@ vi.mock('../api/receipts', () => ({
   getReceipts: vi.fn(() => new Promise(() => {})),
   getReceipt: vi.fn(() => new Promise(() => {})),
   deleteReceipt: vi.fn(() => new Promise(() => {})),
-  retryReceipt: vi.fn(() => new Promise(() => {})),
 }))
 
 vi.mock('../api/categories', () => ({
@@ -223,6 +222,27 @@ describe('uploading phase', () => {
       expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
     )
     await waitFor(() => expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument())
+  })
+
+  it('re-uploads the same image when Upload is pressed again after a failure', async () => {
+    // Receipt images are not stored server-side, so retrying a failed scan means
+    // sending the image the dialog still holds, not calling a server retry route.
+    vi.mocked(getCategories).mockResolvedValue(sampleCategories)
+    vi.mocked(uploadReceipt)
+      .mockRejectedValueOnce(new Error('503'))
+      .mockResolvedValueOnce(makeUploadResponse())
+    renderDialog()
+    await reachPreview()
+    await userEvent.click(screen.getByTestId('receipt-upload-btn'))
+    await waitFor(() => expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTestId('receipt-upload-btn'))
+
+    await waitFor(() => expect(screen.getByTestId('receipt-reviewing')).toBeInTheDocument())
+    expect(uploadReceipt).toHaveBeenCalledTimes(2)
+    const [first, second] = vi.mocked(uploadReceipt).mock.calls
+    expect(second[0]).toBe(FAMILY_ID)
+    expect((second[1] as File).name).toBe((first[1] as File).name)
   })
 
   it('maps 422 error to "not a receipt" description', async () => {

@@ -73,4 +73,4 @@ The frontend column is a static scan of `frontend/src/api/*.ts`; it matches path
 
 ## Frontend paths with no backend route
 
-- `/api/families/{}/receipts/{}/retry` (api/receipts.ts)
+None.
