@@ -50,7 +50,7 @@ task be:api-contract  # regenerate docs/api-contract.md + docs/openapi.json
 
 ## CI
 
-`.github/workflows/ci.yml` on PRs to `master`: pre-commit (ruff, mypy, eslint, prettier, `tsc -b`, detect-secrets), backend pytest against Postgres 17 (includes the API-contract staleness check), frontend Vitest. `pr-lint.yaml` checks the title. On push to `master` touching `backend/` or `frontend/`, `semantic-release.yaml` (github-tag-action, per changed component) pushes a tag, and `build-push.yaml` publishes linux/amd64+arm64 images to `ghcr.io/jburns24/monthly-budget/{backend,frontend}`.
+`.github/workflows/ci.yml` on PRs to `master`: pre-commit (ruff, mypy, eslint, prettier, `tsc -b`, detect-secrets), backend pytest against Postgres 17 (includes the API-contract staleness check), frontend Vitest. `pr-lint.yaml` checks the title. On push to `master` touching `backend/` or `frontend/`, `semantic-release.yaml` (github-tag-action, per changed component) pushes a tag, and `build-push.yaml` publishes linux/arm64 images (native `ubuntu-24.04-arm` runner, no QEMU; `workflow_dispatch` with component + version rebuilds an existing tag) to `ghcr.io/jburns24/monthly-budget/{backend,frontend}`.
 
 ## PR rule
 
