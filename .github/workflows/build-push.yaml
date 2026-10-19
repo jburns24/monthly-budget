@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       component: ${{ steps.tag-prefix.outputs.component }}
+      version: ${{ steps.tag-prefix.outputs.version }}
     steps:
       - name: Extract component from tag
         id: tag-prefix
@@ -29,6 +30,8 @@ jobs:
             COMPONENT=${TAG_NAME%%/*}
             echo "Extracted component: $COMPONENT"
             echo "component=$COMPONENT" >> "$GITHUB_OUTPUT"
+            # backend/v0.12.0 -> 0.12.0, baked into the image as its reported version
+            echo "version=${TAG_NAME#*/v}" >> "$GITHUB_OUTPUT"
           else
             echo "ERROR: Tag '$TAG_NAME' does not match expected pattern 'backend/v*.*.*' or 'frontend/v*.*.*'"
             exit 1
@@ -81,3 +84,5 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ needs.extract-component.outputs.component }}
           build-args: |
             VITE_GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+            APP_VERSION=${{ needs.extract-component.outputs.version }}
+            VITE_APP_VERSION=${{ needs.extract-component.outputs.version }}

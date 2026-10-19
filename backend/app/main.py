@@ -27,6 +27,7 @@ from app.routers import (
     receipts,
     recurring_expenses,
     users,
+    version,
 )
 
 # Configure structured logging as early as possible so all startup
@@ -94,6 +95,7 @@ Instrumentator().instrument(app).expose(app)
 
 # Register routers
 app.include_router(health.router)
+app.include_router(version.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(family.router)

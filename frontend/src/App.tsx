@@ -12,6 +12,7 @@ import AssetDetailPage from './pages/AssetDetailPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Header from './components/Header'
 import BottomNavigation from './components/BottomNavigation'
+import AppVersion from './components/AppVersion'
 import { FamilyProvider } from './contexts/FamilyContext'
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -19,6 +20,7 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
     <FamilyProvider>
       <Box minH="calc(100svh - 64px)" pb={{ base: '76px', md: 0 }}>
         {children}
+        <AppVersion />
       </Box>
       <BottomNavigation />
     </FamilyProvider>

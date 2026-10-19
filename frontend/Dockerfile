@@ -22,6 +22,9 @@ RUN npm ci
 # Vite inlines VITE_* vars at build time, so they must be present here
 ARG VITE_GOOGLE_CLIENT_ID
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+# Shown in the app footer; build-push.yaml passes the frontend/vX.Y.Z tag's X.Y.Z.
+ARG VITE_APP_VERSION=dev
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
 COPY . .
 RUN npm run build
 

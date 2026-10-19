@@ -11,6 +11,11 @@ vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
 }))
 
+vi.mock('../api/version', () => ({
+  WEB_VERSION: 'dev',
+  getApiVersion: vi.fn().mockResolvedValue({ version: 'dev' }),
+}))
+
 import { useAuth } from '../hooks/useAuth'
 
 function createWrapper() {
