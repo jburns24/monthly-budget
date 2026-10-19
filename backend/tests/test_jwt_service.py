@@ -18,10 +18,10 @@ def _user() -> MagicMock:
 
 
 def test_settings_jwt_ttl_defaults() -> None:
-    """Unset JWT TTL env vars keep the historical 15-minute / 7-day defaults."""
+    """Unset JWT TTL env vars give a 15-minute access token and a 30-day session."""
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     assert s.jwt_access_token_expire_minutes == 15
-    assert s.jwt_refresh_token_expire_days == 7
+    assert s.jwt_refresh_token_expire_days == 30
 
 
 def test_settings_jwt_ttl_env_overrides() -> None:
@@ -29,10 +29,10 @@ def test_settings_jwt_ttl_env_overrides() -> None:
     s = Settings(
         _env_file=None,  # type: ignore[call-arg]
         jwt_access_token_expire_minutes=60,
-        jwt_refresh_token_expire_days=30,
+        jwt_refresh_token_expire_days=14,
     )
     assert s.jwt_access_token_expire_minutes == 60
-    assert s.jwt_refresh_token_expire_days == 30
+    assert s.jwt_refresh_token_expire_days == 14
 
 
 def test_create_access_token_uses_configured_ttl() -> None:

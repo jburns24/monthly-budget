@@ -35,7 +35,7 @@ Scoped notes for the cookie/JWT auth surface (`auth.py`, `dev_auth.py`,
 | Token | Setting | Env var | Default |
 |---|---|---|---|
 | Access JWT | `jwt_access_token_expire_minutes` | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `15` |
-| Refresh JWT | `jwt_refresh_token_expire_days` | `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | `7` |
+| Refresh JWT | `jwt_refresh_token_expire_days` | `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | `30` |
 
 Defaults live on `Settings` in `app/config.py` and are consumed by
 `jwt_service.create_access_token` / `create_refresh_token`. Prefer changing
@@ -44,7 +44,7 @@ env (or the ConfigMap in an overlay) over hardcoding new constants.
 **Why short access + longer refresh:** access cookies are sent on every `/api/*`
 call; keeping them brief limits the window if one leaks. The refresh cookie is
 path-scoped to `/api/auth` and is only used to mint a new access token, so a
-multi-day lifetime is the real “stay signed in” bound.
+30-day lifetime is the real “stay signed in” bound.
 
 `/api/auth/refresh` issues a new access cookie only — it does **not** rotate or
 extend the refresh token. After the refresh JWT expires, the user must sign in
@@ -66,6 +66,13 @@ the default redirect-on-failed-refresh behavior.
 
 ### Cookies
 
-Auth cookies are HttpOnly, `SameSite=strict`, and (today) have no `max_age`, so
-they are browser session cookies. Closing the browser may clear them even when
-the refresh JWT has not expired. `Secure` is off only in development.
+Auth cookies are HttpOnly, `SameSite=strict`, and persistent: each carries a
+`Max-Age` equal to its JWT lifetime (access 15 min, refresh 30 days), so a
+session survives closing the browser. `Secure` is off only in development.
+The session is an absolute 30 days from sign-in (refresh does not rotate);
+`/api/auth/logout` blacklists the refresh `jti` and clears both cookies.
+
+**Tradeoff:** a stolen refresh cookie is usable for up to 30 days unless the
+user logs out (which revokes it) or `JWT_SECRET` is rotated (which revokes
+everything). Acceptable for a single-household app; shorten
+`JWT_REFRESH_TOKEN_EXPIRE_DAYS` if that changes.

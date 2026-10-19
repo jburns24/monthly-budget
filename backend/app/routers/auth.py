@@ -23,10 +23,22 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 _COOKIE_SECURE = not settings.is_development
 
 
+# Persistent cookies (Max-Age) rather than browser-session cookies, so a signed-in
+# session survives closing the browser. Each cookie lives exactly as long as the
+# JWT inside it; the refresh cookie therefore bounds the whole session.
+def _access_max_age() -> int:
+    return settings.jwt_access_token_expire_minutes * 60
+
+
+def _refresh_max_age() -> int:
+    return settings.jwt_refresh_token_expire_days * 24 * 60 * 60
+
+
 def _set_access_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         key="access_token",
         value=token,
+        max_age=_access_max_age(),
         httponly=True,
         samesite="strict",
         secure=_COOKIE_SECURE,
@@ -38,6 +50,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         key="refresh_token",
         value=token,
+        max_age=_refresh_max_age(),
         httponly=True,
         samesite="strict",
         secure=_COOKIE_SECURE,
