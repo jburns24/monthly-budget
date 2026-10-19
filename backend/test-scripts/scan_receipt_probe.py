@@ -57,14 +57,13 @@ from app.models.family_member import FamilyMember  # noqa: E402
 from app.models.receipt import Receipt  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.services import receipt_service  # noqa: E402
-from app.services.claude_client import CATEGORY_LABELS, DEFAULT_TEMPERATURE  # noqa: E402
+from app.services.category_service import _DEFAULT_CATEGORIES  # noqa: E402
+from app.services.claude_client import DEFAULT_TEMPERATURE  # noqa: E402
 
 PROBE_EMAIL = "receipt-probe@local.test"
-# The labels the extractor is allowed to emit, which are also the names a real
-# family is seeded with. Using anything else here would make the probe's category
-# matching a fiction: the hint would miss and every run would look like a
-# fallback, even when the extraction was perfect.
-PROBE_CATEGORIES = CATEGORY_LABELS
+# The names a real family is seeded with, so the decision model chooses among the
+# same options it would in production.
+PROBE_CATEGORIES = [name for name, _icon, _order in _DEFAULT_CATEGORIES]
 
 
 def money(cents: int | None) -> str:
@@ -183,7 +182,7 @@ async def main() -> int:
 
     effective_model = args.model or settings.llm_model
 
-    def print_summary(name=None, total=None, date_=None, category=None) -> None:
+    def print_summary(name=None, total=None, date_=None, description=None, category=None) -> None:
         """Compact, grep/parse-friendly summary block, printed at the end of every run."""
         rule("Summary")
         print(
@@ -196,6 +195,7 @@ async def main() -> int:
                     "name": name,
                     "total": total,
                     "date": date_,
+                    "description": description,
                     "category": category,
                     "input_tokens": usage.get("input_tokens"),
                     "output_tokens": usage.get("output_tokens"),
@@ -221,6 +221,7 @@ async def main() -> int:
         print(f"  temperature       {effective_temperature}  (production default is {DEFAULT_TEMPERATURE})")
     print(f"  revision          {args.revision or '—'}")
     print(f"  LLM_MOCK          {settings.llm_mock}")
+    print(f"  DECISION_MOCK     {settings.decision_mock}  (category: {settings.decision_model})")
     print(f"  LLM_BASE_URL      {settings.llm_base_url}")
     print(f"  OPENROUTER_API_KEY {key_desc}")
     print(f"  image             {image_path}  ({len(raw):,} bytes)")
@@ -294,9 +295,7 @@ async def main() -> int:
         rule("The Expense the backend created (what lands in the expense list)")
         print(f"  name / merchant   {receipt.parsed_merchant or '—'}")
         print(f"  description       {expense.description}")
-        extracted_category = (receipt.raw_response or {}).get("category")
-        print(f"  extracted label   {extracted_category or '—'}   (what Claude classified it as)")
-        print(f"  category          {category.name if category else '?'}   (id {expense.category_id})")
+        print(f"  category          {category.name if category else '?'}   (id {expense.category_id}; decision model)")
         print(f"  cost              {money(expense.amount_cents)}")
         print(f"  expense_date      {expense.expense_date}   (year_month {expense.year_month})")
         print(f"  needs_edit        {needs_edit}")
@@ -306,9 +305,9 @@ async def main() -> int:
                 cause = "low confidence or no total extracted, so the amount is stored as $0.00"
             else:
                 cause = (
-                    f"neither the extracted label ({extracted_category or 'none'}) nor the store "
-                    "name matched a\n  category, so the expense fell back to an arbitrary active "
-                    "one — the extracted amount is kept as-is"
+                    "the decision model (and its trigram fallback) found no confident category\n  "
+                    "for the description, so the expense fell back to an arbitrary active one — "
+                    "the extracted amount is kept as-is"
                 )
             print(f'\n  \033[33mneeds_edit=True → the UI shows a "Needs review" chip.\n  Cause: {cause}.\033[0m')
 
@@ -330,7 +329,8 @@ async def main() -> int:
             name=receipt.parsed_merchant,
             total=(receipt.parsed_total_cents / 100 if receipt.parsed_total_cents is not None else None),
             date_=str(receipt.parsed_date) if receipt.parsed_date else None,
-            category=extracted_category,
+            description=expense.description,
+            category=category.name if category else None,
         )
 
     await client.close()

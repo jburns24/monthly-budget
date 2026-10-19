@@ -9,10 +9,10 @@ see [ports/AGENTS.md](../ports/AGENTS.md)). Pure math lives in `services/assets/
 | Module | Does |
 |---|---|
 | `category_service`, `expense_service`, `family_service`, `monthly_goal_service`, `recurring_service`, `user_service`, `asset_service` (+ `asset_links`, `asset_analytics`, `assets/`) | CRUD + rules per aggregate |
-| `receipt_service` | Three-phase upload: validate/sanitize image (`receipt_storage`), extract (`claude_client`), create Expense with a category from `category_suggestion`. Images are never persisted |
-| `claude_client` | Receipt extraction via OpenRouter chat completions (`LLM_MODEL`, default `anthropic/claude-haiku-5.5`) with a forced `extract_receipt` tool call; retries on transient errors; `LLM_MOCK` scenarios |
-| `category_suggestion` | Store-name → category: pg_trgm `find_similar_active` (threshold 0.3), then most-used in 90 days |
-| `category_classifier` | Expense description → category via the decision model (below) |
+| `receipt_service` | Three-phase upload: validate/sanitize image (`receipt_storage`), extract (`claude_client`), create the Expense with the extracted description and a category from `category_classifier` (miss or error → first active category + `needs_edit`). Images are never persisted |
+| `claude_client` | Receipt extraction via OpenRouter chat completions (`LLM_MODEL`, default `anthropic/claude-haiku-5.5`) with a forced `extract_receipt` tool call returning total/date/store and a short "what was bought and where" `description` (it does not pick a category); retries on transient errors; `LLM_MOCK` scenarios |
+| `category_suggestion` | Just `SIMILARITY_THRESHOLD` (0.3), the pg_trgm floor for `find_similar_active` |
+| `category_classifier` | Description → category via the decision model (below); the one categorization path for manual entry and scanned receipts |
 | `rate_limiter` | Redis per-family daily counters: receipt uploads (50) and category suggests (500). Fails open on Redis errors |
 | `jwt_service`, `google_oauth`, `grace_period` | Tokens, OAuth exchange, editable-month rule |
 | `hpi_service`, `hpi_fetcher` | Keep the FHFA house price index ≤ 7 days old (background download; off in tests via `HPI_AUTO_REFRESH`) |

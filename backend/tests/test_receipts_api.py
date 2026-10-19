@@ -224,7 +224,7 @@ async def test_upload_success_returns_201(db_session: AsyncSession, authenticate
                 AsyncMock(return_value=_extracted()),
             ),
             patch(
-                "app.services.receipt_service.category_suggestion.suggest_for_store",
+                "app.services.receipt_service.category_classifier.suggest_category",
                 AsyncMock(return_value=category),
             ),
             patch(
@@ -272,7 +272,7 @@ async def test_upload_low_confidence_returns_201_needs_edit(db_session: AsyncSes
                 AsyncMock(return_value=_extracted(confidence="low", total_amount=None, store_name=None, date=None)),
             ),
             patch(
-                "app.services.receipt_service.category_suggestion.suggest_for_store",
+                "app.services.receipt_service.category_classifier.suggest_category",
                 AsyncMock(return_value=category),
             ),
             patch(
@@ -314,7 +314,7 @@ async def test_upload_medium_confidence_returns_201(db_session: AsyncSession, au
                 AsyncMock(return_value=_extracted(confidence="medium", date=None)),
             ),
             patch(
-                "app.services.receipt_service.category_suggestion.suggest_for_store",
+                "app.services.receipt_service.category_classifier.suggest_category",
                 AsyncMock(return_value=category),
             ),
             patch(

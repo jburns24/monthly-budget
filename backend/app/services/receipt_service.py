@@ -3,7 +3,11 @@
 Phase 1 (savepoint): validate MIME, sanitize image, insert
   Receipt(status='processing').
 Phase 2 (non-atomic): call extract_receipt via AsyncOpenAI (OpenRouter).
-Phase 3 (savepoint): update Receipt + create Expense with suggested category.
+Phase 3 (savepoint): update Receipt + create Expense. The extractor writes a short
+  "what was bought and where" description; the category comes from feeding that to
+  the decision-model classifier (category_classifier), the same path manual entry
+  uses. A classifier miss or failure never fails the upload: the expense lands on
+  the first active category with needs_edit=True.
 
 The image itself is never stored — only the extraction result. Any failure marks
 the Receipt 'failed' and the user re-uploads (there is nothing to retry from).
@@ -25,7 +29,7 @@ from app.models.expense import Expense
 from app.models.receipt import Receipt
 from app.ports.unit_of_work import UnitOfWork
 from app.schemas.receipt import ExtractedReceipt
-from app.services import category_suggestion, claude_client, receipt_storage
+from app.services import category_classifier, claude_client, receipt_storage
 
 logger = get_logger(__name__)
 
@@ -123,6 +127,7 @@ async def _mark_failed(uow: UnitOfWork, receipt: Receipt, reason: str) -> None:
 
 async def _run_phase3(
     uow: UnitOfWork,
+    llm_client: AsyncOpenAI,
     receipt: Receipt,
     extracted: ExtractedReceipt,
     family_id: uuid.UUID,
@@ -136,24 +141,24 @@ async def _run_phase3(
     # trustworthy, and it alone decides the amount_cents=0 placeholder below.
     unusable_amount = extracted.confidence == "low" or total_cents is None
     year_month = expense_date.strftime("%Y-%m")
-    description = extracted.store_name or "Unknown merchant"
+    description = (extracted.description or extracted.store_name or "Unknown merchant").strip()
+    description = description[: claude_client.DESCRIPTION_MAX_CHARS]
 
-    # A successfully parsed receipt must always yield an Expense (spec §Unit 3).
-    # suggest_for_store returns None whenever neither name similarity nor recent
-    # usage matches — common for a low-confidence extraction with no store name —
-    # so degrade to any active category rather than completing with no expense.
-    suggested_category = await category_suggestion.suggest_for_store(
-        uow.categories,
-        family_id,
-        extracted.store_name or "",
-        category_hint=extracted.category,
+    # The decision model picks from the family's own categories, so a description
+    # like "Groceries (milk, eggs) at Safeway" lands on "Groceries" even though the
+    # store name alone would never trigram-match it. suggest_category applies the
+    # confidence threshold and trigram fallback itself and never raises.
+    classifier_input = extracted.description or extracted.store_name
+    suggested_category = (
+        await category_classifier.suggest_category(llm_client, uow.categories, family_id, classifier_input)
+        if classifier_input
+        else None
     )
     category_is_fallback = suggested_category is None
     if suggested_category is None:
-        # Last-resort pick, ordered by (sort_order, name). suggest_for_store
-        # deliberately returns None when neither name similarity nor 90-day usage
-        # matches — the right answer to "which category best fits this store?" —
-        # but a receipt upload still has to produce an Expense.
+        # Last-resort pick, ordered by (sort_order, name). A receipt upload still
+        # has to produce an Expense (expenses.category_id is NOT NULL), so park it
+        # on any active category and flag it for review.
         suggested_category = await uow.categories.first_active(family_id)
     if suggested_category is None:
         # expenses.category_id is NOT NULL, so there is nothing to attach the
@@ -166,7 +171,7 @@ async def _run_phase3(
             detail="No active categories. Create a category, then retry this receipt.",
         )
 
-    # first_active is an arbitrary pick, not a match on the store name, so the
+    # first_active is an arbitrary pick, not a classifier match, so the
     # user has to confirm it even when the extraction itself was clean.
     needs_edit = unusable_amount or category_is_fallback
 
@@ -250,9 +255,9 @@ async def process_upload(
     -------
     tuple[Receipt, Expense, bool]
         ``(receipt, expense, needs_edit)`` where ``needs_edit`` is True when
-        Claude had low confidence, could not extract the total, or no category
-        matched the store name (leaving the expense on an arbitrary fallback
-        category the user should confirm). A successful return always carries
+        Claude had low confidence, could not extract the total, or the category
+        classifier found no confident match (leaving the expense on an arbitrary
+        fallback category the user should confirm). A successful return always carries
         an Expense. Note that ``needs_edit`` does not imply ``amount_cents == 0``
         — only the first two causes zero the amount.
 
@@ -341,5 +346,5 @@ async def process_upload(
         has_date=extracted.date is not None,
     )
 
-    expense, needs_edit = await _run_phase3(uow, receipt, extracted, family_id, uploader_id)
+    expense, needs_edit = await _run_phase3(uow, llm_client, receipt, extracted, family_id, uploader_id)
     return receipt, expense, needs_edit
