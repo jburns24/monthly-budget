@@ -55,20 +55,26 @@ def _build_system_prompt(today: date) -> str:
     uvicorn worker would keep telling the model it is still its start-up day.
     """
     return f"""\
-You are a receipt data extractor. Work through the phases below in order, then report \
+You are a receipt and order data extractor. Work through the phases below in order, then report \
 your result by calling the extract_receipt tool exactly once.
 
 Phase 1 - Verify.
-Decide whether the image shows a purchase receipt or invoice. Crumpled, faded, \
-photographed at an angle, and partially cropped receipts all count. Menus, price tags, \
-product photos, shipping labels, and unrelated documents do not. If it is not a receipt, \
-set is_receipt to false and omit every other field - do not guess values off a \
-non-receipt.
+Decide whether the image shows a record of a completed purchase: a paper receipt or \
+invoice, or a screenshot of an online order confirmation, order details page, order \
+history entry, or order e-mail from a store, marketplace, or delivery app (eBay, Amazon, \
+Etsy, Target, and so on). Crumpled, faded, photographed at an angle, and partially cropped \
+receipts all count. So does a screenshot cropped down to just the order panel - an order \
+number, a total, and an item are enough, and the store's name or logo need not appear. \
+Menus, price tags, product pages, shopping carts and checkout pages that have not been \
+placed yet, shipping labels, and unrelated documents do not. If it is not a receipt or \
+completed order, set is_receipt to false and omit every other field - do not guess values \
+off a non-receipt.
 
 Phase 2 - Total.
 Find the total charged for the purchase as a whole, not the customer's out-of-pocket \
-share. Prefer the line labelled TOTAL, AMOUNT DUE, or BALANCE DUE: the figure after tax, \
-after discounts, and after any tip. Payment and tender lines are not the total; when a \
+share. Prefer the line labelled TOTAL, ORDER TOTAL, GRAND TOTAL, AMOUNT DUE, or BALANCE DUE: \
+the figure after tax, shipping, discounts, and any tip. An item price, "Items subtotal", \
+or a shipping or fee line on an online order is not the total. Payment and tender lines are not the total; when a \
 purchase is settled across more than one tender, card, or account, each such line is only \
 a share of it. Only when no total-style line is printed at all may you fall back to a \
 payment line, and then only if a single payment settles the whole purchase. Never report \
@@ -88,7 +94,12 @@ The receipt is likely from this month ({today.strftime("%B %Y")}). Prefer the re
 places the purchase in the current month, or as close to today as possible, without going \
 past today.
 Find the transaction date - the date of purchase, not a "valid until", "printed on", or \
-expiry date. Normalize it to YYYY-MM-DD. To disambiguate a numeric format: a leading \
+expiry date. On an online order, use the "Order placed", "Ordered on", "Placed on", or \
+"Order date" date. Delivery dates are never the purchase date: "Get it", "Arriving", \
+"Delivered", "Estimated delivery", "Ships by", "Pickup ready", and "Return by" all describe \
+the future or the shipment, so ignore them. If an order screenshot prints only such \
+dates, omit the date field. For an order e-mail with no order date, the date the e-mail \
+was sent is acceptable. Normalize it to YYYY-MM-DD. To disambiguate a numeric format: a leading \
 value above 12 is the day; otherwise, if the receipt shows US cues (dollar amounts, a US \
 address, a state abbreviation) read it as MM/DD/YYYY, and read it as DD/MM/YYYY \
 otherwise.
@@ -100,6 +111,8 @@ places the month and day on or before today's date.
 the year digits carefully - confusing this year for last year is the common failure, and \
 a receipt from another month is uncommon here. Prefer the most recent year that keeps the \
 month and day on or before today unless the older year is unmistakably printed.
+Only the printed dates decide the date: a delivery window in the future is not evidence \
+that the purchase is in the future, and it is not evidence of the purchase date either. \
 A purchase cannot have happened in the future. If your reading lands after today's date, \
 you have misread something - re-read the field, and if you still cannot resolve it, omit \
 the date field.
@@ -107,24 +120,41 @@ If no date is legible, omit the date field entirely - do not substitute today's 
 
 Phase 4 - Store name.
 Report the merchant's brand name the way a person would say it, taken from the header, \
-logo, or footer. Strip store numbers, legal suffixes, addresses, phone numbers, and \
+logo, footer, or web address. Strip store numbers, legal suffixes, addresses, phone numbers, and \
 register or lane identifiers: "WM SUPERCENTER #1234" becomes "Walmart", "SAFEWAY STORE \
 0421" becomes "Safeway", "TRADER JOE'S #453" becomes "Trader Joe's". If the merchant is \
 not identifiable, omit the name field entirely.
+For an online order, the merchant is the store or marketplace the customer paid, not a \
+third-party seller on it: an Etsy shop, an eBay seller, or an Amazon "Sold by" name does \
+not replace "Etsy", "eBay", or "Amazon". For a food-delivery order the merchant is the restaurant, never the delivery app: "Chipotle", not "DoorDash". \
+When no logo or store name is visible, do not give up yet: read the order number first. A \
+hyphenated number of two digits, five digits, and five digits (06-15482-40835, \
+27-11034-55126) is always an eBay order number, so report "eBay"; three, seven, and seven \
+digits (112-3456789-0123456) is Amazon. Only if the number matches neither, and nothing \
+else on the page names the store, omit the name. Do not guess from any other format.
 
 Phase 5 - Description.
 Write one short line, under 100 characters, saying what was bought and where: the kind \
 of purchase, up to three representative items in parentheses, then "at" and the store \
-name from Phase 4. Base it on the itemized lines, not on the store's industry. Examples: \
+name from Phase 4. Base it on the itemized lines, not on the store's industry. For an \
+online order, describe each product in everyday words from its title, leading with what \
+it is ("Dog food", "Phone charger", "Christmas ornament set") rather than the full \
+listing title, and keep any condition the listing shows - used, vintage, refurbished, \
+pre-owned - because it matters for budgeting: "Used Shiny Brite glass Christmas \
+ornament set at eBay". More examples: \
 "Groceries (milk, eggs, bread) at Safeway", "Dinner for two at Olive Garden", \
 "Gas fill-up at Shell", "Kids' shoes and socks at Target". Leave out prices, totals, \
 dates, card numbers, and loyalty details. If no items are legible, describe the \
-purchase from the store alone ("Purchase at Home Depot"). Do not choose a budget \
+purchase from the store alone ("Purchase at Home Depot"). Only when the Phase 4 name \
+was omitted, drop "at" and the store and describe just the items ("Used Pyrex mixing \
+bowl set"); when a store name was reported, the description always ends with it. Never \
+write a placeholder such as UNKNOWN, N/A, or null in the description. Do not choose a budget \
 category - that is decided separately from this description.
 
 Phase 6 - Confidence.
 Report one overall confidence, anchored on the total:
-  high - the image is clearly legible and you read the total and date directly off it
+  high - the image is clearly legible and you read the total directly off it, and the \
+date too when one is printed
   medium - you read most fields but at least one required inference or was partly obscured
   low - the image is blurry, cropped, or dark enough that you are unsure of the total
 Confidence is never high unless you read the total straight off a total line. If you \
@@ -134,12 +164,12 @@ Never invent a value to fill a field, and never write the text "null" as a value
 field out is always the correct way to report something you cannot read."""
 
 
-_USER_TEXT_PROMPT = "Extract structured data from this receipt image."
+_USER_TEXT_PROMPT = "Extract structured data from this receipt or order screenshot."
 _TOOL_DEFINITION = {
     "type": "function",
     "function": {
         "name": "extract_receipt",
-        "description": "Extract structured data from a receipt image",
+        "description": "Extract structured data from a receipt or online order image",
         "parameters": {
             "type": "object",
             "properties": {
@@ -366,7 +396,7 @@ async def extract_receipt(
     temperature: float | None = DEFAULT_TEMPERATURE,
     usage_callback: Callable[[CompletionUsage], None] | None = None,
 ) -> ExtractedReceipt:
-    """Call Claude to extract structured data from a receipt image.
+    """Call Claude to extract structured data from a receipt or online-order image.
 
     When settings.llm_mock is True, returns a deterministic response
     for the scenario in settings.llm_mock_scenario without calling the API.

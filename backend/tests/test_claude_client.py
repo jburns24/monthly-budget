@@ -242,6 +242,25 @@ def test_system_prompt_biases_years_toward_today() -> None:
     assert "re-read the year" in system
 
 
+def test_system_prompt_understands_online_order_screenshots() -> None:
+    """Online-order screenshots (eBay, Amazon, Etsy, ...) are receipts, not rejects.
+
+    Guards the behaviors hill-climbed with test-scripts/receipt_eval: a cropped order
+    panel with no store name still counts, delivery estimates are never the purchase
+    date, and the merchant can be inferred from the order-number format.
+    """
+    from datetime import date
+
+    from app.services.claude_client import _build_system_prompt
+
+    system = _build_system_prompt(date(2026, 7, 26))
+    assert "online order confirmation" in system
+    assert "shopping carts" in system
+    assert "Delivery dates are never the purchase date" in system
+    assert "06-15482-40835" in system
+    assert "never the delivery app" in system
+
+
 @pytest.mark.asyncio
 async def test_extract_receipt_uses_correct_model_and_tool() -> None:
     """extract_receipt sends the expected model, tool name, and tool_choice."""
@@ -445,7 +464,7 @@ async def test_extract_receipt_builds_correct_request() -> None:
 
     Messages are [system, user]; user content is exactly [image_block, text_block]:
       - image_block: {"type": "image_url", "image_url": {"url": "data:<media_type>;base64,<b64>"}}
-      - text_block:  {"type": "text", "text": "Extract structured data from this receipt image."}
+      - text_block:  {"type": "text", "text": "Extract structured data from this receipt or order screenshot."}
     """
     import base64
     from datetime import date
@@ -482,7 +501,7 @@ async def test_extract_receipt_builds_correct_request() -> None:
         "image_url": {"url": f"data:image/jpeg;base64,{expected_b64}"},
     }
     assert text_block == {"type": "text", "text": _USER_TEXT_PROMPT}
-    assert text_block["text"] == "Extract structured data from this receipt image."
+    assert text_block["text"] == "Extract structured data from this receipt or order screenshot."
 
 
 @pytest.mark.asyncio

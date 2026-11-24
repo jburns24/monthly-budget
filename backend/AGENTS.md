@@ -11,6 +11,7 @@ uv run pytest tests/unit                                      # in-memory adapte
 uv run ruff check . && uv run ruff format .                   # lint + format (line length 120)
 uv run python scripts/gen_api_contract.py                     # regenerate docs/api-contract.md + docs/openapi.json (task be:api-contract)
 uv run python test-scripts/scan_receipt_probe.py              # LIVE OpenRouter receipt probe (see test-scripts/README.md)
+uv run python test-scripts/receipt_eval/receipt_eval.py IMAGE    # LIVE extraction eval, no DB; --suite hill-climbs the prompt (see test-scripts/receipt_eval/README.md)
 ```
 
 Postgres is in the k3d cluster and unpublished; `pg_port_forward.sh` gives host commands `localhost:5432` (it silently reuses any existing listener — beware a local Postgres). Migrations: see [alembic/AGENTS.md](alembic/AGENTS.md).
