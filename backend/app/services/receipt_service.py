@@ -336,7 +336,7 @@ async def process_upload(
         logger.info("receipt_not_a_receipt", receipt_id=str(receipt.id))
         raise HTTPException(
             status_code=422,
-            detail="This doesn't appear to be a receipt. Please try again or enter manually.",
+            detail="This doesn't appear to be a receipt or order confirmation. Please try again or enter manually.",
         )
 
     logger.info(

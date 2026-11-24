@@ -155,13 +155,13 @@ describe('idle phase', () => {
   it('shows dropzone with instructions', async () => {
     renderDialog()
     await waitFor(() => expect(screen.getByTestId('receipt-dropzone')).toBeInTheDocument())
-    expect(screen.getByText(/drag & drop a receipt image/i)).toBeInTheDocument()
+    expect(screen.getByText(/drag & drop a receipt photo or order screenshot/i)).toBeInTheDocument()
   })
 
-  it('file input has capture="environment"', async () => {
+  it('file input has no capture attribute so phones can pick screenshots from the photo library', async () => {
     renderDialog()
     await waitFor(() => expect(screen.getByTestId('receipt-file-input')).toBeInTheDocument())
-    expect(screen.getByTestId('receipt-file-input')).toHaveAttribute('capture', 'environment')
+    expect(screen.getByTestId('receipt-file-input')).not.toHaveAttribute('capture')
   })
 
   it('shows Cancel button', async () => {

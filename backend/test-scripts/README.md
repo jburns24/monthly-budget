@@ -4,6 +4,12 @@ Manual probes for exercising backend code paths that the automated test suite
 deliberately mocks. These are **not** collected by pytest (`testpaths = ["tests"]`)
 and are not run in CI — they are developer tools you invoke by hand.
 
+## receipt_eval/
+
+Database-free eval and hill-climbing harness for the receipt and online-order
+screenshot extraction prompt. One image: `uv run python test-scripts/receipt_eval/receipt_eval.py shot.png`.
+See [receipt_eval/README.md](receipt_eval/README.md).
+
 ## scan_receipt_probe.py
 
 Runs a receipt image through the real receipt-scanning pipeline, **including a

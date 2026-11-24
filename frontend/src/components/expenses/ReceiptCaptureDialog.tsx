@@ -96,7 +96,7 @@ function reducer(state: State, action: Action): State {
 
 const ERROR_MESSAGES: Record<string, string> = {
   '409': 'Create a category before scanning receipts.',
-  '422': "That doesn't look like a receipt. Try another image.",
+  '422': "That doesn't look like a receipt or order confirmation. Try another image.",
   '429': 'Daily upload limit reached.',
   '503': 'Receipt service unavailable. Try again or enter manually.',
   '413': 'Image too large (max 5MB).',
@@ -279,12 +279,13 @@ export default function ReceiptCaptureDialog({
                 cursor="pointer"
                 data-testid="receipt-dropzone"
               >
-                <input
-                  {...getInputProps()}
-                  capture="environment"
-                  data-testid="receipt-file-input"
-                />
-                <Text color="gray.500">Drag & drop a receipt image, or click to select</Text>
+                {/* No `capture` attribute: it makes phones open the camera and hide the
+                    photo library, which is where order-page screenshots live. The default
+                    picker still offers "Take Photo" for paper receipts. */}
+                <input {...getInputProps()} data-testid="receipt-file-input" />
+                <Text color="gray.500">
+                  Drag & drop a receipt photo or order screenshot, or click to select
+                </Text>
                 <Text fontSize="xs" color="gray.400" mt={2}>
                   JPEG, PNG, WebP, or HEIC — max 5MB
                 </Text>
@@ -381,7 +382,7 @@ export default function ReceiptCaptureDialog({
                   />
                   {receipt.parsed_date == null && (
                     <Text fontSize="xs" color="gray.500" data-testid="receipt-date-hint">
-                      No date found on the receipt — defaulted to today.
+                      No purchase date found — defaulted to today.
                     </Text>
                   )}
                 </Stack>
