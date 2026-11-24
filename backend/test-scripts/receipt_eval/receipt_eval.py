@@ -33,7 +33,7 @@ import sys
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from types import SimpleNamespace
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 BACKEND_ROOT = HERE.parents[1]
@@ -43,10 +43,11 @@ import structlog  # noqa: E402
 from openai import AsyncOpenAI  # noqa: E402
 
 from app.config import settings  # noqa: E402
+from app.models.category import Category  # noqa: E402
 from app.services import category_classifier, claude_client, receipt_service, receipt_storage  # noqa: E402
 from app.services.category_service import _DEFAULT_CATEGORIES  # noqa: E402
 
-CATEGORIES = [SimpleNamespace(name=name) for name, _icon, _order in _DEFAULT_CATEGORIES]
+CATEGORIES = [Category(name=name) for name, _icon, _order in _DEFAULT_CATEGORIES]
 DEFAULT_CASES = HERE / "cases.json"
 
 
@@ -62,8 +63,8 @@ def pin_today(today: date) -> None:
         def today(cls):  # noqa: D401
             return today
 
-    claude_client.date = _Pinned  # type: ignore[attr-defined]
-    receipt_service.date = _Pinned  # type: ignore[attr-defined]
+    setattr(claude_client, "date", _Pinned)
+    setattr(receipt_service, "date", _Pinned)
 
 
 def prompt_hash() -> str:
@@ -242,7 +243,7 @@ async def main() -> int:
                 res = await run_one(client, path, not args.no_classify)
             except Exception as exc:  # noqa: BLE001
                 return {"id": cid, "run": n, "error": f"{type(exc).__name__}: {str(exc)[:200]}", "verdict": "FAIL"}
-        entry = {"id": cid, "run": n, "result": res}
+        entry: dict[str, Any] = {"id": cid, "run": n, "result": res}
         if expect:
             entry["checks"] = score(res, expect)
             entry["verdict"] = case_verdict(entry["checks"])
